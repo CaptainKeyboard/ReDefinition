@@ -107,7 +107,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 if (float.IsNaN(pair.Value)) ResetKey(pair.Key);
                 else SetKey(pair.Key, pair.Value);
             }
-            // The solo picture is the cloud pass alone: no precipitation of the weather's (its veil and rain are not the clouds).
+            // The solo picture is the cloud pass alone: no precipitation of the weather's (its extinction and rain are not the clouds).
             store.SetSetting(AtmospheresSettings.Keys.ForceLevel, s.On ? 0.0 : settingsAtOpen[AtmospheresSettings.Keys.ForceLevel]);
             store.SetSetting(AtmospheresSettings.Keys.ForceType, s.On ? (double)(int)ForceType.Auto : settingsAtOpen[AtmospheresSettings.Keys.ForceType]);
             CloudBridgeLights.RequestHistoryReset("cloud viewer solo");

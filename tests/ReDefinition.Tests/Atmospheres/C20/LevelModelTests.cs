@@ -66,12 +66,12 @@ namespace ReDefinition.Tests.Atmospheres.C20
             }
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(60f, top.VisibilityM, 1e-3f);
-            Assert.AreEqual(0.85f, top.VeilAlpha, 1e-4f);
+            Assert.AreEqual(0.85f, top.PrecipExtinctionAlpha, 1e-4f);
             Assert.AreEqual(2400f, top.FlakesPerS, 1e-2f);
             LookValues none = PrecipitationLook.Evaluate(0f);
             Assert.AreEqual(1f, none.SunDirect, 1e-5f);
             Assert.AreEqual(1f, none.AmbientFactor, 1e-5f);
-            Assert.AreEqual(0f, none.VeilAlpha, 1e-5f);
+            Assert.AreEqual(0f, none.PrecipExtinctionAlpha, 1e-5f);
         }
 
         [TestMethod]

@@ -29,10 +29,10 @@ namespace ReDefinition.Atmospheres
         public float SplashMax, SplashRangeM, SplashMaxGroundM;
         // The factor on the flake colour in Host mode.
         public float HostFlakeGain;
-        // The veil colour: the lowest luminance relative colour, and the time the luminance of the image is smoothed over.
-        public float VeilLumaFloor, LumaTauS;
-        // The share of the image luminance the veil takes (before fogBrightness).
-        public float VeilLumaGain;
+        // The extinction colour: the lowest luminance relative colour, and the time the luminance of the image is smoothed over.
+        public float ExtinctionLumaFloor, LumaTauS;
+        // The share of the image luminance the extinction takes (before fogBrightness).
+        public float ExtinctionLumaGain;
 
         internal static PrecipTuning Defaults()
         {
@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
             {
                 MaxPerLayer = 8000f, Fill = 0.35f, FloorPx = PrecipMath.SizeFloorPx1080, SceneMinContrast = 0.45f, HostMinContrast = 0.85f,
                 EdgeShare = 0.12f, GustScale = 1f, FogHz = 3f, FogGustAmp = 0.1f, FogGustPeriodS = 6f, MaxTotal = 20000f, SplashMax = 1500f,
-                SplashRangeM = 40f, SplashMaxGroundM = 200f, HostFlakeGain = 1f, VeilLumaFloor = 0.02f, LumaTauS = 0.5f, VeilLumaGain = 1f
+                SplashRangeM = 40f, SplashMaxGroundM = 200f, HostFlakeGain = 1f, ExtinctionLumaFloor = 0.02f, LumaTauS = 0.5f, ExtinctionLumaGain = 1f
             };
         }
     }
@@ -61,8 +61,8 @@ namespace ReDefinition.Atmospheres
         public float FlakeFallMs, FlakeBrightness;
         public int Seed;
         public FlakeLayer Near, Mid, Far;
-        public float VeilGroundAlpha, VeilSkyAlpha;
-        public Color VeilGroundColour, VeilSkyColour;
+        public float ExtinctionGroundAlpha, ExtinctionSkyAlpha;
+        public Color ExtinctionGroundColour, ExtinctionSkyColour;
         public float SkyGreyStart, SkyGreyFull;
         // The player's settings.
         public float Density;
@@ -96,7 +96,7 @@ namespace ReDefinition.Atmospheres
         // The velocity of the particles in the box frame (east, up, north), m/s: fall is negative up.
         public float VelE, VelU, VelN;
         public float GustFactor, GustDirDeg;
-        public float VeilGround, VeilSky;
+        public float ExtinctionGround, ExtinctionSky;
         public float SplashCount;
         public float Colour0, Colour1, Colour2, Light;
         public int TotalCount;
@@ -191,10 +191,10 @@ namespace ReDefinition.Atmospheres
             Advance(state, 1, ref frame.Mid, ref frame, dt);
             Advance(state, 2, ref frame.Far, ref frame, dt);
 
-            // The veil: only where the view's table gives one; the gust adds to it.
-            float gustVeil = PrecipMath.GustVeilAlpha(state.GustFactor);
-            frame.VeilGround = input.VeilGroundAlpha > 0f ? Math.Min(input.VeilGroundAlpha + gustVeil, 0.97f) : 0f;
-            frame.VeilSky = input.VeilSkyAlpha > 0f ? Math.Min(Math.Max(input.VeilSkyAlpha + gustVeil, frame.VeilGround), 0.97f) : 0f;
+            // The extinction: only where the view's table gives one; the gust adds to it.
+            float gustExtinction = PrecipMath.GustExtinctionAlpha(state.GustFactor);
+            frame.ExtinctionGround = input.ExtinctionGroundAlpha > 0f ? Math.Min(input.ExtinctionGroundAlpha + gustExtinction, 0.97f) : 0f;
+            frame.ExtinctionSky = input.ExtinctionSkyAlpha > 0f ? Math.Min(Math.Max(input.ExtinctionSkyAlpha + gustExtinction, frame.ExtinctionGround), 0.97f) : 0f;
 
             // Splashes: drops that reach the ground, when the ground is near.
             bool splashes = look.Splash > 0f && input.GroundDistM > 0f && input.GroundDistM < tuning.SplashMaxGroundM;

@@ -28,12 +28,12 @@ namespace ReDefinition.Atmospheres
         internal const float KoschmiederNumerator = 3.912f;
 
         // What a gust may change, and how fast. Gust factor: 25 % of the factor a second; direction: at most 12 degrees off the wind,
-        // turning 30 degrees a second; the veil gains 0.03 per 0.1 of gust; the fog density moves at most 12 % with a period of 3
+        // turning 30 degrees a second; the extinction gains 0.03 per 0.1 of gust; the fog density moves at most 12 % with a period of 3
         // seconds or longer.
         internal const float GustSlewPerS = 0.25f;
         internal const float GustDirectionMaxDeg = 12f;
         internal const float GustDirectionRateDegPerS = 30f;
-        internal const float VeilAlphaPerGust = 0.3f;
+        internal const float ExtinctionAlphaPerGust = 0.3f;
         internal const float FogAmplitudeMax = 0.12f;
         internal const float FogPeriodMinS = 3f;
 
@@ -161,7 +161,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The alpha one of two cross-fading layers draws with so that the two together cover `alpha`: 1 - (1 - alpha) ^ weight.
-        internal static float VeilShare(float alpha, float weight)
+        internal static float ExtinctionShare(float alpha, float weight)
         {
             if (!(alpha > 0f) || !(weight > 0f)) return 0f;
             if (weight >= 1f) return alpha;
@@ -212,10 +212,10 @@ namespace ReDefinition.Atmospheres
             return (noise01 * 2f - 1f) * GustDirectionMaxDeg;
         }
 
-        // The veil alpha a gust adds: 0.03 per 0.1 of gust (the gust being the factor's excess over 1; a lull adds nothing).
-        internal static float GustVeilAlpha(float gustFactor)
+        // The extinction alpha a gust adds: 0.03 per 0.1 of gust (the gust being the factor's excess over 1; a lull adds nothing).
+        internal static float GustExtinctionAlpha(float gustFactor)
         {
-            return Math.Max(gustFactor - 1f, 0f) * VeilAlphaPerGust;
+            return Math.Max(gustFactor - 1f, 0f) * ExtinctionAlphaPerGust;
         }
 
         // The fog density factor at a time: 1 + amplitude x sin(2 pi t / period), the amplitude at most 12 % and the period at least 3

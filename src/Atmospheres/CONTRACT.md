@@ -254,7 +254,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `precipMethane` | on | on / off | Draw Methane | needs-precipitation | - |
 | `stormCullDistance` | off | on / off | Cull Distant Terrain In Storms | needs-weather-effects | precipitation |
 | `fogBrightness` | 1 | 0.25 to 2 | Fog Brightness | needs-weather-effects | - |
-| `veilStrength` | 0.85 | 0 to 0.95 | Veil Strength | needs-weather-effects | - |
+| `precipExtinctionStrength` | 0.85 | 0 to 0.95 | Precipitation Extinction | needs-weather-effects | - |
 | `blizzardVisibilityM` | 60 | 20 to 500 | Blizzard Visibility | needs-weather-effects | - |
 | `skyDimming` | 0.6 | 0 to 1 | Sky Darkening | needs-weather-effects | - |
 
@@ -370,7 +370,7 @@ The mod is unreleased, so no old name is kept: not as a key, not as a C# alias (
 | `stormFrequency` | rename | `heavyShare` (`lightWeatherFrequency` is new) |
 | `stormSeed` | rename | `genSeed` |
 | `stormVisibility` | rename | `blizzardVisibilityM` |
-| `stormVeil` | rename | `veilStrength` |
+| `stormVeil` | rename | `precipExtinctionStrength` |
 | `stormSnowfall` | delete | `precipDensity` at 0, and the per-type switches |
 | `stormSkyDarkening` | rename | `skyDimming` |
 | `stormEveSnow` | delete | `cloudSource` and `useEveWeather` |
@@ -411,7 +411,7 @@ Medium on the A4500 or the 3070: about 22 ms per frame with raytracing Full, 15.
 | Fog, ambient and sun writer | C22, C20 | about 0 | under 0.05 ms | - | 0 | - |
 | Own volume slab, half resolution | C21 | 0.56 at 1707x960, 1.28 at 2560x1440 | 20 to 40 us per cell | window resample | 15 to 30 MB | 3D window about 2 MB |
 | Curtain | C21 | 0.02 to 0.70 | as above | - | with the slab | - |
-| Veil and particles, host composite | C22 | under 0.5 | about 0 | - | small | - |
+| Precipitation extinction and particles, host composite | C22 | under 0.5 | about 0 | - | small | - |
 | EVE particle field in `Eve` mode | EVE (accepted) | constant vertex cost of 400k to 600k particles | - | - | EVE | - |
 | Map painter | C23 | at most 0.3 per update (every 1 to 2 s) | swap and upload at most 0.1 ms | readback mirror | 2 to 4 MB plus mirror | mirror 0.5 MB |
 | Simulation | C25 | - | swap at most 0.05 ms | amortised at most 0.5 ms per frame | - | at most 30 MB per copy, at most 4 copies (about 120 MB) |

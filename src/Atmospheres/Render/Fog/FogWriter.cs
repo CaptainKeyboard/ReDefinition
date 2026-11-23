@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
     // while the fog is still the one this writer wrote. Another writer's change is counted (ExternalWrites) and logged once.
     //
     // The assumption that TUFX's post-processing leaves RenderSettings.fog visibly applied is not verified [VERIFY via RECON P7]: where
-    // the fog does not show, the veil carries the look of the weather.
+    // the fog does not show, the precipitation extinction carries the look of the weather.
     //
     // Motion vectors, depth, masks: none (a global state). Frame generation: part of the colour, interpolated. Raytracing: the fog
     // density is also read from the view by the raytracing side. Exposure: scene units.

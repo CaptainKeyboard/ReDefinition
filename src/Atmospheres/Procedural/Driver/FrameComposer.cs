@@ -35,15 +35,15 @@ namespace ReDefinition.Atmospheres
         // The vertical optical depth of the cloud over the camera (the field's, or the host's WeatherHooks.CloudOpticalDepth).
         public float OpticalDepth;
         // The colours of the body's look (linear).
-        public Color FogColour, VeilGroundColour, VeilSkyColour;
+        public Color FogColour, PrecipExtinctionGroundColour, PrecipExtinctionSkyColour;
         // Whether the shower pulse is on; whether the freezing-rain flag is allowed.
         public bool ShowerPulse;
         public bool FreezingRain;
         // A level that replaces the field's (diagnostics), or a negative number for none.
         public float LevelOverride;
-        // The player's scales of the 1.0 column (settings veilStrength / 0.85, blizzardVisibilityM / 60, skyDimming / 0.6); 1 is the
+        // The player's scales of the 1.0 column (settings extinctionStrength / 0.85, blizzardVisibilityM / 60, skyDimming / 0.6); 1 is the
         // table as it stands.
-        public float VeilScale, VisibilityTopScale, DarkeningScale;
+        public float PrecipExtinctionScale, VisibilityTopScale, DarkeningScale;
         // Setting typeByTemperature: false takes the fractions the field gives instead of the temperature.
         public bool TypeByTemperature;
 
@@ -51,7 +51,7 @@ namespace ReDefinition.Atmospheres
         public static DriverInput Neutral()
         {
             var input = new DriverInput();
-            input.VeilScale = 1f;
+            input.PrecipExtinctionScale = 1f;
             input.VisibilityTopScale = 1f;
             input.DarkeningScale = 1f;
             input.TypeByTemperature = true;
@@ -59,8 +59,8 @@ namespace ReDefinition.Atmospheres
             input.BodyName = "";
             input.CloudLayerName = "";
             input.FogColour = new Color(0.78f, 0.80f, 0.84f, 1f);
-            input.VeilGroundColour = new Color(0.86f, 0.88f, 0.92f, 1f);
-            input.VeilSkyColour = new Color(0.70f, 0.73f, 0.78f, 1f);
+            input.PrecipExtinctionGroundColour = new Color(0.86f, 0.88f, 0.92f, 1f);
+            input.PrecipExtinctionSkyColour = new Color(0.70f, 0.73f, 0.78f, 1f);
             input.CentreC = PrecipTypeModel.DefaultCentreC;
             input.WidthC = PrecipTypeModel.DefaultWidthC;
             return input;
@@ -73,7 +73,7 @@ namespace ReDefinition.Atmospheres
     //
     // Order of a frame: the field level at the camera times the height fade (full to FadeStartM, gone from FadeEndM above sea level) is the
     // target; the level follows it at most 1/90 per game second (Level, the number the forecast and the cover would read); the shower
-    // pulse multiplies it for the picture only (DisplayLevel); the look table gives visibility, flakes, veil, light and sound; the type
+    // pulse multiplies it for the picture only (DisplayLevel); the look table gives visibility, flakes, extinction, light and sound; the type
     // comes from the field's temperature; sun transmission is SunTransmission.From of the optical depth and the sun's elevation.
     // Stale reads: a reader in Update sees the previous frame's view; a view older than two frames is "no weather" (WeatherView.IsStale).
     internal sealed class FrameComposer
@@ -168,10 +168,10 @@ namespace ReDefinition.Atmospheres
             displayLevel = level * pulse;
 
             LookValues look = PrecipitationLook.Evaluate(displayLevel);
-            // The player's scales: the visibility at the top of the scale (weighted by the level squared), the veil, the darkening.
+            // The player's scales: the visibility at the top of the scale (weighted by the level squared), the extinction, the darkening.
             if (input.VisibilityTopScale > 0f && input.VisibilityTopScale != 1f)
                 look.VisibilityM *= (float)Math.Pow(input.VisibilityTopScale, displayLevel * displayLevel);
-            look.VeilAlpha = Math.Min(look.VeilAlpha * input.VeilScale, 0.95f);
+            look.PrecipExtinctionAlpha = Math.Min(look.PrecipExtinctionAlpha * input.PrecipExtinctionScale, 0.95f);
             look.SkyGreyShare = Clamp01(look.SkyGreyShare * input.DarkeningScale);
             look.AmbientFactor = Math.Max(0f, 1f - (1f - look.AmbientFactor) * input.DarkeningScale);
             Look = look;
@@ -259,12 +259,12 @@ namespace ReDefinition.Atmospheres
             moved |= Set(ref view.WindWorld.z, windWorld.z);
             moved |= Set(ref view.GustPhase, WindNoise.Phase01(input.Ut, input.CameraBodyPos, dir, input.Seed));
 
-            float veil = falling ? look.VeilAlpha : 0f;
-            float skyVeilGain = Tuning.Get("driver.skyVeilGain", 1.1f);
-            moved |= Set(ref view.VeilGroundAlpha, veil);
-            moved |= Set(ref view.VeilSkyAlpha, falling ? Math.Max(veil, Math.Min(veil * skyVeilGain, 0.97f)) : 0f);
-            moved |= SetColour(ref view.VeilGroundColour, Scaled(input.VeilGroundColour, brightness));
-            moved |= SetColour(ref view.VeilSkyColour, Scaled(input.VeilSkyColour, brightness));
+            float extinction = falling ? look.PrecipExtinctionAlpha : 0f;
+            float skyExtinctionGain = Tuning.Get("driver.skyExtinctionGain", 1.1f);
+            moved |= Set(ref view.PrecipExtinctionGroundAlpha, extinction);
+            moved |= Set(ref view.PrecipExtinctionSkyAlpha, falling ? Math.Max(extinction, Math.Min(extinction * skyExtinctionGain, 0.97f)) : 0f);
+            moved |= SetColour(ref view.PrecipExtinctionGroundColour, Scaled(input.PrecipExtinctionGroundColour, brightness));
+            moved |= SetColour(ref view.PrecipExtinctionSkyColour, Scaled(input.PrecipExtinctionSkyColour, brightness));
             moved |= Set(ref view.SkyGreyStart, Tuning.Get("driver.skyGreyStartDeg", 0f));
             moved |= Set(ref view.SkyGreyFull, Tuning.Get("driver.skyGreyFullDeg", 23.6f));
 

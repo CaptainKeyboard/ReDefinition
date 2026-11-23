@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
     //   Host   after the upscaler through ReDefinition.Api with the host's render-size depth. It is NOT selectable until the exposure
     //          rule below exists: the composite needs Tuning flag lamp.hostAllowed (default false; the series probe sets it for its own
     //          Host measurement, E40 sets it together with lamp.hostProven.<vendor> once the exposure factor is in). The colour is
-    //          scaled by lamp.hostGain; the luminance-relative exposure rule of the veil (scale by the same factor as the veil) is not
+    //          scaled by lamp.hostGain; the luminance-relative exposure rule of the precipitation extinction (scale by the same factor as it) is not
     //          applied here [VERIFY: needs the image-luminance capture of PrecipPass, which is not a shared service]. weatherCompose
     //          Host and Auto therefore both give Scene today.
     //

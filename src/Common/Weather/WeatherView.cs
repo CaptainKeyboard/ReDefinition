@@ -17,7 +17,7 @@ namespace ReDefinition.Core
         public float Opacity;
     }
 
-    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the fog, the light, the veil, the
+    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the fog, the light, the precipitation extinction, the
     // flakes and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
     // added later leaves older readers working.
     //
@@ -68,10 +68,10 @@ namespace ReDefinition.Core
         public float GustPhase;
 
         // --- The look the host draws ---
-        public float VeilGroundAlpha;
-        public float VeilSkyAlpha;
-        public Color VeilGroundColour = Color.white;
-        public Color VeilSkyColour = Color.white;
+        public float PrecipExtinctionGroundAlpha;
+        public float PrecipExtinctionSkyAlpha;
+        public Color PrecipExtinctionGroundColour = Color.white;
+        public Color PrecipExtinctionSkyColour = Color.white;
         // The sun elevation range, in degrees, over which the overhead sky goes from clear to grey.
         public float SkyGreyStart;
         public float SkyGreyFull;
@@ -131,8 +131,8 @@ namespace ReDefinition.Core
             CloudCoverAlongSun = 0f;
             WindWorld = Vector3.zero;
             GustPhase = 0f;
-            VeilGroundAlpha = 0f;
-            VeilSkyAlpha = 0f;
+            PrecipExtinctionGroundAlpha = 0f;
+            PrecipExtinctionSkyAlpha = 0f;
             FlakeRatePerS = 0f;
             FlakeFallMS = 0f;
             ForecastHorizonS = 0.0;

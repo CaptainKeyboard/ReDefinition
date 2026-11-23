@@ -70,7 +70,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
             Settle(composer, view, 1f, 250f, ref frame, ref ut);
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(top.VisibilityM, view.VisibilityM, 1f);
-            Assert.AreEqual(top.VeilAlpha, view.VeilGroundAlpha, 1e-4f);
+            Assert.AreEqual(top.PrecipExtinctionAlpha, view.PrecipExtinctionGroundAlpha, 1e-4f);
             Assert.AreEqual(top.FlakesPerS, view.FlakeRatePerS, 1f);
             Assert.AreEqual(top.AmbientFactor, view.AmbientFactor, 1e-4f);
             Assert.AreEqual(PrecipitationLook.FogDensity(top.VisibilityM), view.FogDensity, 1e-5f);

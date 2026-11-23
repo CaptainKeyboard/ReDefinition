@@ -22,7 +22,7 @@ namespace ReDefinition.Atmospheres
             return "weather " + PrecipScale.DefaultName(view.Band) + " " + view.Type + ": level " + view.Level.ToString("0.00", Culture)
                    + " (field " + level.ToString("0.00", Culture) + "), snow/sleet/rain " + mix.Snow.ToString("0.00", Culture) + "/"
                    + mix.Sleet.ToString("0.00", Culture) + "/" + mix.Rain.ToString("0.00", Culture)
-                   + ", visibility " + view.VisibilityM.ToString("0", Culture) + " m, veil " + view.VeilGroundAlpha.ToString("0.00", Culture)
+                   + ", visibility " + view.VisibilityM.ToString("0", Culture) + " m, precipitation extinction " + view.PrecipExtinctionGroundAlpha.ToString("0.00", Culture)
                    + ", flakes " + view.FlakeRatePerS.ToString("0", Culture) + "/s, sun transmission " + view.SunTransmission.ToString("0.00", Culture)
                    + ", sun factor " + light.SunFactor.ToString("0.00", Culture) + ", ambient factor " + view.AmbientFactor.ToString("0.00", Culture);
         }

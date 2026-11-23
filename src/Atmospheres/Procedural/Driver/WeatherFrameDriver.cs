@@ -15,11 +15,11 @@ namespace ReDefinition.Atmospheres
         private readonly FrameComposer composer = new FrameComposer();
         private readonly LightWriter light = new LightWriter();
 
-        // The start parameter -atmoNoPrecipVeil: this run draws no precipitation veil (owner 2026-11-23: the cloud tests need a free view; the veil stays on in every run
+        // The start parameter -atmoNoPrecipExtinction: this run draws no precipitation extinction (owner 2026-11-23: the cloud tests need a free view; the extinction stays on in every run
         // without it, as the weather fog with -atmoNoWeatherFog). Read once: the command line does not change while the game runs.
-        internal const string NoVeilArgument = "-atmoNoPrecipVeil";
-        internal static readonly bool NoVeilByArgument = CommandLine.Has(NoVeilArgument, true);
-        private bool loggedNoVeil;
+        internal const string NoPrecipExtinctionArgument = "-atmoNoPrecipExtinction";
+        internal static readonly bool NoPrecipExtinctionByArgument = CommandLine.Has(NoPrecipExtinctionArgument, true);
+        private bool loggedNoPrecipExtinction;
         private bool broken;
         private int bodyIndex = -1;
         private double lastUt = double.NaN;
@@ -136,17 +136,17 @@ namespace ReDefinition.Atmospheres
             input.CloudLayerName = CloudMapsState.LayerName;
             input.OpticalDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
             input.FogColour = climate.Look.FogColour;
-            input.VeilGroundColour = climate.Look.VeilGroundColour;
-            input.VeilSkyColour = climate.Look.VeilSkyColour;
+            input.PrecipExtinctionGroundColour = climate.Look.PrecipExtinctionGroundColour;
+            input.PrecipExtinctionSkyColour = climate.Look.PrecipExtinctionSkyColour;
             input.ShowerPulse = Tuning.Flag("driver.showerPulse", true);
             input.FreezingRain = Tuning.Flag("driver.freezingRain", false);
             float forced = AtmospheresSettings.ForceLevel;
             input.LevelOverride = forced >= 0f ? forced : -1f;
-            input.VeilScale = NoVeilByArgument ? 0f : AtmospheresSettings.VeilStrength / 0.85f;
-            if (NoVeilByArgument && !loggedNoVeil)
+            input.PrecipExtinctionScale = NoPrecipExtinctionByArgument ? 0f : AtmospheresSettings.PrecipExtinctionStrength / 0.85f;
+            if (NoPrecipExtinctionByArgument && !loggedNoPrecipExtinction)
             {
-                loggedNoVeil = true;
-                AtmospheresLog.Say("precipitation veil: off for this run (start parameter " + NoVeilArgument + ")");
+                loggedNoPrecipExtinction = true;
+                AtmospheresLog.Say("precipitation extinction: off for this run (start parameter " + NoPrecipExtinctionArgument + ")");
             }
             input.VisibilityTopScale = AtmospheresSettings.BlizzardVisibilityM / 60f;
             input.DarkeningScale = AtmospheresSettings.SkyDimming / 0.6f;

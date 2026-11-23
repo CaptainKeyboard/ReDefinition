@@ -2,15 +2,15 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // Which of the two ways of composing the veil and the flakes draws now, and how a change between them is blended. Pure: the
+    // Which of the two ways of composing the extinction and the flakes draws now, and how a change between them is blended. Pure: the
     // renderer gives it the setting and what the host answers each frame.
     //
     // Host draws after the upscaler through the main mod's hook, with the render-size depth; Scene draws in the scene before the
     // upscaler. Auto takes Host only for a vendor/upscaler pair whose player metrics are recorded (PrecipTuning key
     // precip.hostProven.<vendor>.<upscaler>) and where the hook answers; every other pair, and every game without the main mod, gets Scene.
     // When the host hook disappears (the main mod is gone, or the hook threw and was dropped) Scene takes over within FadeSeconds.
-    // A change of mode, by the setting or by a lost hook, cross-fades: the two modes' veils are composed so that their combined
-    // coverage is the one value the view asks for at every moment (no double veil, no dip).
+    // A change of mode, by the setting or by a lost hook, cross-fades: the two modes' extinctions are composed so that their combined
+    // coverage is the one value the view asks for at every moment (no double extinction, no dip).
     internal sealed class PrecipCompose
     {
         // The time a change of mode takes, in seconds.
@@ -83,9 +83,9 @@ namespace ReDefinition.Atmospheres
         }
 
         // The alpha one of two cross-fading layers draws with so that the two together cover `alpha`: 1 - (1 - alpha) ^ weight.
-        internal static float VeilShare(float alpha, float weight)
+        internal static float ExtinctionShare(float alpha, float weight)
         {
-            return PrecipMath.VeilShare(alpha, weight);
+            return PrecipMath.ExtinctionShare(alpha, weight);
         }
 
         private static float Toward(float v, float target, float step)

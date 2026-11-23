@@ -79,7 +79,7 @@ namespace ReDefinition.Atmospheres
         internal static bool PrecipMethane => B(Keys.PrecipMethane);
         internal static bool StormCullDistance => B(Keys.StormCullDistance);
         internal static float FogBrightness => F(Keys.FogBrightness);
-        internal static float VeilStrength => F(Keys.VeilStrength);
+        internal static float PrecipExtinctionStrength => F(Keys.PrecipExtinctionStrength);
         internal static float BlizzardVisibilityM => F(Keys.BlizzardVisibilityM);
         internal static float SkyDimming => F(Keys.SkyDimming);
 

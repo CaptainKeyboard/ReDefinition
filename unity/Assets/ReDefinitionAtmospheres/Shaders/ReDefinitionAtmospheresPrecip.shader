@@ -1,7 +1,7 @@
-// The precipitation renderer's shader: the veil, the flakes, the splashes and the two small passes that read the image's luminance.
+// The precipitation renderer's shader: the extinction, the flakes, the splashes and the two small passes that read the image's luminance.
 // One look implementation for both ways of composing: Scene draws it in the scene before the upscaler (hardware depth test,
 // _PrecipDepthTexel.w = 0), Host draws it after the upscaler (depth from the host's render-size copy, nearest of 3x3 taps). Only the
-// depth test and the colour mode of the veil differ.
+// depth test and the colour mode of the extinction differ.
 //
 // Flakes are procedural instanced billboards: a flake needs no buffer, its place comes from a hash of its instance number and the
 // seed (the same hash as PrecipMath.Hash in the mod), in a box centred on the camera that wraps. Nothing is random per frame.
@@ -53,12 +53,12 @@ Shader "ReDefinition/AtmospheresPrecip"
     float4 _PrecipLook;
 
     // x = ground alpha, y = sky alpha, z = sin(sky grey start), w = sin(sky grey full).
-    float4 _PrecipVeilA;
-    float4 _PrecipVeilGround;
-    float4 _PrecipVeilSky;
-    // x = storm grade share, y = lowest luminance of a luminance relative veil, z = 1 where the veil colour is relative to the image,
+    float4 _PrecipExtinctionA;
+    float4 _PrecipExtinctionGround;
+    float4 _PrecipExtinctionSky;
+    // x = storm grade share, y = lowest luminance of a luminance relative extinction, z = 1 where the extinction colour is relative to the image,
     // w = gain on the image luminance.
-    float4 _PrecipVeilGrade;
+    float4 _PrecipExtinctionGrade;
 
     // x = ground distance below the camera, y = range (half width) of the splash field, z = ring size, w = rings per second.
     float4 _PrecipSplash;
@@ -155,12 +155,12 @@ Shader "ReDefinition/AtmospheresPrecip"
         Cull Off
         ZWrite Off
 
-        // 0: the veil. A full-screen triangle, alpha by the elevation of the ray: the ground alpha toward the horizon and below, the
+        // 0: the extinction. A full-screen triangle, alpha by the elevation of the ray: the ground alpha toward the horizon and below, the
         // sky alpha toward the zenith. No depth. The storm grade (grey, cool, flat) is the blend itself plus a desaturation of the colour
-        // by the veil's alpha, so no volume of the post-processing is edited.
+        // by the extinction's alpha, so no volume of the post-processing is edited.
         Pass
         {
-            Name "Veil"
+            Name "Extinction"
             ZTest Always
             Blend SrcAlpha OneMinusSrcAlpha
 
@@ -191,17 +191,17 @@ Shader "ReDefinition/AtmospheresPrecip"
                 float3 dirView = float3(i.ndc.x / P[0][0], i.ndc.y / P[1][1], -1);
                 float3 dirWorld = mul(transpose((float3x3)V), dirView);
                 float sinEl = dot(normalize(dirWorld), _PrecipAxisU.xyz);
-                float share = smoothstep(_PrecipVeilA.z, _PrecipVeilA.w, sinEl);
-                float alpha = lerp(_PrecipVeilA.x, _PrecipVeilA.y, share) * _PrecipColour.a;
-                float3 colour = lerp(_PrecipVeilGround.rgb, _PrecipVeilSky.rgb, share);
-                if (_PrecipVeilGrade.z > 0.5)
+                float share = smoothstep(_PrecipExtinctionA.z, _PrecipExtinctionA.w, sinEl);
+                float alpha = lerp(_PrecipExtinctionA.x, _PrecipExtinctionA.y, share) * _PrecipColour.a;
+                float3 colour = lerp(_PrecipExtinctionGround.rgb, _PrecipExtinctionSky.rgb, share);
+                if (_PrecipExtinctionGrade.z > 0.5)
                 {
-                    // Relative to the image: the hue of the veil colour at the luminance of the picture (smoothed on the CPU side of
+                    // Relative to the image: the hue of the extinction colour at the luminance of the picture (smoothed on the CPU side of
                     // the capture), because the exposure was applied before the upscaler and a colour in scene units would be wrong.
-                    float luma = tex2Dlod(_PrecipLuma, float4(0.5, 0.5, 0, 0)).r * _PrecipVeilGrade.w;
-                    colour = colour / max(Luma(colour), 1e-3) * max(luma, _PrecipVeilGrade.y);
+                    float luma = tex2Dlod(_PrecipLuma, float4(0.5, 0.5, 0, 0)).r * _PrecipExtinctionGrade.w;
+                    colour = colour / max(Luma(colour), 1e-3) * max(luma, _PrecipExtinctionGrade.y);
                 }
-                float grade = _PrecipVeilGrade.x * saturate(alpha);
+                float grade = _PrecipExtinctionGrade.x * saturate(alpha);
                 float l = Luma(colour);
                 colour = lerp(colour, float3(l, l, l), grade) * lerp(float3(1, 1, 1), float3(0.93, 0.98, 1.05), grade);
                 return float4(colour, saturate(alpha));

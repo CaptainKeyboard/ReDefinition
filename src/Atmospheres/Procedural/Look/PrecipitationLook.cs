@@ -16,8 +16,8 @@ namespace ReDefinition.Atmospheres
         public float FallFactor;
         // The mean wind in m/s before the gusts.
         public float WindMs;
-        // The alpha of the veil toward the ground (the table value; DrawGate decides only whether our curtain is drawn).
-        public float VeilAlpha;
+        // The alpha of the extinction toward the ground (the table value; DrawGate decides only whether our curtain is drawn).
+        public float PrecipExtinctionAlpha;
         // How dark the base of the cloud is, 0 (grey deck) to 1 (darkest).
         public float CloudBaseDarkness;
         // The factor on the sun's direct light, 1 in clear air.
@@ -36,15 +36,15 @@ namespace ReDefinition.Atmospheres
         public float ShadowStrength;
     }
 
-    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the veil, the flakes, the light and
-    // the sound, so every effect reads the same scale. The 1.0 column (60 m, veil 0.85, 2400 flakes per second) holds the values of the
+    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the extinction, the flakes, the light and
+    // the sound, so every effect reads the same scale. The 1.0 column (60 m, extinction 0.85, 2400 flakes per second) holds the values of the
     // accepted storm; every key point is a tuning value (Tuning.Get "look.<curve>.<level>"), not a gate. Pure, no allocation per call.
     internal static class PrecipitationLook
     {
         // The visibility with no precipitation, in metres: where the fog fades out.
         internal const float ClearVisibilityM = 20000f;
 
-        // The curtain is drawn from this level up (our veil and volume), with a hysteresis of CurtainHysteresis below it.
+        // The curtain is drawn from this level up (our extinction and volume), with a hysteresis of CurtainHysteresis below it.
         internal const float CurtainOn = 0.45f, CurtainOff = 0.40f;
         // The curtain gate S = smoothstep(CurtainS0, CurtainS1, level).
         internal const float CurtainS0 = 0.45f, CurtainS1 = 0.9f;
@@ -54,7 +54,7 @@ namespace ReDefinition.Atmospheres
         // The names of the curves; the key of a key point is "look.<name>.<level>".
         internal static readonly string[] CurveNames =
         {
-            "visibility", "flakes", "flakeSize", "fall", "wind", "veil", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
+            "visibility", "flakes", "flakeSize", "fall", "wind", "extinction", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
             "lampSigma", "shadow"
         };
 
@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
         private static long builtFor = -1;
         private static readonly object Gate = new object();
 
-        private const int Visibility = 0, Flakes = 1, FlakeSize = 2, Fall = 3, Wind = 4, Veil = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
+        private const int Visibility = 0, Flakes = 1, FlakeSize = 2, Fall = 3, Wind = 4, Extinction = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
             Sound = 10, Accumulation = 11, LampSigma = 12, Shadow = 13;
 
         // The look at a level (clamped to 0 to 1). The curves are rebuilt when the tuning table changed.
@@ -97,7 +97,7 @@ namespace ReDefinition.Atmospheres
             v.FlakeSizeFactor = c[FlakeSize].Evaluate(p);
             v.FallFactor = c[Fall].Evaluate(p);
             v.WindMs = c[Wind].Evaluate(p);
-            v.VeilAlpha = c[Veil].Evaluate(p);
+            v.PrecipExtinctionAlpha = c[Extinction].Evaluate(p);
             v.CloudBaseDarkness = c[CloudDark].Evaluate(p);
             v.SunDirect = c[Sun].Evaluate(p);
             v.AmbientFactor = c[Ambient].Evaluate(p);

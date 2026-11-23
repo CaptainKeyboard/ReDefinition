@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests.Atmospheres.C22
 {
-    // The frame the renderer computes from a view: what draws, how many, which way things fall and drift, the veil and the type table.
+    // The frame the renderer computes from a view: what draws, how many, which way things fall and drift, the extinction and the type table.
     [TestClass]
     public class PrecipFrameTests
     {
@@ -28,10 +28,10 @@ namespace ReDefinition.Tests.Atmospheres.C22
                 Near = new FlakeLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
                 Mid = new FlakeLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
                 Far = new FlakeLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
-                VeilGroundAlpha = level > 0.4f ? (level - 0.4f) : 0f,
-                VeilSkyAlpha = level > 0.4f ? (level - 0.4f) * 1.1f : 0f,
-                VeilGroundColour = new Color(0.8f, 0.8f, 0.85f, 1f),
-                VeilSkyColour = new Color(0.6f, 0.62f, 0.66f, 1f),
+                ExtinctionGroundAlpha = level > 0.4f ? (level - 0.4f) : 0f,
+                ExtinctionSkyAlpha = level > 0.4f ? (level - 0.4f) * 1.1f : 0f,
+                ExtinctionGroundColour = new Color(0.8f, 0.8f, 0.85f, 1f),
+                ExtinctionSkyColour = new Color(0.6f, 0.62f, 0.66f, 1f),
                 SkyGreyStart = 0f,
                 SkyGreyFull = 30f,
                 Density = 1f,
@@ -149,18 +149,18 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheVeilFollowsTheViewAndAGustAddsToIt()
+        public void TheExtinctionFollowsTheViewAndAGustAddsToIt()
         {
             PrecipInput clear = Input(PrecipType.Snow, 0.3f);
-            Assert.AreEqual(0f, Settle(clear, new PrecipState()).VeilGround, "no veil where the table gives none");
-            PrecipInput veil = Input(PrecipType.Snow, 0.8f);
-            PrecipFrame calm = Settle(veil, new PrecipState());
-            Assert.AreEqual(0.4f, calm.VeilGround, 1e-4f, "a calm gust adds nothing");
-            veil.GustNoise = 1f;
-            PrecipFrame gust = Settle(veil, new PrecipState(), 300);
-            Assert.IsTrue(gust.VeilGround > calm.VeilGround, "a gust raises the veil");
-            Assert.IsTrue(gust.VeilGround <= 0.97f);
-            Assert.IsTrue(gust.VeilSky >= gust.VeilGround);
+            Assert.AreEqual(0f, Settle(clear, new PrecipState()).ExtinctionGround, "no extinction where the table gives none");
+            PrecipInput extinction = Input(PrecipType.Snow, 0.8f);
+            PrecipFrame calm = Settle(extinction, new PrecipState());
+            Assert.AreEqual(0.4f, calm.ExtinctionGround, 1e-4f, "a calm gust adds nothing");
+            extinction.GustNoise = 1f;
+            PrecipFrame gust = Settle(extinction, new PrecipState(), 300);
+            Assert.IsTrue(gust.ExtinctionGround > calm.ExtinctionGround, "a gust raises the extinction");
+            Assert.IsTrue(gust.ExtinctionGround <= 0.97f);
+            Assert.IsTrue(gust.ExtinctionSky >= gust.ExtinctionGround);
         }
 
         [TestMethod]
@@ -271,7 +271,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void ALiveSwitchOfTheModeNeverDoublesTheVeil()
+        public void ALiveSwitchOfTheModeNeverDoublesTheExtinction()
         {
             var c = new PrecipCompose();
             c.Step(WeatherCompose.Scene, true, true, 1f / 60f);
@@ -279,14 +279,14 @@ namespace ReDefinition.Tests.Atmospheres.C22
             {
                 c.Step(WeatherCompose.Host, true, true, 1f / 60f);
                 const float alpha = 0.7f;
-                float a = PrecipCompose.VeilShare(alpha, c.HostWeight), b = PrecipCompose.VeilShare(alpha, c.SceneWeight);
+                float a = PrecipCompose.ExtinctionShare(alpha, c.HostWeight), b = PrecipCompose.ExtinctionShare(alpha, c.SceneWeight);
                 float coverage = 1f - (1f - a) * (1f - b);
                 Assert.AreEqual(alpha, coverage, 1e-4f, "frame " + i + " covers " + coverage);
             }
             Assert.AreEqual(1f, c.HostWeight);
             Assert.AreEqual(0f, c.SceneWeight);
-            Assert.AreEqual(0.7f, PrecipCompose.VeilShare(0.7f, 1f));
-            Assert.AreEqual(0f, PrecipCompose.VeilShare(0.7f, 0f));
+            Assert.AreEqual(0.7f, PrecipCompose.ExtinctionShare(0.7f, 1f));
+            Assert.AreEqual(0f, PrecipCompose.ExtinctionShare(0.7f, 0f));
         }
 
         [TestMethod]

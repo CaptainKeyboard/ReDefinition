@@ -88,13 +88,13 @@ namespace ReDefinition.Atmospheres
     {
         internal static readonly LookRules Default = new LookRules();
 
-        internal LookRules(Color? fogColour = null, float visibilityMinM = 60f, Color? veilGroundColour = null, Color? veilSkyColour = null,
+        internal LookRules(Color? fogColour = null, float visibilityMinM = 60f, Color? precipExtinctionGroundColour = null, Color? precipExtinctionSkyColour = null,
             Color? flakeColour = null)
         {
             FogColour = fogColour ?? new Color(0.78f, 0.80f, 0.84f, 1f);
             VisibilityMinM = visibilityMinM;
-            VeilGroundColour = veilGroundColour ?? new Color(0.86f, 0.88f, 0.92f, 1f);
-            VeilSkyColour = veilSkyColour ?? new Color(0.70f, 0.73f, 0.78f, 1f);
+            PrecipExtinctionGroundColour = precipExtinctionGroundColour ?? new Color(0.86f, 0.88f, 0.92f, 1f);
+            PrecipExtinctionSkyColour = precipExtinctionSkyColour ?? new Color(0.70f, 0.73f, 0.78f, 1f);
             FlakeColour = flakeColour ?? Color.white;
         }
 
@@ -102,8 +102,8 @@ namespace ReDefinition.Atmospheres
         internal Color FogColour { get; }
         // Key visibilityMin: the visibility at the top of the scale, in metres.
         internal float VisibilityMinM { get; }
-        internal Color VeilGroundColour { get; }
-        internal Color VeilSkyColour { get; }
+        internal Color PrecipExtinctionGroundColour { get; }
+        internal Color PrecipExtinctionSkyColour { get; }
         internal Color FlakeColour { get; }
     }
 

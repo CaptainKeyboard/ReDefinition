@@ -183,8 +183,8 @@ namespace ReDefinition.Tests.Atmospheres.C22
             Assert.AreEqual(12f / 30f, t, 0.03f);
             // The short way round 360.
             Assert.AreEqual(365f, PrecipMath.SlewAngle(355f, 5f, 1000f, 1f), 1e-3f, "the short way from 355 to 5 is across 360");
-            Assert.AreEqual(0.03f, PrecipMath.GustVeilAlpha(1.1f), 1e-5f, "0.03 of veil per 0.1 of gust");
-            Assert.AreEqual(0f, PrecipMath.GustVeilAlpha(0.8f), "a lull adds nothing");
+            Assert.AreEqual(0.03f, PrecipMath.GustExtinctionAlpha(1.1f), 1e-5f, "0.03 of extinction per 0.1 of gust");
+            Assert.AreEqual(0f, PrecipMath.GustExtinctionAlpha(0.8f), "a lull adds nothing");
         }
 
         [TestMethod]

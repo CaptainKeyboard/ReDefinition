@@ -5,7 +5,7 @@
 Stage "scene" runs the player's scene precip-check, which draws the renderer's own pass (PrecipPass and its shader, the classes the mod
 uses) and judges itself: per type the luminance shift sign, the changed pixels, the fall direction and the drift with a wind; nothing
 drawn below level 0.04; Host against Scene mean luminance within 5 % at levels 0.3, 0.6 and 1.0; and a 0.5 / 0.5 cross-fade covering the
-veil as one veil.
+extinction as one extinction.
 
 Open, not part of this series (owner E40, K-W1 proxy run): the upscaler rows of the brief (DLSS K/M/L, FSR 3, XeSS at levels 0.3/0.6/1.0,
 trail pixels at 0.3 <= 1.5 x the level-1.0 baseline, ground-edge sharpness within 5 %, flake smear, 10 s fly-by), the host composite cost
