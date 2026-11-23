@@ -46,6 +46,13 @@ namespace ReDefinition.Atmospheres
         internal const double CalAMin = 0.25, CalAMax = 4.55, CalNoiseAmp = 0.5, CalPatchRad = 0.2, CalIceK = 263.15;
         internal const uint CalSeed = 0x5EEDC10Du;
 
+        // The deck's base from the weather field (owner 2026-11-23 "Ja, Feld-Basis", after "Warum sind die Regenwolken so niedrig?"): 1 lifts the rain and snow deck's types to the
+        // field's cloud base (DeckRoots; the fog type stays on the ground), 0 the deck at its cfg type shares (about 170 m at KSC where the field says 899 m). Off until the owner
+        // has seen the pictures of both on the same pinned sky.
+        internal const string TuneDeckBase = "cloud.weatherMapSky.deckBase";
+        internal const float DeckBaseDefault = 0f;
+        internal static bool DeckBase { get { return Tuning.Get(TuneDeckBase, DeckBaseDefault) > 0.5f; } }
+
         internal static int SheetRule { get { return (int)Math.Round(Tuning.Get(TuneSheetRule, SheetRuleDefault)); } }
         internal static int DepthRule { get { return (int)Math.Round(Tuning.Get(TuneDepthRule, DepthRuleDefault)); } }
 
@@ -356,6 +363,36 @@ namespace ReDefinition.Atmospheres
             var r = new float[p.N];
             float range = RootRangeM(l);
             for (int i = 0; i < p.N; i++) r[i] = Math.Max(-range, Math.Min(range, p.BaseM[i] - l.InnerAltitudeM));
+            return r;
+        }
+
+        // The range the deck's root offsets are encoded in: its depth (the deck starts at the ground, so the heap layers' inner altitude would allow 1 m).
+        internal static float DeckRootRangeM(CloudLayerDef l)
+        {
+            return Math.Max(1f, l.OuterAltitudeM - l.InnerAltitudeM);
+        }
+
+        // The deck's root offsets (m, TuneDeckBase): each texel's drawn type (typeBytes, the deck's type map of the round; null: the deck rule's precipitation type) is lifted from
+        // its cfg base (its interpolated base share of the layer's depth) to the field's cloud base, never lowered, at most the range; the nearer the texel's type is to the deck
+        // rule's fog type, the less it is lifted (the fog type itself stays on the ground, where the field says fog).
+        internal static float[] DeckRoots(CloudLayerDef l, Parts p, byte[] typeBytes)
+        {
+            var r = new float[p.N];
+            int count = l.Types.Count;
+            if (count == 0) return r;
+            float depth = l.OuterAltitudeM - l.InnerAltitudeM, range = DeckRootRangeM(l);
+            float precip = l.Deck != null ? l.Deck.PrecipType : 0.5f, fogX = (l.Deck != null ? l.Deck.FogType : 0f) * (count - 1);
+            for (int i = 0; i < p.N; i++)
+            {
+                float tv = typeBytes != null && i < typeBytes.Length ? typeBytes[i] / 255f : precip;
+                float x = Math.Max(0f, Math.Min(count - 1, tv * (count - 1)));
+                int ta = Math.Min((int)Math.Floor(x), count - 1), tb = Math.Min(ta + 1, count - 1);
+                float f = x - ta;
+                float baseShare = l.Types[ta].BaseShare + (l.Types[tb].BaseShare - l.Types[ta].BaseShare) * f;
+                float fogWeight = Math.Max(0f, 1f - Math.Abs(x - fogX));
+                float lift = (p.BaseM[i] - (l.InnerAltitudeM + baseShare * depth)) * (1f - fogWeight);
+                r[i] = Math.Max(0f, Math.Min(range, lift));
+            }
             return r;
         }
 

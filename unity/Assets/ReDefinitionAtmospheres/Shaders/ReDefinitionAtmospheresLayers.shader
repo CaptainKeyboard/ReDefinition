@@ -188,8 +188,8 @@ Shader "ReDefinition/AtmospheresLayers"
             return _TypeRoll[slot >> 2][slot & 3];
         }
 
-        // The density factor of the rolls at a point: long bands across the level's wind (_NoiseAxis, the layer's wind; the bands move with the layer's offset like its
-        // pattern), their crests bent by a value noise of twice their length so that no band is a straight line; amount the share the density swings by.
+        // The thickness factor of the rolls at a point: long bands across the level's wind (_NoiseAxis, the layer's wind; the bands move with the layer's offset like its
+        // pattern), their crests bent by a value noise of twice their length so that no band is a straight line; amount the share the thickness swings by.
         float SheetRollFactor(int li, float3 pc, float amount, float depthM)
         {
             float len = max(_RollP.y * depthM, 1.0);
@@ -364,6 +364,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 b = localBase;
                 tp = localTop;
             }
+            // M2c: the sheet types' rolls swing the type's THICKNESS (its top; the base stays even, as the stratus photos show), before the height test so that the leap's gap
+            // and the light path see the same shape (off while _RollP.x is 0 or the type has no roll depth: the deck of before, bit for bit).
+            float rollAmount = _RollP.x * lerp(TypeRollOf(li, ta), TypeRollOf(li, tb), f);
+            [branch] if (rollAmount > 0.0) tp = b + (tp - b) * SheetRollFactor(li, pc, rollAmount, outer - inner);
             if (share < b || share > tp || tp <= b)
             {
                 if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);
@@ -425,9 +429,6 @@ Shader "ReDefinition/AtmospheresLayers"
             float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             gTypeLight = pf.yz;
-            // M2c: the sheet types' rolls (off while _RollP.x is 0 or the type has no roll depth: the density of before, bit for bit).
-            float rollAmount = _RollP.x * lerp(TypeRollOf(li, ta), TypeRollOf(li, tb), f);
-            [branch] if (rollAmount > 0.0) s *= SheetRollFactor(li, pc, rollAmount, outer - inner);
             return _LayerB[li].x * s * pf.x * fade;
         }
 

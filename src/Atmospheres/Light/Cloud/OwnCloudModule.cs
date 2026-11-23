@@ -1373,7 +1373,7 @@ namespace ReDefinition.Atmospheres
                     plan.RootOverrideM = new float[plan.Count][];
                     plan.RootOverrideRangeM = new float[plan.Count];
                     for (int l = 0; l < plan.Count; l++)
-                        if (plan.Tunings[l] != null) plan.RootOverrideM[l] = MapSkyRoots(stack.LayerAt(l), out plan.RootOverrideRangeM[l]);
+                        if (plan.Tunings[l] != null) plan.RootOverrideM[l] = MapSkyRoots(l, stack.LayerAt(l), out plan.RootOverrideRangeM[l]);
                 }
                 heightJob.Begin(plan, field, stack);
                 heightJob.Pump(HeightPumpBudgetMs);

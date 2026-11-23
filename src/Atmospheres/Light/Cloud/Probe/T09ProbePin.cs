@@ -230,7 +230,7 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule)) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneDeckBase)) return true;
             return false;
         }
 
