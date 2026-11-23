@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
+using View = ReDefinition.Atmospheres.T09View;
 
 namespace ReDefinition.Atmospheres
 {
@@ -32,7 +33,7 @@ namespace ReDefinition.Atmospheres
         // Real seconds the maps need after a clock jump (a map round every second, the slew limit 0.08 a second).
         private const double MapSettleS = 20.0, EnvEveryS = 30.0;
         // The mask that draws no layer (the shader skips layer i when bit i is clear; the stack has at most 8).
-        internal const int NoLayersMask = 1 << 20;
+        internal const int NoLayersMask = T09Views.NoLayersMask;
         // The ladder stops at 16 (the deck clips from there on; g64 of start 44 added nothing): the frames freed pay for the coverage variants.
         internal static readonly float[] DiagGains = { 1f, 4f, 16f };
         private const string AidDirect = "aid-direct";

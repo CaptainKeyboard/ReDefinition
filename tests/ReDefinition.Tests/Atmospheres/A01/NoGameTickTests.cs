@@ -74,7 +74,8 @@ namespace ReDefinition.Tests.Atmospheres.A01
         {
             var problems = new List<string>();
             int ticked = 0;
-            foreach (Type type in ModuleRegistry.Discover(typeof(ModuleRegistry).Assembly))
+            // The shipped modules and the probes' (their own DLL since cleanup 2 C).
+            foreach (Type type in ModuleRegistry.Discover(typeof(ModuleRegistry).Assembly, typeof(SeriesProbe).Assembly))
             {
                 IAtmospheresModule m;
                 try

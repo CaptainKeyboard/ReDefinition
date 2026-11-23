@@ -154,7 +154,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal static List<ViewerPose> For(IList<ViewerLayer> layers)
         {
             var poses = new List<ViewerPose>();
-            foreach (T09Probe.View v in T09Probe.Views)
+            foreach (T09View v in T09Views.All)
             {
                 var pose = new ViewerPose { Name = v.Name, AglM = v.AglM, ElevationDeg = v.PitchDeg, HeadingDeg = v.HeadingDeg, CameraDistM = v.CameraDistM };
                 if (v.Name == "inside" && InsideHeight(layers, out double inside)) pose.AglM = inside;
@@ -218,7 +218,7 @@ namespace ReDefinition.Atmospheres.Viewer
 
         internal static double MaxAglM(double atmosphereDepthM)
         {
-            return Math.Max(T09Probe.Views[3].AglM, atmosphereDepthM > 0.0 ? atmosphereDepthM * 1.2 : 0.0);
+            return Math.Max(T09Views.All[3].AglM, atmosphereDepthM > 0.0 ? atmosphereDepthM * 1.2 : 0.0);
         }
 
         internal static float ToSlider(double aglM)

@@ -51,13 +51,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Common\**;Planner\**;Dashboard\**;Atmospheres\**" />
+    <Compile Remove="Common\**;Planner\**;Dashboard\**;Atmospheres\**;AtmospheresProbes\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
     <!-- The dashboard is built before this project, so that its DLL lands in the output beside this one (it ships in the package
          and goes to the game), but nothing of it is referenced (tools/checks/check_no_reference.ps1). -->
     <ProjectReference Include="Dashboard\ReDefinition.Dashboard.csproj" ReferenceOutputAssembly="false" />
     <!-- The atmospheres, the same way (tools/checks/check_no_reference.ps1). -->
     <ProjectReference Include="Atmospheres\ReDefinition.Atmospheres.csproj" ReferenceOutputAssembly="false" />
+    <!-- The atmosphere's probes (cleanup 2 C): built beside it for the test installs (DeployToGameData), never packed (MakeReleaseZip names its DLLs). -->
+    <ProjectReference Include="AtmospheresProbes\ReDefinition.Atmospheres.Probes.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' == 'true'" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' != 'true'"
                       ReferenceOutputAssembly="false" />
@@ -382,6 +384,8 @@
     <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_Game)\Planner\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Dashboard.dll" DestinationFolder="$(_Game)\Dashboard\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Atmospheres.dll" DestinationFolder="$(_Game)\Atmospheres\Plugins" />
+    <!-- The probes go to this (the developer's and the test runner's) install only; the release zip does not take them. -->
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Atmospheres.Probes.dll" DestinationFolder="$(_Game)\Atmospheres\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version" DestinationFolder="$(_Game)\Main" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Planner\$(PlannerName).version" DestinationFolder="$(_Game)\Planner" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(_Game)\Dashboard" />

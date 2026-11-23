@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Core;
+using View = ReDefinition.Atmospheres.T09View;
 
 namespace ReDefinition.Atmospheres
 {

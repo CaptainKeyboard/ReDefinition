@@ -251,7 +251,7 @@ namespace ReDefinition.Atmospheres
         {
             saveClock = 0f;
             dirty = false;
-            if (loadedSave == null || !ForcedField.AllowSideFileWrite()) return;
+            if (loadedSave == null || !ForcedRun.AllowSideFileWrite()) return;
             double ut;
             if (!CoverClock.TryUt(out ut)) return;
             foreach (CoverBodyState s in CoverBodies.All)

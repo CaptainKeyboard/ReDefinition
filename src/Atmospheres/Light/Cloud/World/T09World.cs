@@ -209,28 +209,28 @@ namespace ReDefinition.Atmospheres
 
         public bool VesselUnpacked()
         {
-            Vessel v = FlightGlobals.ActiveVessel;
+            Vessel v = GameGlobals.ActiveVessel;
             return v.loaded && !v.packed && v.mainBody != null;
         }
 
-        public bool BodyHasAtmosphere { get { return FlightGlobals.ActiveVessel.mainBody.atmosphere; } }
-        public int BodyIndex { get { return FlightGlobals.ActiveVessel.mainBody.flightGlobalsIndex; } }
-        public double BodyRadius { get { return FlightGlobals.ActiveVessel.mainBody.Radius; } }
-        public double VesselLatitude { get { return FlightGlobals.ActiveVessel.latitude; } }
-        public double VesselLongitude { get { return FlightGlobals.ActiveVessel.longitude; } }
+        public bool BodyHasAtmosphere { get { return GameGlobals.ActiveVessel.mainBody.atmosphere; } }
+        public int BodyIndex { get { return GameGlobals.ActiveVessel.mainBody.flightGlobalsIndex; } }
+        public double BodyRadius { get { return GameGlobals.ActiveVessel.mainBody.Radius; } }
+        public double VesselLatitude { get { return GameGlobals.ActiveVessel.latitude; } }
+        public double VesselLongitude { get { return GameGlobals.ActiveVessel.longitude; } }
 
         public double TerrainAltitude(double lat, double lon)
         {
-            return FlightGlobals.ActiveVessel.mainBody.TerrainAltitude(lat, lon, true);
+            return GameGlobals.ActiveVessel.mainBody.TerrainAltitude(lat, lon, true);
         }
 
-        public double VesselAltitude { get { return FlightGlobals.ActiveVessel.altitude; } }
+        public double VesselAltitude { get { return GameGlobals.ActiveVessel.altitude; } }
 
         public string VesselState
         {
             get
             {
-                Vessel v = FlightGlobals.ActiveVessel;
+                Vessel v = GameGlobals.ActiveVessel;
                 return "situation " + v.situation + ", packed " + v.packed;
             }
         }
@@ -246,7 +246,7 @@ namespace ReDefinition.Atmospheres
             get
             {
                 if (ReferenceEquals(PlacedVessel, null)) return false;
-                return PlacedVessel == null || FlightGlobals.ActiveVessel != PlacedVessel || PlacedVessel.state == Vessel.State.DEAD;
+                return PlacedVessel == null || GameGlobals.ActiveVessel != PlacedVessel || PlacedVessel.state == Vessel.State.DEAD;
             }
         }
 
@@ -309,7 +309,7 @@ namespace ReDefinition.Atmospheres
 
         public void PlaceVessel(double lat, double lon, double altitude)
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
             PlacedVessel = vessel;
             CelestialBody body = vessel.mainBody;
             Vector3d up = body.GetSurfaceNVector(lat, lon);
@@ -403,25 +403,25 @@ namespace ReDefinition.Atmospheres
         {
             public void Read(out double lat, out double lon, out double alt)
             {
-                Vessel v = FlightGlobals.ActiveVessel;
+                Vessel v = GameGlobals.ActiveVessel;
                 v.mainBody.GetLatLonAlt(v.GetWorldPos3D(), out lat, out lon, out alt);
             }
 
             public void Set(double lat, double lon, double alt)
             {
-                Vessel v = FlightGlobals.ActiveVessel;
+                Vessel v = GameGlobals.ActiveVessel;
                 v.SetPosition(v.mainBody.GetWorldSurfacePosition(lat, lon, alt));
             }
 
             public double Distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2)
             {
-                CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+                CelestialBody body = GameGlobals.ActiveVessel.mainBody;
                 return (body.GetWorldSurfacePosition(lat1, lon1, alt1) - body.GetWorldSurfacePosition(lat2, lon2, alt2)).magnitude;
             }
 
             public void KeepVelocity()
             {
-                Vessel v = FlightGlobals.ActiveVessel;
+                Vessel v = GameGlobals.ActiveVessel;
                 try { FlightInputHandler.state.mainThrottle = 0f; } catch (Exception) { /* no input handler */ }
                 // Kinematic parts take no velocity; they stand where they were put.
                 if (frozenParts > 0) return;
@@ -452,8 +452,8 @@ namespace ReDefinition.Atmospheres
         // upward at up to 1.6 km/s at 4.6 km, shedding its stages on the way); the position is what the pictures and the timing depend on, so the hold owns it.
         private void HoldVessel()
         {
-            if (!SeriesProbe.FlightReadyState()) return;
-            Vessel v = FlightGlobals.ActiveVessel;
+            if (!T09Flight.ReadyState()) return;
+            Vessel v = GameGlobals.ActiveVessel;
             if (v == null || v.mainBody == null || PlacedVesselLost) return;
             Hold.Tick();
         }
@@ -461,15 +461,15 @@ namespace ReDefinition.Atmospheres
         // Before every physics step: the command and the ground's velocity again (the game moved the vessel 3.5 m a step between two per-frame ticks in start 44).
         private void HoldVesselStep()
         {
-            if (!SeriesProbe.FlightReadyState()) return;
-            Vessel v = FlightGlobals.ActiveVessel;
+            if (!T09Flight.ReadyState()) return;
+            Vessel v = GameGlobals.ActiveVessel;
             if (v == null || v.mainBody == null || PlacedVesselLost) return;
             Hold.FixedTick();
         }
 
         public T09Pose ReadPose()
         {
-            Vessel v = FlightGlobals.ActiveVessel;
+            Vessel v = GameGlobals.ActiveVessel;
             CelestialBody body = v.mainBody;
             Camera cam = FlightCamera.fetch.mainCamera;
             var pose = new T09Pose();
@@ -493,7 +493,7 @@ namespace ReDefinition.Atmospheres
             get
             {
                 FlightCamera fc = FlightCamera.fetch;
-                Vessel v = FlightGlobals.ActiveVessel;
+                Vessel v = GameGlobals.ActiveVessel;
                 return fc.mode == FlightCamera.Modes.AUTO && v != null ? "AUTO (" + FlightCamera.GetAutoModeForVessel(v) + ")" : fc.mode.ToString();
             }
         }
@@ -505,7 +505,7 @@ namespace ReDefinition.Atmospheres
 
         public double SunElevationDeg()
         {
-            Vessel v = FlightGlobals.ActiveVessel;
+            Vessel v = GameGlobals.ActiveVessel;
             CelestialBody sun = GameGlobals.Sun;
             if (sun == null || v == null || v.mainBody == null) return 90.0;
             Vector3d toSun = (sun.position - v.GetWorldPos3D()).normalized;
@@ -870,7 +870,7 @@ namespace ReDefinition.Atmospheres
             Vector3 towards;
             Color colour;
             Vector3d eye = FlightCamera.fetch.mainCamera.transform.position;
-            return CloudBridgeLights.Moon != null && CloudBridgeLights.Moon(FlightGlobals.ActiveVessel.mainBody, eye, out towards, out colour);
+            return CloudBridgeLights.Moon != null && CloudBridgeLights.Moon(GameGlobals.ActiveVessel.mainBody, eye, out towards, out colour);
         }
 
         private const long LeastFreeBytes = 300L * 1024 * 1024;
@@ -940,7 +940,7 @@ namespace ReDefinition.Atmospheres
             try
             {
                 // The shader's MapUv: the map frame (rows towards longitude 0, 90 east, north) applied to the position from the planet's centre; lon = atan2(y, x), lat = asin(z).
-                CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+                CelestialBody body = GameGlobals.ActiveVessel.mainBody;
                 Vector3 pc = (Vector3)(FlightCamera.fetch.mainCamera.transform.position - body.position);
                 Vector3 n = OwnCloudModule.MapFrame(body).MultiplyVector(pc).normalized;
                 report.ShaderLatDeg = Math.Asin(Math.Max(-1.0, Math.Min(1.0, n.z))) * 180.0 / Math.PI;
@@ -978,7 +978,7 @@ namespace ReDefinition.Atmospheres
             OwnCloudModule m = OwnCloudModule.Current;
             LayerStackSource stack = m == null ? null : m.Stack as LayerStackSource;
             if (stack == null || stack.LayerCount == 0) return null;
-            CelestialBody body = FlightGlobals.ActiveVessel.mainBody;
+            CelestialBody body = GameGlobals.ActiveVessel.mainBody;
             int n = stack.LayerCount;
             var input = new T09LookInput
             {
@@ -990,7 +990,7 @@ namespace ReDefinition.Atmospheres
                 input.Seed = noise.Switches.Seed;
                 input.SizeLevel = noise.Switches.SizeLevel;
             }
-            double lat = FlightGlobals.ActiveVessel.latitude, lon = FlightGlobals.ActiveVessel.longitude;
+            double lat = GameGlobals.ActiveVessel.latitude, lon = GameGlobals.ActiveVessel.longitude;
             input.RootM = new float[n];
             input.TopM = new float[n];
             input.VariationM = new float[n];

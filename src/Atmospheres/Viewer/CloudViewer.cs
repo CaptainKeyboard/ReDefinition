@@ -545,7 +545,7 @@ namespace ReDefinition.Atmospheres.Viewer
             }
             world.SetCameraDistance(cameraDistanceWanted);
             double el = aimElevation;
-            if (double.IsNaN(el)) el = -T09Probe.HorizonDipDeg(world.BodyRadius, double.IsNaN(TargetAglM) ? 0.0 : TargetAglM);
+            if (double.IsNaN(el)) el = -T09Views.HorizonDipDeg(world.BodyRadius, double.IsNaN(TargetAglM) ? 0.0 : TargetAglM);
             // A first guess (ViewerAim); TuneAim then turns the camera by what its measured aim lacks, until the view looks where the pose says.
             fc.camHdg = ViewerAim.HeadingRad(aimHeading);
             fc.camPitch = ViewerAim.PitchRad(el);
@@ -655,7 +655,7 @@ namespace ReDefinition.Atmospheres.Viewer
         internal void SetBaseline(bool on)
         {
             Baseline = on;
-            world.SetLayerMask(on ? T09Probe.NoLayersMask : 0);
+            world.SetLayerMask(on ? T09Views.NoLayersMask : 0);
         }
 
         // --- Options ---

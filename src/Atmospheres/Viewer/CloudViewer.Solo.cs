@@ -126,7 +126,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 CelestialBody body = v.mainBody;
                 Vector3d at = FlightCamera.fetch.mainCamera.transform.position;
                 T09Pose pose = world.ReadPose();
-                T09Probe.Soft60Destination(body.GetLatitude(at), body.GetLongitude(at), pose.AzimuthDeg, km, body.Radius, out lat, out lon);
+                T09Views.Destination(body.GetLatitude(at), body.GetLongitude(at), pose.AzimuthDeg, km, body.Radius, out lat, out lon);
                 lon -= layer.MapShiftDeg;
                 while (lon > 180.0) lon -= 360.0;
                 while (lon < -180.0) lon += 360.0;

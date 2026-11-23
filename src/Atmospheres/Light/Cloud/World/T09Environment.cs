@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
             LayerFrame f = own != null ? own.Frame : null;
             Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
             CelestialBody body = FlightGlobals.currentMainBody;
-            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vessel vessel = GameGlobals.ActiveVessel;
 
             Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;
             lines.Add(Line("sunLight", sun == null ? "none (Sun.Instance.sunLight is null)" : Describe(sun)));

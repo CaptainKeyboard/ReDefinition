@@ -226,7 +226,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(23, ends);
             foreach (string v in new[] { "off", "plain", "recon2", "recon3", "recon4" })
             {
-                foreach (T09Probe.View view in T09Probe.Views)
+                foreach (T09View view in T09Probe.Views)
                 {
                     bool threeOnly = v == "recon2" || v == "recon3";
                     bool measured = !threeOnly || view.Name == "ground" || view.Name == "inside" || view.Name == "above";
@@ -491,7 +491,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.World.SnapRequests >= 2, "the maps were snapped to the clock's time");
             Assert.IsFalse(r.Log.Any(l => l.Contains("waiting 20 s for the maps")), "no fixed wait before the variant");
             // Every window starts with the hold stable (the gate waited for it) and the row says so.
-            foreach (T09Probe.View view in T09Probe.Views) Assert.AreEqual(1.0, Number(r, "T09.view." + view.Name + ".hold_stable", "plain"), view.Name);
+            foreach (T09View view in T09Probe.Views) Assert.AreEqual(1.0, Number(r, "T09.view." + view.Name + ".hold_stable", "plain"), view.Name);
         }
 
         // --- Faults of the window and the display ---------------------------------------------------------------------------------------

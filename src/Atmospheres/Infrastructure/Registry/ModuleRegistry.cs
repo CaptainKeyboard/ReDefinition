@@ -104,26 +104,43 @@ namespace ReDefinition.Atmospheres
             throw new ArgumentException("The module is not registered.");
         }
 
-        // The types in an assembly that are modules, in the order they start: a non-abstract class that implements IAtmospheresModule and
-        // carries the attribute, by order and then by name.
-        internal static List<Type> Discover(Assembly assembly)
+        // The name of the assembly the probes and the test tooling compile into (cleanup 2 C): never shipped, deployed to the test installs only.
+        internal const string ProbeAssemblyName = "ReDefinition.Atmospheres.Probes";
+
+        // The probe assembly where the game loaded it (KSP loads every DLL under GameData); null in a player's install.
+        internal static Assembly LoadedProbeAssembly()
+        {
+            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (a.GetName().Name == ProbeAssemblyName) return a;
+            }
+            return null;
+        }
+
+        // The types in the assemblies that are modules, in the order they start: a non-abstract class that implements IAtmospheresModule and
+        // carries the attribute, by order and then by name, across all the assemblies given (null entries are skipped).
+        internal static List<Type> Discover(params Assembly[] assemblies)
         {
             var found = new List<KeyValuePair<int, Type>>();
-            Type[] types;
-            try
+            foreach (Assembly assembly in assemblies)
             {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException e)
-            {
-                types = Array.FindAll(e.Types, t => t != null);
-            }
-            foreach (Type type in types)
-            {
-                if (type.IsAbstract || !type.IsClass || !typeof(IAtmospheresModule).IsAssignableFrom(type)) continue;
-                var attribute = (AtmospheresModuleAttribute)Attribute.GetCustomAttribute(type, typeof(AtmospheresModuleAttribute), false);
-                if (attribute == null) continue;
-                found.Add(new KeyValuePair<int, Type>(attribute.Order, type));
+                if (assembly == null) continue;
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException e)
+                {
+                    types = Array.FindAll(e.Types, t => t != null);
+                }
+                foreach (Type type in types)
+                {
+                    if (type.IsAbstract || !type.IsClass || !typeof(IAtmospheresModule).IsAssignableFrom(type)) continue;
+                    var attribute = (AtmospheresModuleAttribute)Attribute.GetCustomAttribute(type, typeof(AtmospheresModuleAttribute), false);
+                    if (attribute == null) continue;
+                    found.Add(new KeyValuePair<int, Type>(attribute.Order, type));
+                }
             }
             found.Sort((a, b) =>
             {
@@ -133,11 +150,16 @@ namespace ReDefinition.Atmospheres
             return found.ConvertAll(pair => pair.Value);
         }
 
-        // A registry with an instance of every module of the assembly. A module that cannot be made is reported and left out.
+        // A registry with an instance of every module of the assemblies. A module that cannot be made is reported and left out.
         internal static ModuleRegistry FromAssembly(Assembly assembly, Action<string> warn = null)
         {
+            return FromAssemblies(new[] { assembly }, warn);
+        }
+
+        internal static ModuleRegistry FromAssemblies(Assembly[] assemblies, Action<string> warn = null)
+        {
             var registry = new ModuleRegistry(warn);
-            foreach (Type type in Discover(assembly))
+            foreach (Type type in Discover(assemblies))
             {
                 try
                 {
