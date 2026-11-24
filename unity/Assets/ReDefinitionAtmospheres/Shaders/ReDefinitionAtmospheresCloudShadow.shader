@@ -132,13 +132,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         #include "ReDefinitionAtmospheresNoise.cginc"
         #include "CloudCells.cginc"
 
-        // x the type's density profile at the height share h, y its LIFT (the height-shaped threshold of the type, in units of the layer's headroom; the pass's profile channel a).
-        float2 TypeProfile(int li, int type, float h)
+        // The layer pass's four profile channels (master plan 43): r the type's density profile at the height share h, g its noise scale factor, b its extra noise amount, a its LIFT
+        // (the height-shaped threshold of the type, in units of the type's headroom).
+        float4 TypeProfile(int li, int type, float h)
         {
             float u = (saturate(h) * (PROFILE_SAMPLES - 1) + 0.5) / PROFILE_SAMPLES;
             float v = (li * MAXT + type + 0.5) / (MAXL * MAXT);
-            return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0)).rg;
+            return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0));
         }
+        float4 _CsFormP[4];   // per layer: x the largest extra noise amount of its types (the empty-space bounds; the layer pass's _LayerE.w)
 
         // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's cumuliform preset (CLOUDR1 P2).
         float4 TypeInfo(int li, int type)
@@ -184,7 +186,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float cov = 1.0, typeValue = 0.0;
             float edge = max(_CsLayerB[li].z, 1e-4);
             // OPT2: the most the shape noise can lift the map (n <= 1 in NoiseShareNear: the volume's value, the blend's normal CDF), the bound of the layer pass (CoverageNoiseBound).
-            float noiseBound = 0.5 * abs(_CsNoiseD[li].x);
+            float noiseBound = 0.5 * abs(_CsNoiseD[li].x) * (1.0 + _CsFormP[li].x);
             float2 uvField = 0.0;
             if (slice >= 0)
             {
@@ -243,7 +245,11 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             // The macro shape as the pass reads it: the type's LIFT lowers the map at this height by its share of the layer's headroom (the pass's cov -= lift * (coverage + noise bound + 0.5 edge);
             // _CsParams2.z is 1 where the shadow reads the pass's shape, 0 for the map alone).
             float h = (share - b) / (tp - b);
-            float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
+            float4 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
+            // The type's own bound at this height (the layer pass's TypeNoiseBound) and its noise amount and scale (master plan 43).
+            float typeBound = 0.5 * abs(_CsNoiseD[li].x) * (1.0 + pf.b);
+            float typeAmount = _CsNoiseD[li].x * (1.0 + pf.b);
+            float3 pcN = pf.g > 0.0 ? pc * (1.0 + pf.g) : pc;
             // CLOUD FIELD: the layer pass's single clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
             // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
 #if !defined(CLOUD_LATTICE)
@@ -253,12 +259,12 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 if (FieldCloud(li, puff, uvField, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0, _CsPlanetR + 0.5 * (inner + outer), h, (tp - b) * (outer - inner)) == 0) return 0;
             }
 #endif
-            cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + noiseBound + 0.5 * edge);
+            cov -= _CsParams2.z * pf.a * (_CsLayerB[li].y + typeBound + 0.5 * edge);
             // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
             // full swing); it replaces the type's lift, so the lift's bound is not asked.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
-            if (!body && cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0) return 0;
+            if (!body && cov + _CsLayerB[li].y - 1.0 + typeBound + 0.5 * edge <= 0.0) return 0;
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).
             float s;
             [branch] if (body)
@@ -267,7 +273,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
             }
-            else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);
+            else s = NoiseShareNear(li, pcN, cov, _CsLayerB[li].y, edge, typeAmount, 0.0);
             if (s <= 0) return 0;
             float pw = 1.0 + _CsLayerC[li].y;   // E40 soft density: the layer's water exponent (stored minus 1: 0 = none)
             pw = lerp(ia.z > 0 ? ia.z : pw, ib.z > 0 ? ib.z : pw, f);   // CLOUDR1 P1: the type's own exponent

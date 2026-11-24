@@ -296,8 +296,8 @@ namespace ReDefinition.Atmospheres
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
-            // Four channels per sample: r the density profile, g the pannus' noise scale factor (0: none), b unused (it held a per-type light factor, deleted 2026-11-24), a the lift of
-            // the coverage threshold (E40 L2 D1, 0: none).
+            // Four channels per sample (master plan 43, one form description per type): r the density profile, g the noise scale factor, b the extra noise amount (0: none for both),
+            // a the lift of the coverage threshold (E40 L2 D1, 0: none).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             bool extras = false;
@@ -312,7 +312,6 @@ namespace ReDefinition.Atmospheres
                 layerC[l] = new Vector4(layer.EffectiveFadeNearM, float.IsPositiveInfinity(layer.EffectiveFadeFarM) ? 0f : layer.EffectiveFadeFarM,
                                         layer.CoverageMapHandle < 0 && layer.TypeMapHandle < 0 ? -1f : l, table.Count);
                 layerD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 1f, layer.MapShiftDeg);
-                layerE[l] = Vector4.zero;
                 layerLight[l] = new Vector3(1f, 1f, layer.LightAmbient);
                 layerIsotropy[l] = layer.LightIsotropy;
                 layerSkyMs[l] = new Vector4(layer.AmbientMs, layer.AmbientDecay, layer.LightPlateau, layer.LightCellWidth);
@@ -334,14 +333,17 @@ namespace ReDefinition.Atmospheres
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
-                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData;
+                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData, amountData = table.NoiseAmountData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
                     int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;
                     profile[texel] = density[i];
                     profile[texel + 1] = scaleData[i];
+                    profile[texel + 2] = amountData[i];
                     profile[texel + 3] = liftData[i];
                 }
+                // w: the layer's largest extra noise amount (the shader's empty-space bounds, CoverageNoiseBound and the cull's).
+                layerE[l] = new Vector4(0f, 0f, 0f, table.MaxNoiseAmount);
                 Noise.SetStretch(l, layer.FilamentStretch);
                 Noise.SetVertical(l, layer.VerticalScale);
                 Noise.SetSmoothing(l, layer.ShapeSmoothing);

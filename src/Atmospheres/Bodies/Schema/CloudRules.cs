@@ -100,11 +100,29 @@ namespace ReDefinition.Atmospheres
         // pc (1 + g), so the shreds are 1 + g times smaller than the deck's own features (the profile texture's channel g; drawn only while the pannus is).
         internal Curve PannusScale { get; set; }
 
-        // The pannus' scale factor at h (0 where pannus is off, the type has none or no SCALE).
-        internal double PannusScaleAt(double h, bool pannus)
+        // Master plan 43, one form description per type (cfg node FORM { SCALE { key0 = height factor } AMOUNT { key0 = height extra } }, null: none): over the type's height, the shape
+        // noise's scale factor g (read at pc (1 + g): features 1 + g times finer than the layer's noise scale) and its extra amount b (the amount (1 + b): more contrast, so the outline
+        // and the top follow the noise and not only the density inside; with a closed map the noise alone left every deck a flat slab, PRUEFPROTOKOLL 238). Baked into the profile
+        // texture's channels g and b (LayerTypeTable), read by the layer pass, the cloud shadow and the CPU twins.
+        internal Curve FormScale { get; set; }
+        internal Curve FormAmount { get; set; }
+
+        private static double At(Curve c, double h)
         {
-            if (!pannus || PannusProfile == null || PannusScale == null) return 0.0;
-            return PannusScale.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+            return c == null ? 0.0 : c.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+        }
+
+        // The noise scale factor g at h: the pannus' SCALE where the pannus is drawn (cloud.pannus on and the type has one), else the FORM's SCALE (0: none).
+        internal double NoiseScaleAt(double h, bool pannus)
+        {
+            if (pannus && PannusProfile != null && PannusScale != null) return At(PannusScale, h);
+            return At(FormScale, h);
+        }
+
+        // The extra noise amount b at h (the FORM's AMOUNT; 0: none).
+        internal double NoiseAmountAt(double h)
+        {
+            return At(FormAmount, h);
         }
 
         // The profile drawn: the pannus profile where pannus is on and the type has one, else the type's own.

@@ -72,11 +72,12 @@ namespace ReDefinition.Atmospheres
             IdReachCov = Shader.PropertyToID("_CsReachCov"), IdReachType = Shader.PropertyToID("_CsReachType"),
             IdDepthSource = Shader.PropertyToID("_CsDepthSource"), IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
             IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR"),
-            IdCovReach = Shader.PropertyToID("_CsCovReach");
+            IdCovReach = Shader.PropertyToID("_CsCovReach"), IdFormP = Shader.PropertyToID("_CsFormP");
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers],
-            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers], cellS = new Vector4[CloudLayerDef.MaxLayers];
+            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers], cellS = new Vector4[CloudLayerDef.MaxLayers],
+            formP = new Vector4[CloudLayerDef.MaxLayers];
 
         // The layer pass's noise (volumes, offsets, drift): the shadow reads the shape share from the same volumes (CloudShadowFrame.ShapeNoise). null: no noise.
         internal LayerNoise Noise;
@@ -111,7 +112,7 @@ namespace ReDefinition.Atmospheres
                 Problem = "the cloud shadow shader does not compile (" + material.passCount + " passes)";
                 return false;
             }
-            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RGFloat, false, true)
+            profileTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RGBAFloat, false, true)
             {
                 name = "cloud shadow type profiles",
                 filterMode = FilterMode.Bilinear,
@@ -157,8 +158,8 @@ namespace ReDefinition.Atmospheres
             }
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
-            // Two channels a sample: the type's density profile (r) and its LIFT (g).
-            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 2];
+            // Four channels a sample, as the layer pass's (master plan 43): the type's density profile (r), its noise scale factor (g), its extra noise amount (b), its LIFT (a).
+            var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             for (int l = 0; l < layerCount; l++)
             {
@@ -173,13 +174,17 @@ namespace ReDefinition.Atmospheres
                 // The noise numbers as the layer pass has them (LayerRenderer: amount, 1 / scale, erosion, map shift), the erosion 0: the shape alone, as the pass's light march reads it.
                 noiseD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 0f, layer.MapShiftDeg);
                 noiseOff[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
-                float[] density = table.ProfileData, liftData = table.LiftData;
+                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData, amountData = table.NoiseAmountData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
-                    int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 2;
+                    int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;
                     profile[texel] = density[i];
-                    profile[texel + 1] = liftData[i];
+                    profile[texel + 1] = scaleData[i];
+                    profile[texel + 2] = amountData[i];
+                    profile[texel + 3] = liftData[i];
                 }
+                // x: the layer's largest extra noise amount (the shadow's empty-space bounds, as the layer pass's _LayerE.w).
+                formP[l] = new Vector4(table.MaxNoiseAmount, 0f, 0f, 0f);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
@@ -194,6 +199,7 @@ namespace ReDefinition.Atmospheres
             }
             profileTexture.SetPixelData(profile, 0);
             profileTexture.Apply(false);
+            material.SetVectorArray(IdFormP, formP);
             infoTexture.SetPixels(info);
             infoTexture.Apply(false);
             uploadedSource = source;

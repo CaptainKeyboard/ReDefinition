@@ -14,7 +14,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
     //   top-<layer>-<type>[-pannus].pgm     the form from above: the column's optical depth over 30 x 30 km (1 - exp(-tau) as grey);
     //   form.txt                            per type and band of its height: the share of the area the type fills there, the mean density, the top's height spread.
     // The density is the shader's LayerDensityEx in its parts the CPU twins carry: the map's clear-sky rule, the type's lift (LayerTypeTable.LiftOf), the shape noise with the type's
-    // erosion (CloudShapeModel.Share, the layer's noise scale, read at pc (1 + g) where the type table's noise scale factor g is above 0), the layer's water exponent and the type's
+    // erosion (CloudShapeModel.Share, the layer's noise scale read at pc (1 + g) and its amount times (1 + b), g and b the type table's FORM channels), the layer's water exponent and the type's
     // profile (LayerTypeTable.ProfileAt) times sigma. NOT mirrored: the height maps' local base and top and their ragged boundary (the slice keeps the type's cfg heights), the
     // undulatus, the cells and the cloud field (so stratocumulus and altocumulus, which the field draws, are not judged here), the far view's mean and the light.
     // Runs only when ATMO_FORM_SLICE names a folder (the test passes without it).
@@ -81,7 +81,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             double g = table.NoiseScaleData[type * LayerTypeTable.ProfileSamples + Math.Max(0, Math.Min(LayerTypeTable.ProfileSamples - 1, i))];
             NoiseLayerParams prm = NoiseLayerParams.Default(layer.EffectiveNoiseScaleM);
             double s = 1.0 + g;
-            double share = CloudShapeModel.Share(set, ref prm, x * s, y * s, z * s, cov, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, layer.EffectiveNoiseAmount,
+            double amount = layer.EffectiveNoiseAmount * (1.0 + table.NoiseAmountOf(typeValue, h));
+            double share = CloudShapeModel.Share(set, ref prm, x * s, y * s, z * s, cov, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount,
                                                  layer.Types[type].Erosion, false);
             share = CloudWater.Pow(share, layer.EffectiveWaterPowerAt(table, typeValue));
             return layer.EffectiveSigmaPerM * share * table.ProfileAt(type, h);
