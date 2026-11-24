@@ -280,7 +280,10 @@ float LightVolumeSlice(float3 q, int z, int pref, out bool ok)
 }
 
 // The fetch from the volume (spread false) or its blurred copy (spread true), from cascade `first` on.
-float LightVolumeFetchFrom(float3 q, bool spread, int first, out float w)
+// floorAlt: the top of the cloud type the read belongs to (m above the radius; far below: none). A point at or above it reads no slice whose centre lies below it: a slice is
+// about 290 m high, the optical depth under a dense top grows by one in tens of metres, and the vertical blend with a slice inside the cloud gave the point a share of the
+// cloud's own interior (PRUEFPROTOKOLL 226, 227: a closed tau 26 stratus top at 0.45 W against 0.83-0.90 W with the full march).
+float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out float w)
 {
     w = 0.0;
     float r = length(q);
@@ -289,7 +292,9 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, out float w)
     if (c <= LV_MIN_COS) return 0.0;
     float2 xy = _PlanetR * float2(dot(n, _LvE.xyz), dot(n, _LvN.xyz)) / c;
     float slices = _LvZ.z;
-    float zf = clamp((r - _PlanetR - _LvZ.x) / max(_LvZ.y - _LvZ.x, 1.0) * slices - 0.5, 0.0, slices - 1.0);
+    float zScale = slices / max(_LvZ.y - _LvZ.x, 1.0);
+    float zf = clamp((r - _PlanetR - _LvZ.x) * zScale - 0.5, 0.0, slices - 1.0);
+    if (r - _PlanetR >= floorAlt) zf = max(zf, clamp(ceil((floorAlt - _LvZ.x) * zScale - 0.5), 0.0, slices - 1.0));
     float z0 = floor(zf), z1 = min(z0 + 1.0, slices - 1.0), fz = zf - z0;
     float4 oa = _LvO[(int)z0], ob = _LvO[(int)z1];
     float gridN = _LvC.z, sum = 0.0;
@@ -326,7 +331,7 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, out float w)
 
 float LightVolumeFetch(float3 q, out float w)
 {
-    return LightVolumeFetchFrom(q, false, 0, w);
+    return LightVolumeFetchFrom(q, false, 0, -1e9, w);
 }
 
 // LV3, the lateral spread of the direct light: the sun's optical depth the direct term reads, blended in transmittance between the exact one (the march's, tau) and a spread
@@ -454,19 +459,33 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     int lvSteps = 0;
     bool lvLit = Luma(_SunColor.rgb * SunAir(pc, sunDir)) > 0;
     [branch] if (tauReuse < 0 && lvLit) LightVolumePlan(pc, sunDir, t, steps, lvShare, lvNear, lvSteps, lvTau);
+    // M2c (the grey deck, PRUEFPROTOKOLL 227): the far path's near taps reach at least the top of the sample's own cloud type along the sun, so the volume is read above it and
+    // the cloud's own interior between the sample and its top comes from the march, not from the vertical blend of slices about 290 m high (a tau 26 stratus top read 0.45 W
+    // through the volume against 0.83-0.90 W with the full march). The taps' count stays; the longer near length only stretches them.
+    [branch] if (lvShare > 0.0)
+    {
+        float topR = _PlanetR + topAlt.x;
+        float bt = dot(pc, sunDir), ct = dot(pc, pc) - topR * topR, disc = bt * bt - ct;
+        if (ct < 0.0 && disc > 0.0)
+        {
+            lvNear = max(lvNear, min(-bt + sqrt(disc), _Sun.w));
+            lvSteps = max(lvSteps, 1);
+        }
+    }
     // The volume's reads, at ONE call site (each call is inlined; copies overflowed the shader compiler's stack): 0 the far path's read point, 1 the spread's read at the sample.
     float3 lvPt[2];
     bool lvNeed[2], lvSp[2];
     int lvFirst[2];
-    float lvVal[2], lvW[2];
-    lvPt[0] = pc + sunDir * lvNear; lvNeed[0] = lvShare > 0.0; lvSp[0] = false; lvFirst[0] = 0;
-    lvPt[1] = pc; lvNeed[1] = _LvS.x > 0.5 && lvLit; lvSp[1] = _LvS.x < 1.5; lvFirst[1] = (_LvS.x > 1.5 && _LvS.x < 2.5) ? 1 : 0;
+    float lvVal[2], lvW[2], lvFloor[2];
+    // The far path's read point lies on or above the sample's own type top: it reads only the slices above that top (LightVolumeFetchFrom).
+    lvPt[0] = pc + sunDir * lvNear; lvNeed[0] = lvShare > 0.0; lvSp[0] = false; lvFirst[0] = 0; lvFloor[0] = topAlt.x;
+    lvPt[1] = pc; lvNeed[1] = _LvS.x > 0.5 && lvLit; lvSp[1] = _LvS.x < 1.5; lvFirst[1] = (_LvS.x > 1.5 && _LvS.x < 2.5) ? 1 : 0; lvFloor[1] = -1e9;
     [loop] for (int lr = 0; lr < 2; lr++)
     {
         lvVal[lr] = 0.0;
         lvW[lr] = 0.0;
         if (!lvNeed[lr]) continue;
-        lvVal[lr] = LightVolumeFetchFrom(lvPt[lr], lvSp[lr], lvFirst[lr], lvW[lr]);
+        lvVal[lr] = LightVolumeFetchFrom(lvPt[lr], lvSp[lr], lvFirst[lr], lvFloor[lr], lvW[lr]);
     }
     lvTau = lvVal[0];
     lvShare *= lvW[0];
