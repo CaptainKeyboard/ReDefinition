@@ -128,7 +128,7 @@ float4 CullTilePass(v2f i)
                 tB = min(tB, max(tMaxTile, tA));
                 float slice = _LayerC[li].z;
                 float coverage = _LayerB[li].y, edge = max(_LayerB[li].z, 1e-4);
-                float noiseBound = 0.5 * _LayerD[li].x;
+                float noiseBound = 0.5 * _LayerD[li].x * (1.0 + _LayerE[li].w);   // the layer's largest amount (master plan 43, FORM AMOUNT)
                 float slack = 2.0 / 255.0;
                 if (CullTest(2) && slice >= 0 && tB > tA)
                 {

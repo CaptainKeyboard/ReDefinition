@@ -37,12 +37,54 @@ namespace ReDefinition.Atmospheres
             }
             lift = new float[Count * ProfileSamples];
             noiseScale = new float[Count * ProfileSamples];
+            noiseAmount = new float[Count * ProfileSamples];
             Bake();
         }
 
-        // The pannus' noise scale factor of all types, sample after sample (the shader's profile texture channel g; 0 where pannus is off or a type has no PANNUS SCALE).
-        private readonly float[] noiseScale;
+        // Master plan 43, the form of each type: the noise scale factor g (the shader's profile texture channel g; FORM SCALE, the pannus' SCALE while it is drawn; 0: none) and the
+        // extra noise amount b (channel b; FORM AMOUNT; 0: none), sample after sample, and the largest b of the layer (the shader's _LayerE.w: the empty-space bounds take it).
+        private readonly float[] noiseScale, noiseAmount;
+        private float maxAmount;
         internal float[] NoiseScaleData { get { Sync(); return noiseScale; } }
+        internal float[] NoiseAmountData { get { Sync(); return noiseAmount; } }
+        internal float MaxNoiseAmount { get { Sync(); return maxAmount; } }
+
+        // The extra amount b at a type value and a type height h (the two neighbouring types' blended, as the shader reads channel b).
+        internal double NoiseAmountOf(double typeValue, double h)
+        {
+            Sync();
+            int a, c;
+            double f;
+            Neighbours(typeValue, out a, out c, out f);
+            return Sample(noiseAmount, a, h) * (1.0 - f) + Sample(noiseAmount, c, h) * f;
+        }
+
+        // The noise scale factor g at a type value and a type height h (blended as the shader reads channel g).
+        internal double NoiseScaleOf(double typeValue, double h)
+        {
+            Sync();
+            int a, c;
+            double f;
+            Neighbours(typeValue, out a, out c, out f);
+            return Sample(noiseScale, a, h) * (1.0 - f) + Sample(noiseScale, c, h) * f;
+        }
+
+        // The type height h (0 base, 1 top) of a layer share at a type value; NaN outside the type.
+        internal double TypeHeightOf(double typeValue, double layerShare)
+        {
+            double b, t;
+            InterpolatedHeights(typeValue, out b, out t);
+            if (layerShare < b || layerShare > t || !(t > b)) return double.NaN;
+            return (layerShare - b) / (t - b);
+        }
+
+        private static double Sample(float[] data, int type, double h)
+        {
+            double x = (h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h) * (ProfileSamples - 1);
+            int i = Math.Min((int)x, ProfileSamples - 2);
+            double f = x - i;
+            return data[type * ProfileSamples + i] * (1.0 - f) + data[type * ProfileSamples + i + 1] * f;
+        }
 
         private readonly float[] lift;
         // The width in noise scales the shape noise is smoothed over where each type is drawn (E40 L6 shape): the type's own key, the layer's where it has none.
@@ -108,7 +150,13 @@ namespace ReDefinition.Atmospheres
         // saturate((map + (n - 0.5) A + C - 1) / e + 0.5) is 0 for every n in 0..1 once map + C - 1 + A / 2 + e / 2 <= 0. The shader's _LayerB.y + CoverageNoiseBound + 0.5 _LayerB.z.
         internal static double LiftHeadroom(CloudLayerDef layer)
         {
-            return layer.EffectiveCoverage + 0.5 * layer.EffectiveNoiseAmount + 0.5 * Math.Max(layer.EffectiveEdgeSoftness, 1e-4f);
+            return LiftHeadroom(layer, 0.0);
+        }
+
+        // The same for a type at a height whose extra noise amount is b (master plan 43, FORM AMOUNT: the shader's TypeNoiseBound), so a lift of 1 closes every column there too.
+        internal static double LiftHeadroom(CloudLayerDef layer, double extraAmount)
+        {
+            return layer.EffectiveCoverage + 0.5 * layer.EffectiveNoiseAmount * (1.0 + extraAmount) + 0.5 * Math.Max(layer.EffectiveEdgeSoftness, 1e-4f);
         }
 
         // The lift of the coverage threshold of all types, sample after sample (the shader's profile texture channel a; 0 where a type has no LIFT).
@@ -125,7 +173,7 @@ namespace ReDefinition.Atmospheres
             InterpolatedHeights(typeValue, out b, out t);
             if (layerShare < b || layerShare > t || !(t > b)) return 0.0;
             double h = (layerShare - b) / (t - b);
-            return (LiftSample(a, h) * (1.0 - f) + LiftSample(c, h) * f) * LiftHeadroom(layer);
+            return (LiftSample(a, h) * (1.0 - f) + LiftSample(c, h) * f) * LiftHeadroom(layer, NoiseAmountOf(typeValue, h));
         }
 
         private double LiftSample(int type, double h)
@@ -144,6 +192,7 @@ namespace ReDefinition.Atmospheres
         private void Bake()
         {
             bool soft = layer.Soft, pannus = CloudLookTuning.Pannus;
+            maxAmount = 0f;
             for (int t = 0; t < Count; t++)
             {
                 CloudTypeDef type = layer.Types[t];
@@ -153,7 +202,10 @@ namespace ReDefinition.Atmospheres
                     double h = i / (double)(ProfileSamples - 1);
                     profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
                     lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
-                    noiseScale[t * ProfileSamples + i] = (float)type.PannusScaleAt(h, pannus);
+                    noiseScale[t * ProfileSamples + i] = (float)type.NoiseScaleAt(h, pannus);
+                    float extra = (float)type.NoiseAmountAt(h);
+                    noiseAmount[t * ProfileSamples + i] = extra;
+                    if (extra > maxAmount) maxAmount = extra;
                 }
             }
             bakedSoft = soft;

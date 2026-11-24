@@ -337,6 +337,9 @@ namespace ReDefinition.Atmospheres
                 PannusProfile = pannusProfile,
                 PannusLift = pannusProfile == null ? null : ProfileCurve(pannusNode.Child("LIFT"), "lift"),
                 PannusScale = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("SCALE")),
+                // FORM { SCALE { key = height factor } AMOUNT { key = height extra } } (master plan 43; CloudTypeDef.FormScale): both 0 to 8.
+                FormScale = ScaleCurve(r.Child("FORM").Child("SCALE")),
+                FormAmount = ScaleCurve(r.Child("FORM").Child("AMOUNT")),
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
                 DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),

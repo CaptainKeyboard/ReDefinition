@@ -50,7 +50,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerB[4];   // sigma per m, coverage, edge softness, kind (0 weather, 1 cheap, 2 fog, 3 emissive)
         float4 _LayerC[4];   // fade near, fade far, map slice (< 0: no map), type count
         float4 _LayerD[4];   // noise amount, noise scale (1 / m), erosion, map shift (degrees)
-        float4 _LayerE[4];   // emission colour (kind 3)
+        float4 _LayerE[4];   // rgb: emission colour (kind 3); w: the largest extra noise amount of the layer's types (master plan 43, FORM AMOUNT; 0: none)
         sampler2D _TypeProfile;
         sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's cumuliform preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
@@ -172,10 +172,17 @@ Shader "ReDefinition/AtmospheresLayers"
         // ---- culling and distance LOD (package T16: the tile map the march reads, the fades and the LOD functions) ----
         #include "CloudCull.cginc"
 
-        // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount.
+        // The largest amount the coverage noise moves the map value by: the shape value is 0 to 1, so the threshold moves by half the amount. Master plan 43: a type's FORM AMOUNT raises
+        // the amount by (1 + b) at its heights (the profile texture's channel b), so the layer's bound takes the largest b of its types (_LayerE[li].w; 0: the layer of before).
         float CoverageNoiseBound(int li)
         {
-            return 0.5 * _LayerD[li].x;
+            return 0.5 * _LayerD[li].x * (1.0 + _LayerE[li].w);
+        }
+
+        // The same bound for a type at a height whose extra amount is b (the lift's headroom and the bound after the lift take it, so a lift of 1 still closes every column).
+        float TypeNoiseBound(int li, float b)
+        {
+            return 0.5 * _LayerD[li].x * (1.0 + b);
         }
 
         // ---- M2c: the undulations of the stratiform types (variety undulatus) ----
@@ -207,8 +214,8 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0)).r;
         }
 
-        // The whole texel of the profile: r the density, g the pannus' noise scale factor (0: none), b unused (it held the per-type sky-fill factor, deleted 2026-11-24), a the lift
-        // of the coverage threshold, of the type at the height h.
+        // The whole texel of the profile (master plan 43, one form description per type): r the density, g the noise scale factor (0: none), b the extra noise amount (0: none),
+        // a the lift of the coverage threshold, of the type at the height h.
         float4 TypeProfile4(int li, int type, float h)
         {
             float u = (saturate(h) * (PROFILE_SAMPLES - 1) + 0.5) / PROFILE_SAMPLES;
@@ -399,15 +406,15 @@ Shader "ReDefinition/AtmospheresLayers"
                 fieldBody = fieldCloud > 0;
             }
 #endif
-            cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
+            cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
             // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
-            if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + CoverageNoiseBound(li) + 0.5 * edge <= 0.0) return 0;
-            // The cost debug bits switch the shape noise (2) and the erosion (4) off.
-            float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
+            if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + TypeNoiseBound(li, pf.b) + 0.5 * edge <= 0.0) return 0;
+            // The cost debug bits switch the shape noise (2) and the erosion (4) off. Master plan 43: the type's FORM AMOUNT (channel b) raises the amount at this height.
+            float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x * (1.0 + pf.b) : 0.0;
             if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
             erosion *= 1.0 + _BulgeP.z * saturate(h);
@@ -421,8 +428,8 @@ Shader "ReDefinition/AtmospheresLayers"
                 amountN = noiseAmount > 0.0 ? 1.0 : 0.0;
                 erosionN = 0.0;
             }
-            // M2c 4a(1), the pannus: the profile texture's channel g is the type's noise scale factor at this height (0: none; LayerTypeTable bakes it only while cloud.pannus is on):
-            // the shape noise is read at pc (1 + g), so the shreds below a nimbostratus deck are smaller than the deck's own features (the layer's noise scale is the deck's).
+            // Master plan 43: the profile texture's channel g is the type's noise scale factor at this height (FORM SCALE; the pannus' SCALE while cloud.pannus is on; 0: none): the shape
+            // noise is read at pc (1 + g), so a type's features can be finer than the layer's noise scale (which is the coarsest type's).
             float3 pcN = pc;
             [branch] if (pf.g > 0.0) pcN = pc * (1.0 + pf.g);
             float s = NoiseShare(li, pcN, covN, coverage, edgeN, amountN, erosionN, light);
