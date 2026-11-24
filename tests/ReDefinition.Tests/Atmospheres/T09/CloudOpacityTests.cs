@@ -7,8 +7,9 @@ using ReDefinition.Tests.Atmospheres.T10;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // E40 B3: the shipped cfg's types have the vertical optical depth of their real counterparts. The depth is that of a full column through the type at full water content: the
-    // layer's sigma times the type's height times the mean of its profile as the table bakes it (rise by height and density scale included). The ranges are the brief's (fair-weather
-    // and thin stratus 0.5 to 5, stratocumulus 5 to 20, cumulus humilis 10 to 40, cirrus 0.03 to 3, towers and rain cloud opaque, fog by its visibility: 3.9 / sigma).
+    // layer's sigma times the type's height times the mean of its profile as the table bakes it (rise by height and density scale included). The ranges are the brief's (stratocumulus
+    // 5 to 20, cumulus humilis 10 to 40, cirrus 0.03 to 3, towers and rain cloud opaque, fog by its visibility: 3.9 / sigma) and, for the stratus, the ISCCP classification's stratus
+    // class 23 to 379 (the brief's "thin stratus 0.5 to 5" misread it, 2026-11-24).
     [TestClass]
     public class CloudOpacityTests
     {
