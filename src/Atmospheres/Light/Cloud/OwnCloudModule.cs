@@ -256,6 +256,13 @@ namespace ReDefinition.Atmospheres
         private CloudBridgeAir.Air air;
         // The sun's light as Unity has it outside the render, before Scatterer's modulation (read in the tick: Scatterer applies its colour in the far camera's pre-render and
         // restores it after the near camera); the sun colour of the pass never exceeds it.
+        // The sun Light's intensity without our weather dimming of the scene (LightWriter.UndimmedSunIntensity); the intensity itself outside the flight's weather driver.
+        private static float UndimmedSun(float intensity)
+        {
+            LightWriter writer = WeatherFrameDriver.Light;
+            return writer != null ? writer.UndimmedSunIntensity(intensity) : intensity;
+        }
+
         private Color sunUnmodulated;
         private bool haveSunUnmodulated;
         private int airBody = -1;
@@ -419,7 +426,7 @@ namespace ReDefinition.Atmospheres
             }
             Light sunLight = Sun.Instance != null ? Sun.Instance.sunLight : null;
             haveSunUnmodulated = sunLight != null;
-            if (haveSunUnmodulated) sunUnmodulated = sunLight.color * sunLight.intensity;
+            if (haveSunUnmodulated) sunUnmodulated = sunLight.color * UndimmedSun(sunLight.intensity);
             // The camera's pose and the floating origin move after the modules tick (FlightCamera's LateUpdate): the numbers that hold the pose are
             // written and the buffer recorded in the camera's pre-cull, with the state of this tick.
             pendingCamera = cam;
@@ -1442,7 +1449,8 @@ namespace ReDefinition.Atmospheres
             Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;
             float gain = Tuning.Get(TuneSunGain, SunGainDefault);
             // The scene's sun colour is the display value of a white card facing the sun (the output stage's white); the pass is radiometric and gets pi times it.
-            Color sceneSun = sun != null ? sun.color * sun.intensity : Color.white;
+            // The sun above the weather: our weather dimming of the scene's sun (LightWriter) is not the clouds' light (they compute their own extinction).
+            Color sceneSun = sun != null ? sun.color * UndimmedSun(sun.intensity) : Color.white;
             float sunUnit = Tuning.Get(TuneSunUnit, CloudOutputStage.SunUnitDefault);
             // E40 sun colour: where Scatterer filters the sun (it multiplies the light by the air between the active vessel and the sun), the pass takes the viewer's air out of the
             // colour and the shader puts the air above each sample back, so a cloud gets the sun through the air above the cloud, not above the camera. With Scatterer's own air
