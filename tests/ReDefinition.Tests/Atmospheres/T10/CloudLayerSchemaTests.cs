@@ -159,16 +159,14 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void EveryKerbinTypeHasTheOpticalDepthOfItsRealKind()
         {
-            // Vertical optical depth at full density and full height (an upper bound of the type): stratus 10 to 60, nimbostratus 20 to 300,
-            // cumulus 5 to 300, cumulonimbus 100 to 1000, cirrus 0.03 to 3 (the references of the file header).
+            // Vertical optical depth at full density and full height (an upper bound of the type) against the ISCCP cloud classification
+            // (https://isccp.giss.nasa.gov/cloudtypes.html, the optical-thickness bins 0 / 3.6 / 23 / 379): stratus and nimbostratus are its thick
+            // classes (23 to 379), cirrus its thin high class (below 3.6). The other types have no primary source here (CloudOpacityTests says which).
             var tau = new Dictionary<string, float[]>(StringComparer.Ordinal)
             {
-                { "Stratus", new[] { 10f, 60f } }, { "Snow stratus", new[] { 10f, 60f } },
-                { "Nimbostratus", new[] { 20f, 300f } }, { "Snow nimbostratus", new[] { 20f, 300f } },
-                { "Stratocumulus", new[] { 5f, 300f } }, { "Cumulus humilis", new[] { 5f, 300f } }, { "Cumulus mediocris", new[] { 5f, 300f } },
-                { "Cumulus congestus", new[] { 5f, 300f } }, { "Altocumulus", new[] { 5f, 300f } },
-                { "Cumulonimbus calvus", new[] { 100f, 1000f } }, { "Cumulonimbus incus", new[] { 100f, 1000f } },
-                { "Cirrus", new[] { 0.03f, 3f } }, { "Cirrostratus", new[] { 0.03f, 3f } }
+                { "Stratus", new[] { 23f, 379f } }, { "Snow stratus", new[] { 23f, 379f } },
+                { "Nimbostratus", new[] { 23f, 379f } }, { "Snow nimbostratus", new[] { 23f, 379f } },
+                { "Cirrus", new[] { 0f, 3.6f } }
             };
             foreach (CloudLayerSpec layer in Kerbin().Layers)
             {
