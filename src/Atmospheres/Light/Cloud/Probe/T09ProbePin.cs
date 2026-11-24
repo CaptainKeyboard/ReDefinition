@@ -230,7 +230,9 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneStratiformRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneLowStratiformBase || PinChangesHeightScale(s))) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneStratiformRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneLowStratiformBase || PinChangesHeightScale(s)
+                                      // a forced type moves the low stratiform layer's base (OwnCloudModule.MapSkyRoots): the heights are built anew
+                                      || s.Key.StartsWith(CloudLookTuning.TuneTypeOverride, StringComparison.Ordinal))) return true;
             return false;
         }
 
