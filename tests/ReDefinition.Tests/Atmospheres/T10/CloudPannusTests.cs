@@ -84,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             CloudTypeDef type = layer.Types[ns];
             var table = new LayerTypeTable(layer);
             int band = (int)(0.05 * (LayerTypeTable.ProfileSamples - 1));   // h 0.05: in the shreds' band
-            int gap = (int)(0.12 * (LayerTypeTable.ProfileSamples - 1));    // h 0.12: in the gap
+            int gap = (int)(0.195 * (LayerTypeTable.ProfileSamples - 1));   // h 0.195: in the gap (0.17 to 0.22)
             float offBand = table.ProfileData[ns * LayerTypeTable.ProfileSamples + band], offLift = table.LiftData[ns * LayerTypeTable.ProfileSamples + gap];
 
             Set(1f);
