@@ -528,12 +528,12 @@ namespace redefinition
         wchar_t dlssDirectory[260] = {};
 
         // Where a player's amd_fidelityfx_upscaler_dx12.dll lies if not next to
-        // KSP_x64.exe (AmdUpscaler.h). Read when the rig first asks for it,
+        // KSP_x64.exe (AmdUpscaler.h). Read when the integration first asks for it,
         // through AmdUpscalerDirectory().
         wchar_t amdUpscalerDirectory[260] = {};
 
         // Where a player's libxess.dll lies if not next to KSP_x64.exe
-        // (XessUpscaler.h). Read when the rig first asks for it, through
+        // (XessUpscaler.h). Read when the integration first asks for it, through
         // XessDirectory().
         wchar_t xessDirectory[260] = {};
 

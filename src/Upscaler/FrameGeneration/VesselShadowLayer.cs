@@ -58,7 +58,7 @@ namespace ReDefinition.Upscaler
         // The Debug switch; on at every start.
         internal static bool Enabled = true;
 
-        // The shader's inputs: the light map's matrices and the light, the casters' previous matrices, the rig's
+        // The shader's inputs: the light map's matrices and the light, the casters' previous matrices, the integration's
         // depth and motion, Unity's mask, the frame's matrices, sizes and parameters, and the composition's textures.
         private static readonly int LightRasterId = Shader.PropertyToID("_VesselShadowLightRaster");
         private static readonly int LightViewProjectionId = Shader.PropertyToID("_VesselShadowLightViewProjection");
@@ -161,7 +161,7 @@ namespace ReDefinition.Upscaler
         // Where the current report window began, in unscaled seconds; below 0 before the first frame.
         private float windowStart = -1f;
 
-        // When the rig is taken down or leaves flight: the mask buffer off the light, the textures, the material and
+        // When the integration is taken down or leaves flight: the mask buffer off the light, the textures, the material and
         // the casters let go.
         internal void Disable()
         {
@@ -204,7 +204,7 @@ namespace ReDefinition.Upscaler
             Matrix4x4 thisViewProjection = GL.GetGPUProjectionMatrix(projection, false) * view;
             Matrix4x4 jittered = CameraRedirect.JitterActive ? CameraRedirect.Jittered(projection) : projection;
             rasterInverse = (GL.GetGPUProjectionMatrix(jittered, false) * view).inverse;
-            continuous = previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
+            continuous = previousFrame == Time.frameCount - 1 && SharedFrame.IntegrationResetReason == null;
             if (!continuous) previousViewProjection = thisViewProjection;
             // A point the shift moved lay at its position now plus the shift.
             shifted = SharedFrame.Shifted;
@@ -621,7 +621,7 @@ namespace ReDefinition.Upscaler
             M(sb, "viewProjection", viewProjection);
             M(sb, "previousViewProjection", previousViewProjection);
             sb.Append("textures: mask R8, weight RGBA half, lightMap RGBA float ").Append(LightMapSize)
-              .Append(", depth and motion as the rig holds them: ").Append(depth.format).Append(' ')
+              .Append(", depth and motion as the integration holds them: ").Append(depth.format).Append(' ')
               .Append(motionVectors.format).Append('\n');
             File.WriteAllText(Path.Combine(folder, "state.txt"), "drawn\n" + sb);
             Save(capture, mask, Path.Combine(folder, "mask.bin"));

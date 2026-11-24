@@ -204,7 +204,7 @@ namespace ReDefinition.Probe
         // Firefly's command buffer and just after it (a small copy of each), and the window's brightness. Tells whether
         // Firefly's draw changes the frame at all, and whether what it draws is still there at the end.
         // The mean brightness of the window round a viewport point in a render texture, which holds the frame as the camera drew
-        // it (the upscaler's input under the rig), or -1 where there is none.
+        // it (the upscaler's input under the integration), or -1 where there is none.
         private static float WindowMean(RenderTexture texture, Vector3 viewport)
         {
             if (texture == null) return -1f;
@@ -488,7 +488,7 @@ namespace ReDefinition.Probe
                 Look(vessel);
                 yield return new WaitForSecondsRealtime(SettleSeconds);
                 LogBuffers("in " + variant.Name);
-                // Firefly's buffer behind every other at its event each frame: the order before the rig kept its own buffer last.
+                // Firefly's buffer behind every other at its event each frame: the order before the integration kept its own buffer last.
                 bool last = variant.Name == "firefly-last";
                 if (last) Camera.onPreRender += FireflyLast;
                 yield return Trace(vessel, variant.Name, 20);

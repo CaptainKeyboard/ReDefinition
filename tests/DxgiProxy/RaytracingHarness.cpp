@@ -2980,7 +2980,7 @@ int main(int argc, char** argv)
         return device->CreateTexture2D(&textureDesc, &initial, &out);
     };
     Progress("Super Resolution beside Ray Reconstruction: frames");
-    // Frames through the render event, as the rig sends them, into a black output each
+    // Frames through the render event, as the integration sends them, into a black output each
     // time; whether its centre is then the flat image the colour was.
     const auto superResolution = [&](UINT firstFrame, bool& flat)
     {

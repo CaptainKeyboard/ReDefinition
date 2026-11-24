@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests
 {
-    // The counting of the rig's camera instrument (CameraMotionMeter): turns, moves, cuts and floating origin
+    // The counting of the integration's camera instrument (CameraMotionMeter): turns, moves, cuts and floating origin
     // shifts of sampled frames, and the log line they make, without the game's camera.
     [TestClass]
     public class CameraMotionMeterTests

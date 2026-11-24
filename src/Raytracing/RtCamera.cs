@@ -123,10 +123,10 @@ namespace ReDefinition.Raytracing
         // For the light probe: the G-buffer's smoothness as Deferred wrote it, without
         // LegacySmoothness, to compare.
         internal static bool DeferredSmoothness;
-        // For the light probe: the surfaces' shine as Deferred's G-buffer gives it, to compare
-        // with the shine their materials mean (SurfaceIntent).
+        // For the light probe: the surfaces' specular reflection as Deferred's G-buffer gives it, to compare
+        // with the specular reflection their materials mean (SurfaceIntent).
         internal static bool SurfacesAsDeferred;
-        // The surfaces' shine as a coloured overlay (the diagnostics window, Capture & log):
+        // The surfaces' specular reflection as a coloured overlay (the diagnostics window, Capture & log):
         // ReDefinitionDeferredReflections.shader, _ReDefinitionSurfaceView.
         internal static bool SurfaceView;
         // For the light probe: without the discs added to Scatterer's ocean, or without
@@ -183,7 +183,7 @@ namespace ReDefinition.Raytracing
         // Unity's frame count at which the upscaler last asked for DLSS Ray
         // Reconstruction's frames. Until the frame after it, they go undenoised, as Ray
         // Reconstruction denoises the finished frame, and make its guides from their
-        // surfaces (UpscalerRig.Reconstruction.cs). It is a lease, so that nothing holds it on
+        // surfaces (UpscalerIntegration.Reconstruction.cs). It is a lease, so that nothing holds it on
         // once the upscaler stops asking.
         internal int ReconstructionLease = -1;
         private bool reconstructedBefore;

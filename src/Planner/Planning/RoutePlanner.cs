@@ -73,7 +73,7 @@ namespace ReDefinition.Planner.Planning
         internal const int Roles = 4;
 
         // For each step on the way here (by StepRole, RouteSteps), By holds who flies it, as a
-        // Flyer's code, -1 where the planner works it out. Refuel holds whether a section that
+        // ActiveVessel's code, -1 where the planner works it out. Refuel holds whether a section that
         // docks at the step's end is refilled from the rest's tanks.
         public int[] By = { -1, -1, -1, -1 };
         public bool[] Refuel = new bool[Roles];

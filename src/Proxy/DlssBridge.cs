@@ -124,13 +124,13 @@ namespace ReDefinition.Proxy
         private static extern int KspDlssRenderSizes(uint outputWidth, uint outputHeight, int quality,
                                                      [Out] uint[] optimal, [Out] uint[] minimum, [Out] uint[] maximum);
 
-        // The link to the proxy's DLSS: render events 2 (a frame) and 3 (the rig gone), probed through
+        // The link to the proxy's DLSS: render events 2 (a frame) and 3 (the integration gone), probed through
         // KspDlssRenderSizes2 so a proxy of another layout is not sent anything.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("DLSS", typeof(DlssPacket),
             () => KspDlssPacketSize(), (buffer, size) => KspDlssStatus(buffer, size), ProxyEvents.DlssFrame, ProxyEvents.DlssRelease,
             () => KspDlssRenderSizes(0, 0, 0, null, null, null));
 
-        // The link, for the rig's state and teardown.
+        // The link, for the integration's state and teardown.
         internal static NativeUpscalerLink Link
         {
             get { return link; }
@@ -186,7 +186,7 @@ namespace ReDefinition.Proxy
         }
 
         // Asks the proxy for every mode's render size at this output size, before a
-        // rig is built at one of them: answered on the render thread and readable
+        // integration is built at one of them: answered on the render thread and readable
         // through RenderSize a frame or two later. The texture is any of Unity's,
         // for its device.
         internal static bool RequestRenderSizes(IntPtr texture, Vector2Int output)

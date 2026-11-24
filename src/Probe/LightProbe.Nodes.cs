@@ -157,15 +157,15 @@ namespace ReDefinition.Probe
             int encounter = CommandLine.Int("-redefinitionProbeBudgetEncounter", int.MaxValue);
             int total = CommandLine.Int("-redefinitionProbeBudgetTotal", int.MaxValue);
             double spin = CommandLine.Int("-redefinitionProbeBudgetSpinMilli", 20) / 1000.0;
-            foreach (string line in flight.Ledger.Lines) Debug.Log(Log.Tag + " Probe: route: " + line);
-            Debug.Log(Log.Tag + " Probe: route: " + flight.Ledger.Summary());
+            foreach (string line in flight.ManeuverSummary.Lines) Debug.Log(Log.Tag + " Probe: route: " + line);
+            Debug.Log(Log.Tag + " Probe: route: " + flight.ManeuverSummary.Summary());
             var failures = new System.Collections.Generic.List<string>();
             if (!flight.Arrived) failures.Add("the flight did not arrive (" + flight.Status + ")");
-            if (flight.Ledger.UntilEncounter > encounter) failures.Add(flight.Ledger.UntilEncounter + " burns until the encounter, at most " + encounter);
-            if (flight.Ledger.Total > total) failures.Add(flight.Ledger.Total + " burns in all, at most " + total);
-            if (flight.Ledger.CoastRate > spin) failures.Add("the vessel turned at " + flight.Ledger.CoastRate.ToString("0.000", culture) + " rad/s while coasting, at most " + spin.ToString("0.000", culture));
+            if (flight.ManeuverSummary.UntilEncounter > encounter) failures.Add(flight.ManeuverSummary.UntilEncounter + " burns until the encounter, at most " + encounter);
+            if (flight.ManeuverSummary.Total > total) failures.Add(flight.ManeuverSummary.Total + " burns in all, at most " + total);
+            if (flight.ManeuverSummary.CoastRate > spin) failures.Add("the vessel turned at " + flight.ManeuverSummary.CoastRate.ToString("0.000", culture) + " rad/s while coasting, at most " + spin.ToString("0.000", culture));
             if (failures.Count > 0) Debug.LogError(Log.Tag + " Probe: FAILED: route: " + string.Join("; ", failures.ToArray()) + ".");
-            else Debug.Log(Log.Tag + " Probe: route check: OK, " + flight.Ledger.Summary());
+            else Debug.Log(Log.Tag + " Probe: route check: OK, " + flight.ManeuverSummary.Summary());
         }
 
         private static IEnumerator NodeShots(string folder)

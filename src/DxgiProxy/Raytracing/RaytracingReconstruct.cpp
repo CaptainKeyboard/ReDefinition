@@ -433,7 +433,7 @@ namespace redefinition
         options.outputWidth = packet->outputWidth;
         options.outputHeight = packet->outputHeight;
         // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
-        // HDR frames only (UpscalerRig.SubmitReconstruction).
+        // HDR frames only (UpscalerIntegration.SubmitReconstruction).
         options.colorBuffersHDR = sl::Boolean::eTrue;
         options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
         options.worldToCameraView = Matrix(packet->worldToView);
@@ -446,7 +446,7 @@ namespace redefinition
                                                            static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])), list.Get());
     }
 
-    // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction).
+    // The mod stopped sending Ray Reconstruction frames (UpscalerIntegration.Reconstruction).
     // The lists that evaluated it finish first, as slFreeResources asks for pending
     // evaluations (Streamline::FreeRayReconstruction) and as a handle NGX releases is
     // gone ("after this call, it is invalid to use the provided handle", nvsdk_ngx.h,

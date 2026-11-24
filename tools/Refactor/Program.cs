@@ -15,7 +15,8 @@ namespace Refactor
     // The operation namespace <old> <new> renames a namespace in every text file.
     // The operation rename <old> <new> renames an identifier: its tokens in C#, its words elsewhere.
     // The operation text <old> <new> replaces a string in every text file (paths, names).
-    // The operation regex <pattern> <replacement> [path prefix] replaces a regular expression in C# files, with $1 for groups.
+    // The operation regex <pattern> <replacement> [path prefix] replaces a regular expression in C# files, with $1 for groups;
+    // regexall does the same in every rewritable text file (C++, shaders, Python, Markdown, ...) under the prefix.
     // The operation usings <namespace> - adds the using of that namespace to every file naming one of its types.
     //
     // Run it as: dotnet <Refactor.dll> apply <manifest> [--dry-run]. Moves run with git mv. Then the namespaces of moved types are set, the namespace and identifier
@@ -75,7 +76,7 @@ namespace Refactor
                 string line = raw.TrimEnd();
                 if (line.Length == 0 || line.TrimStart().StartsWith("#")) continue;
                 string[] f = line.Split('\t');
-                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text" || f[0] == "usings" || f[0] == "regex";
+                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text" || f[0] == "usings" || f[0] == "regex" || f[0] == "regexall";
                 if (!known || f.Length < 3) throw new FormatException(path + ":" + number + ": cannot read '" + line + "'");
                 result.Add(new Operation { Verb = f[0], A = f[1], B = f[2], C = f.Length > 3 ? f[3] : null });
             }
@@ -214,8 +215,8 @@ namespace Refactor
                 if (path.EndsWith(".cs", StringComparison.Ordinal))
                     foreach (var q in qualified) result = q.pattern.Replace(result, m => q.name);
                 foreach (var r in rewrites) result = r.pattern.Replace(result, m => r.replacement);
-                foreach (Operation g in operations.Where(g => g.Verb == "regex"))
-                    if (path.EndsWith(".cs", StringComparison.Ordinal) && (g.C == null || path.StartsWith(g.C, StringComparison.Ordinal)))
+                foreach (Operation g in operations.Where(g => g.Verb == "regex" || g.Verb == "regexall"))
+                    if ((g.Verb == "regexall" || path.EndsWith(".cs", StringComparison.Ordinal)) && (g.C == null || path.StartsWith(g.C, StringComparison.Ordinal)))
                         result = Regex.Replace(result, g.A, g.B);
                 foreach (Operation w in words)
                 {

@@ -105,7 +105,7 @@ every scene load **[src]** (`SetupCustomLightingAndAmbientShaders`).
 ## The space centre ground and a shiny launch pad
 
 The raster has no wetness property, puddle or wet texture in Deferred **[src]** (a search of
-the clone). The shine at the pad comes from one chain, and EVE can add to it. Deferred gives
+the clone). The specular reflection at the pad comes from one chain, and EVE can add to it. Deferred gives
 the tarmac a smoothness of 0.25 or 0.55 times the square root of its texture alpha, and a
 gamma-space dielectric specular of 0.2209. The probe and, on the specular variant, screen-space
 reflections turn that into a sheen at grazing angles.
@@ -192,7 +192,7 @@ equals the defaults **[src]**. Nothing writes it back.
 |---|---|---|
 | `ambientBrightness` | 0.9 | scales the ambient diffuse; global `deferredAmbientBrightness` |
 | `ambientTint` | 0.7 | 0 is grey ambient, 1 the probe's colour; global `deferredAmbientTint` |
-| `useScreenSpaceReflections` | True | adds the SSR rig; with it the reflections pass skips probe specular |
+| `useScreenSpaceReflections` | True | adds the SSR integration; with it the reflections pass skips probe specular |
 | `useHalfResolutionScreenSpaceReflections` | True | traces at half width |
 | `capReflectionProbeRefreshRate` | True | see the reflections table |
 | `capReflectionProbeResolution` | True | probe 256 at most |

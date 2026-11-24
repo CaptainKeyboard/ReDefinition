@@ -377,7 +377,7 @@ def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
                 keys = _phase_keys(matrix, r, phase_mod, fg_keys, lat)
                 s = _phase_scenario(matrix, fg, r, state, step, lat, plain_off)
                 # The first phase of a rendering after another one waits for the upscaler's
-                # rig and the raytracing's scene to be built again; the start's first has the
+                # integration and the raytracing's scene to be built again; the start's first has the
                 # flight's 30 s before it.
                 rebuild = first_of_rendering and n > 0
                 first_of_rendering = False

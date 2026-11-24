@@ -21,7 +21,7 @@ namespace ReDefinition.Upscaler
     // jittered. This includes secondary passes that might otherwise have not been
     // jittered" (DLSS Programming Guide, 31 March 2026, troubleshooting).
     //
-    // While EVE prepares the clouds for a camera the rig jitters, a Harmony
+    // While EVE prepares the clouds for a camera the integration jitters, a Harmony
     // postfix hands it that camera's jittered projection, and the jitter it
     // handed is kept. EVE's motion vectors, half the change in normalized device
     // coordinates since its last frame, then carry half the change of the jitter
@@ -174,9 +174,9 @@ namespace ReDefinition.Upscaler
         // The jitter EVE was last handed per camera, by instance id.
         private static readonly Dictionary<int, Vector2> lastJitter = new Dictionary<int, Vector2>();
 
-        // Whether the rig jitters this camera for the frame EVE prepares, and by how
+        // Whether the integration jitters this camera for the frame EVE prepares, and by how
         // much in normalized device coordinates. CameraRedirect jitters in its own
-        // OnPreRender. Unity calls EVE's first where the rig's component was
+        // OnPreRender. Unity calls EVE's first where the integration's component was
         // added to the camera after EVE's, in the space centre, so the jitter is
         // applied from here where it is not yet (EnsureJitter). EVE is handed the
         // jitter the redirect applied, as long as the camera still has the

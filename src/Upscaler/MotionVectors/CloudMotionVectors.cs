@@ -16,8 +16,8 @@ namespace ReDefinition.Upscaler
     // EVE binds the clouds' history at the scene camera's AfterForwardOpaque
     // (scattererReconstructedCloud) and, from Scatterer's reconstruction, their
     // motion vectors (scattererReconstructedCloudMotionVectors). They are read at
-    // AfterForwardAlpha into a copy of the rig's, without the jitter EveCloudMotion
-    // gave EVE. At BeforeImageEffects they are blended over Unity's where the rig
+    // AfterForwardAlpha into a copy of the integration's, without the jitter EveCloudMotion
+    // gave EVE. At BeforeImageEffects they are blended over Unity's where the integration
     // captures those, the way Scatterer's TemporalAntialiasing blends the two
     // (disassembled). The blend takes the clouds' where they cover the pixel, over
     // the sky by their transmittance, over geometry once less than a tenth of it is left.
@@ -150,7 +150,7 @@ namespace ReDefinition.Upscaler
             double squared = fromCentre.sqrMagnitude;
 
             bool ready = havePrevious && previousBody == body && previousFrame == Time.frameCount - 1
-                         && SharedFrame.RigResetReason == null;
+                         && SharedFrame.IntegrationResetReason == null;
             Matrix4x4 viewToPrevious = ready
                 ? SceneMotion.ClipToPreviousClipWithInverse(Matrix4x4.identity, previousProjection, position, rotation,
                     previousPosition, previousRotation)
@@ -170,7 +170,7 @@ namespace ReDefinition.Upscaler
             havePrevious = true;
         }
 
-        // The scene's motion vectors into the rig's capture, after the depth is
+        // The scene's motion vectors into the integration's capture, after the depth is
         // copied. They are Unity's, or those with the distant planets' merged in
         // (ScaledSpaceMotion). They go straight into motionVectors, or with the clouds
         // recorded for this frame into a copy of their own and blended from there.

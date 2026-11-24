@@ -14,17 +14,17 @@ namespace ReDefinition.Tests
         // Five missions, each set up as the player sets it in the planner: the
         // destinations, and the steps whose vehicle the player clicks (Choose).
 
-        // The stop with the flyer the player clicked for one of its step roles.
-        private static RouteStop Choose(RouteStop stop, StepRole role, Flyer flyer)
+        // The stop with the active vessel the player clicked for one of its step roles.
+        private static RouteStop Choose(RouteStop stop, StepRole role, ActiveVessel activeVessel)
         {
-            stop.By[(int)role] = flyer.Code;
+            stop.By[(int)role] = activeVessel.Code;
             return stop;
         }
 
         // The lander as section 1, the capsule as section 2.
-        private static readonly Flyer LanderFlies = Flyer.Alone(1);
-        private static readonly Flyer CapsuleFlies = Flyer.Alone(2);
-        private static readonly Flyer WithoutLander = Flyer.Without(1);
+        private static readonly ActiveVessel LanderFlies = ActiveVessel.Alone(1);
+        private static readonly ActiveVessel CapsuleFlies = ActiveVessel.Alone(2);
+        private static readonly ActiveVessel WithoutLander = ActiveVessel.Without(1);
 
         // The route with a lander (section 1, docking again or flying on alone) and a
         // capsule (section 2, part of the lander or of the rest), as the planner hands
@@ -43,19 +43,19 @@ namespace ReDefinition.Tests
         }
 
         // S the whole vessel, L section 1, C section 2, R without section 1.
-        private static string Letter(Flyer flyer)
+        private static string Letter(ActiveVessel activeVessel)
         {
-            if (flyer.Kind == FlyerKind.Ship) return "S";
-            if (flyer.Kind == FlyerKind.Without) return "R";
-            return flyer.Section == 1 ? "L" : flyer.Section == 2 ? "C" : "X" + flyer.Section;
+            if (activeVessel.Kind == ActiveVesselKind.Ship) return "S";
+            if (activeVessel.Kind == ActiveVesselKind.Without) return "R";
+            return activeVessel.Section == 1 ? "L" : activeVessel.Section == 2 ? "C" : "X" + activeVessel.Section;
         }
 
-        // The steps written short, one word each: the goal's number, the role's initial, the flyer's letter, and
+        // The steps written short, one word each: the goal's number, the role's initial, the active vessel's letter, and
         // < where the step separates, > where it docks.
         private static string Shape(IEnumerable<RouteStep> steps)
         {
             return string.Join(" ", steps.Select(step => step.Goal + step.Role.ToString().Substring(0, 1) + ":"
-                                                         + Letter(step.Flyer)
+                                                         + Letter(step.ActiveVessel)
                                                          + (step.Separates ? "<" : "") + (step.Docks ? ">" : "")));
         }
 
@@ -120,7 +120,7 @@ namespace ReDefinition.Tests
 
             Assert.AreEqual("1L:S 2L:L<", Shape(steps));
             Assert.AreEqual(2863334.0, steps[0].To.Altitude, "the launch goes straight up to the destination's orbit");
-            Assert.AreEqual(LanderFlies.Code, steps[1].Flyer.Code, "the capsule alone; the satellite stays");
+            Assert.AreEqual(LanderFlies.Code, steps[1].ActiveVessel.Code, "the capsule alone; the satellite stays");
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
@@ -206,7 +206,7 @@ namespace ReDefinition.Tests
             List<RouteStop> goals = new List<RouteStop> { Orbit(Mun, 14000), onward, later };
             List<RouteStep> steps = Route(Stock(), goals, true, false);
 
-            Assert.AreEqual(WithoutLander.Code, steps[0].Flyer.Code);
+            Assert.AreEqual(WithoutLander.Code, steps[0].ActiveVessel.Code);
             Assert.IsTrue(steps[0].Separates);
             Assert.AreEqual("The lander was left in Mun orbit", steps[1].Problem);
             Assert.AreEqual(0.0, steps[1].Leg.DeltaV, "never flown");
@@ -219,7 +219,7 @@ namespace ReDefinition.Tests
             // The lander flies alone from Kerbin's orbit to the Mun's, and the next
             // step is clicked to Ship: the rest waits back at Kerbin.
             RouteStop mun = Choose(Orbit(Mun, 14000), StepRole.Transfer, LanderFlies);
-            RouteStop minmus = Choose(Orbit(Minmus, 10000), StepRole.Transfer, Flyer.Ship);
+            RouteStop minmus = Choose(Orbit(Minmus, 10000), StepRole.Transfer, ActiveVessel.Ship);
             List<RouteStep> steps = Route(Stock(), new List<RouteStop> { Orbit(Kerbin, 80000), mun, minmus }, true, false);
 
             Assert.AreEqual("The lander is not with the rest of the vessel in Kerbin orbit", steps[1].Problem);
@@ -285,7 +285,7 @@ namespace ReDefinition.Tests
             List<RouteStep> steps = Route(Stock(), goals, false, false, true);
 
             Assert.AreEqual("1L:S 1T:S 1L:S 2L:S 2T:S 2L:C<", Shape(steps));
-            Assert.AreEqual(CapsuleFlies.Code, steps[5].Flyer.Code);
+            Assert.AreEqual(CapsuleFlies.Code, steps[5].ActiveVessel.Code);
             Assert.AreEqual(StopKind.Entry, steps[5].From.Kind, "it leaves the vessel in Kerbin's air");
         }
 
@@ -294,7 +294,7 @@ namespace ReDefinition.Tests
         public void NothingButTheCapsuleFliesOnceItHasLeft()
         {
             RouteStop home = Choose(Surface(Kerbin, true), StepRole.Land, CapsuleFlies);
-            RouteStop onward = Choose(Orbit(Kerbin, 80000), StepRole.Launch, Flyer.Ship);
+            RouteStop onward = Choose(Orbit(Kerbin, 80000), StepRole.Launch, ActiveVessel.Ship);
             List<RouteStep> steps = Route(Stock(), new List<RouteStop> { Orbit(Kerbin, 80000), home, onward }, false, false, true);
 
             Assert.AreEqual("The capsule has left the vessel", steps[1].Problem);
@@ -393,7 +393,7 @@ namespace ReDefinition.Tests
             List<RouteStep> steps = Route(Stock(), goals, false, false, true);
 
             Assert.AreEqual("1L:S 2T:S 2A:C<", Shape(steps));
-            Assert.AreEqual(CapsuleFlies.Code, steps[2].Flyer.Code);
+            Assert.AreEqual(CapsuleFlies.Code, steps[2].ActiveVessel.Code);
             Assert.AreEqual(StopKind.Transfer, steps[2].From.Kind, "it leaves the upper stage on the way up");
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
@@ -501,7 +501,7 @@ namespace ReDefinition.Tests
             {
                 new RouteSection { Id = 3, Kind = SectionKind.Satellite, Name = "Satellite", DeployAt = 2 },
             };
-            RouteStop high = Choose(Orbit(Kerbin, 2863334), StepRole.Arrive, Flyer.Alone(3));
+            RouteStop high = Choose(Orbit(Kerbin, 2863334), StepRole.Arrive, ActiveVessel.Alone(3));
             high.SplitBurns = true;
             List<RouteStop> goals = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 80000), high, Surface(Kerbin, true) };
             List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
@@ -528,7 +528,7 @@ namespace ReDefinition.Tests
             List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
 
             CollectionAssert.AreEqual(new[] { 3 }, steps[0].Deploys.ToArray(), "the orbiter alone stays");
-            Assert.AreEqual(LanderFlies.Code, steps[1].Flyer.Code);
+            Assert.AreEqual(LanderFlies.Code, steps[1].ActiveVessel.Code);
             Assert.IsTrue(steps.All(step => step.Problem == null), string.Join("; ", steps.Select(step => step.Problem).ToArray()));
         }
 
@@ -543,7 +543,7 @@ namespace ReDefinition.Tests
                 new RouteSection { Id = 1, Kind = SectionKind.Lander, Name = "Lander 1", Docks = true },
                 new RouteSection { Id = 4, Kind = SectionKind.Lander, Name = "Lander 2", Docks = true },
             };
-            RouteStop minmus = Choose(Surface(Minmus), StepRole.Land, Flyer.Alone(4));
+            RouteStop minmus = Choose(Surface(Minmus), StepRole.Land, ActiveVessel.Alone(4));
             List<RouteStop> goals = new List<RouteStop>
             {
                 Orbit(Kerbin, 80000), Orbit(Mun, 14000), Surface(Mun), Orbit(Mun, 14000), Orbit(Minmus, 10000), minmus,
@@ -589,11 +589,11 @@ namespace ReDefinition.Tests
                 new RouteSection { Id = 1, Kind = SectionKind.Lander, Name = "Lander 1", Docks = true },
                 new RouteSection { Id = 4, Kind = SectionKind.Lander, Name = "Lander 2", Docks = true },
             };
-            RouteStop second = Choose(Surface(Mun), StepRole.Land, Flyer.Alone(4));
+            RouteStop second = Choose(Surface(Mun), StepRole.Land, ActiveVessel.Alone(4));
             List<RouteStop> goals = new List<RouteStop>
             {
                 Orbit(Kerbin, 80000), Orbit(Mun, 500000), Surface(Mun), Orbit(Mun, 500000), second, Orbit(Mun, 500000),
-                Choose(Orbit(Kerbin, 80000), StepRole.Transfer, Flyer.Ship),
+                Choose(Orbit(Kerbin, 80000), StepRole.Transfer, ActiveVessel.Ship),
             };
             List<RouteStep> steps = RouteSteps.Build(Stock(), goals, sections, false);
 

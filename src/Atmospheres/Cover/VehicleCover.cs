@@ -14,7 +14,7 @@ namespace ReDefinition.Atmospheres
     // the meshes are shared per source mesh and orientation. vehicleCover Off removes every shell.
     //
     // Stack: the shell is a child of the part's renderer, opaque (queue 2001), motionVectorGenerationMode = Object, no shadow caster,
-    // receives shadows, depth offset -1 in the shader. The vessel motion-vector rig draws every opaque mesh renderer under a part, so a
+    // receives shadows, depth offset -1 in the shader. The vessel motion-vector integration draws every opaque mesh renderer under a part, so a
     // shell is repaired like the part. The ray-traced scene leaves the shells out (RtFilter.LeftOut by the shader's name): vehicles are
     // bare in reflections. Kerbals on EVA carry none. Only meshes with a stock-like shader get a shell (VehicleCoverGate; RECON P8: a
     // foreign opaque shader does not look like the stock material under the shell's own lighting); the method ScreenSpace

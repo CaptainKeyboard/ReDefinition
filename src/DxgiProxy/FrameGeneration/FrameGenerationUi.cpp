@@ -2,7 +2,7 @@
 //
 // KSP draws its HUD -- Unity canvases and every mod's OnGUI window -- straight onto the
 // backbuffer, after the scene camera, so the game has no plane of UI colour and alpha to
-// hand DLSS-G. What exists is the HUD-less copy (UpscalerRig.HudLess: the backbuffer at the
+// hand DLSS-G. What exists is the HUD-less copy (UpscalerIntegration.HudLess: the backbuffer at the
 // end of the last scene camera) and the presented frame; where the two differ, the pixel
 // is UI. NVIDIA's guide wants "UI Color and Alpha" such that
 // "Final_Color.RGB = UI.RGB + (1 - UI.Alpha) x Hudless.RGB", "the RGB channels must be

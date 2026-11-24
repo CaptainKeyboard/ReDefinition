@@ -16,21 +16,21 @@ namespace ReDefinition.Diagnostics
     // by DiagnosticsWindow.Rows.cs. The add-on owns it and forwards its OnGUI.
     internal sealed partial class DiagnosticsWindow
     {
-        // The settings the window shows and whose setters its options call, the rig's lifecycle, the
+        // The settings the window shows and whose setters its options call, the integration's lifecycle, the
         // other mods' antialiasing, the frame rates and the recording timer it shows, and the id of its IMGUI window.
         private readonly SettingsController config;
-        private readonly RigLifecycle rigs;
+        private readonly IntegrationLifecycle integrations;
         private readonly HostStackSync hostStack;
         private readonly FrameRateReadout rates;
         private readonly ScreenRecordingTimer recording;
         private readonly int windowId;
 
         // A window for the state given, drawn under the id given.
-        public DiagnosticsWindow(SettingsController config, RigLifecycle rigs, HostStackSync hostStack, FrameRateReadout rates,
+        public DiagnosticsWindow(SettingsController config, IntegrationLifecycle integrations, HostStackSync hostStack, FrameRateReadout rates,
                                  ScreenRecordingTimer recording, int windowId)
         {
             this.config = config;
-            this.rigs = rigs;
+            this.integrations = integrations;
             this.hostStack = hostStack;
             this.rates = rates;
             this.recording = recording;
@@ -82,7 +82,7 @@ namespace ReDefinition.Diagnostics
         private Vector2 paneScroll;
         // Closed by default: the motion and depth previews read the image back from the GPU and
         // cost frame rate while they are shown -- which is while their page is.
-        private UpscalerRig.PreviewMode previewMode = UpscalerRig.PreviewMode.MotionVectors;
+        private UpscalerIntegration.PreviewMode previewMode = UpscalerIntegration.PreviewMode.MotionVectors;
 
         // The search and the "Changed" filter: what is typed, and what the pages show.
         private string typedQuery = "";

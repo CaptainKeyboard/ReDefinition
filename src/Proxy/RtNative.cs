@@ -104,7 +104,7 @@ namespace ReDefinition.Proxy
         // The primary check's output: the distance met, the distance the depth gives, the instance met plus one, and 1.
         internal const int OutputPrimaryCheck = 7;
 
-        // How a material's shine is meant (RtMaterialIntent; RtContract.h, RT_SURFACE_*).
+        // How a material's specular reflection is meant (RtMaterialIntent; RtContract.h, RT_SURFACE_*).
         internal const uint SurfaceKeep = 0;
         internal const uint SurfaceDry = 1;
         internal const uint SurfaceLegacy = 2;
@@ -144,7 +144,7 @@ namespace ReDefinition.Proxy
         [StructLayout(LayoutKind.Sequential)]
         internal struct MaterialDesc
         {
-            // Its size in bytes and MaterialMagic, the id this side gives the material, and how its shine is meant
+            // Its size in bytes and MaterialMagic, the id this side gives the material, and how its specular reflection is meant
             // (Surface*).
             public uint Size;
             public uint Magic;
@@ -161,7 +161,7 @@ namespace ReDefinition.Proxy
             // Above 0: the albedo is in Unity's colour space and the vertex colour times
             // this is added to it (RtTerrainColour); the texture is not used.
             public float VertexColour;
-            // How its shine is meant is Flags (Surface*); for the legacy families what the
+            // How its specular reflection is meant is Flags (Surface*); for the legacy families what the
             // G-buffer's smoothness or specular colour is divided by for the gloss, and the gloss
             // where no G-buffer gives it.
             public float GlossDivisor, GlossMean;

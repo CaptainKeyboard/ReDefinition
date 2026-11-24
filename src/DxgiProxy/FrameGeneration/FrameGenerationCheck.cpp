@@ -410,7 +410,7 @@ namespace redefinition
             return false;
         }
 
-        // Depth rows are only read back when the format is the one the rig
+        // Depth rows are only read back when the format is the one the integration
         // sends. Optional: the colour check stands without it.
         if (S(depth).Valid() && TypedFormat(S(depth).format) == DXGI_FORMAT_R32_FLOAT)
         {

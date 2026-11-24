@@ -11,7 +11,7 @@ namespace ReDefinition.Upscaler
 {
     // An instrument: whether the motion vectors every upscaler reads are right on the
     // active vessel and on the ground around it, logged about every ten seconds in
-    // flight while the rig runs with the diagnostic measurements on
+    // flight while the integration runs with the diagnostic measurements on
     // (ReDefinitionAddon.DebugMode).
     //
     // Every fifth frame, as the scene camera culls, the capture gets readbacks of the
@@ -177,7 +177,7 @@ namespace ReDefinition.Upscaler
             // A shift of the floating origin since the previous frame (SharedFrame,
             // begun before this): the previous frame's matrices no longer fit.
             bool continuous = previousFrame == Time.frameCount - 1 && !SharedFrame.Shifted
-                              && SharedFrame.RigResetReason == null;
+                              && SharedFrame.IntegrationResetReason == null;
             bool sampling = continuous && Time.frameCount % FrameSpacing == 0;
             if (!continuous) skippedFrames++;
 
@@ -281,7 +281,7 @@ namespace ReDefinition.Upscaler
         // Snaps the sample to its pixel and asks the capture for that pixel's depth and motion vector.
         // The pixel's row is its viewport y times the height, as the capture's render
         // texture is laid out; MotionVectorCheck in the Unity project checks that
-        // addressing against a rendered sphere. The motion vectors are the rig's
+        // addressing against a rendered sphere. The motion vectors are the integration's
         // encoding, y up (ReDefinitionMotionVector).
         private void Issue(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth, Sample sample)
         {

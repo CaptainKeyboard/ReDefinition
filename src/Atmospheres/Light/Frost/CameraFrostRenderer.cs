@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
     // Two ways to draw, one look:
     //   Host  after the upscaler through ReDefinition.Api (IPostUpscaleCompositor, the plain after-upscaling hook, no depth): the frost
     //         is not in the picture the upscaler sees, so it cannot ghost, and it refracts and scatters a half-size copy of the
-    //         upscaled image. Needs the main mod. In the IVA it needs the interior mask (FrostInteriorMask), because the rig upscales
+    //         upscaled image. Needs the main mod. In the IVA it needs the interior mask (FrostInteriorMask), because the integration upscales
     //         the internal camera together with the flight camera and the props must stay clear.
     //   Quad  Graphics.DrawMesh at queue 3500 on the flight camera, a plain alpha overlay without refraction. Works alone; in the IVA
     //         it sits under the interior (the internal camera draws after the flight camera).
@@ -102,7 +102,7 @@ namespace ReDefinition.Atmospheres
         // The IVA premises as the series reads them: how often the hook was called while the view was the IVA, for which camera (the
         // flight camera, the internal camera), the size of the image it gave and of the camera's own target, and the interior mask.
         // Whether the internal camera draws into the flight camera's render target (the picture the upscaler gets), and so needs the mask.
-        internal static bool InternalInRigImage { get; private set; }
+        internal static bool InternalInIntegrationImage { get; private set; }
         internal static bool IvaMaskNeeded { get; private set; }
         internal static int HostCallsIva { get; private set; }
         internal static int HostCallsIvaFlightCamera { get; private set; }
@@ -563,7 +563,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Whether the internal camera draws into the same render target as the flight camera, i.e. into the picture the upscaler gets
-        // (the rig redirects the cameras of the stack into one render-size texture). Looked up about once a second.
+        // (the integration redirects the cameras of the stack into one render-size texture). Looked up about once a second.
         private bool InternalCameraInImage(Camera flight)
         {
             internalLookAge += Time.unscaledDeltaTime;
@@ -578,8 +578,8 @@ namespace ReDefinition.Atmospheres
             // No internal camera found: the mask is assumed needed (and cannot be built, so the composite is not used).
             if (internalCamera == null) return true;
             RenderTexture target = flight.targetTexture;
-            InternalInRigImage = target != null && internalCamera.targetTexture == target;
-            return InternalInRigImage;
+            InternalInIntegrationImage = target != null && internalCamera.targetTexture == target;
+            return InternalInIntegrationImage;
         }
 
         private void Idle()
@@ -642,8 +642,8 @@ namespace ReDefinition.Atmospheres
                     LastHostCamera = camera != null ? camera.name : null;
                 }
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-                // The hook is called with the camera the rig was built on (RigLifecycle.CameraPreference: Camera 00 in flight, in the
-                // IVA too, as the rig redirects InternalCamera into the same image but is built on Camera 00); the internal camera is
+                // The hook is called with the camera the integration was built on (IntegrationLifecycle.CameraPreference: Camera 00 in flight, in the
+                // IVA too, as the integration redirects InternalCamera into the same image but is built on Camera 00); the internal camera is
                 // accepted as well [VERIFY: the rows D37.iva_hook_calls_flight_camera / _internal_camera count which one the game gives].
                 bool ours = camera == flight || (ActiveView == FrostView.Iva && lastHostCameraInternal);
                 if (ActiveView == FrostView.Iva && upscaled != null)

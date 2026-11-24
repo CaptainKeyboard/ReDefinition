@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace ReDefinition.Modules
 {
-    // The settings' setters: how each change takes effect, on the rig or by building it anew.
+    // The settings' setters: how each change takes effect, on the integration or by building it anew.
     // The settings views and the diagnostics window change them through these.
     internal sealed partial class SettingsController
     {
@@ -20,9 +20,9 @@ namespace ReDefinition.Modules
                 return;
             }
             WantEnabled = value;
-            rigs.ForgetSetupFailures();
-            // Tick takes the rig down (RigLifecycle.WantsRig), for the reason Reattach waits.
-            rigs.AttachSoon();
+            integrations.ForgetSetupFailures();
+            // Tick takes the integration down (IntegrationLifecycle.WantsIntegration), for the reason Reattach waits.
+            integrations.AttachSoon();
             Debug.Log(Log.Tag + " Upscaler " + (WantEnabled ? "on" : "off"));
         }
 
@@ -45,10 +45,10 @@ namespace ReDefinition.Modules
         internal void SetSharpness(float value)
         {
             bool wasSharpening = Sharpness > 0f;
-            Sharpness = Mathf.Clamp(value, 0f, UpscalerRig.MaximumSharpness);
-            if (Rig != null) Rig.Sharpness = Sharpness;
-            // 0 switches RCAS off, which takes the other accumulate shader: a new rig.
-            if (Rig != null && wasSharpening != (Sharpness > 0f)) rigs.Reattach();
+            Sharpness = Mathf.Clamp(value, 0f, UpscalerIntegration.MaximumSharpness);
+            if (Integration != null) Integration.Sharpness = Sharpness;
+            // 0 switches RCAS off, which takes the other accumulate shader: a new integration.
+            if (Integration != null && wasSharpening != (Sharpness > 0f)) integrations.Reattach();
             Debug.Log(Log.Tag + " Sharpness " + Sharpness.ToString("0.00")
                       + (Sharpness > 1f ? "  (beyond FidelityFX' maximum)" : ""));
         }
@@ -60,92 +60,92 @@ namespace ReDefinition.Modules
             Debug.Log(Log.Tag + " Diagnostic measurements " + (value ? "on" : "off") + ".");
         }
 
-        // Built into the rig: the picture before the upscaler instead of its result.
+        // Built into the integration: the picture before the upscaler instead of its result.
         internal void SetBypass(bool value)
         {
             Bypass = value;
-            rigs.Reattach();
+            integrations.Reattach();
         }
 
-        // Live: the rig runs the motion vector check on fast turns from the next frame.
+        // Live: the integration runs the motion vector check on fast turns from the next frame.
         internal void SetRecordFastTurns(bool value)
         {
             RecordFastTurns = value;
-            if (Rig != null) Rig.RecordFastTurns = RecordFastTurns;
+            if (Integration != null) Integration.RecordFastTurns = RecordFastTurns;
             Debug.Log(Log.Tag + " Motion vector check on fast turns " + (RecordFastTurns ? "on" : "off") + ".");
         }
 
 #if DEVELOPMENT_BUILD
-        // Live: the rig draws FSR's debug view pass, which development builds compile.
+        // Live: the integration draws FSR's debug view pass, which development builds compile.
         internal void SetDebugView(bool value)
         {
             DebugView = value;
-            if (Rig != null) Rig.DebugView = DebugView;
+            if (Integration != null) Integration.DebugView = DebugView;
             Debug.Log(Log.Tag + " FSR debug view " + (DebugView ? "on" : "off"));
         }
 #endif
 
-        // Built into the rig's mipmap bias: a new rig.
+        // Built into the integration's mipmap bias: a new integration.
         internal void SetMipmapBias(bool value)
         {
             MipmapBias = value;
-            rigs.Reattach();
+            integrations.Reattach();
         }
 
-        // Live: the rig sets the LOD bias in QualitySettings anew at once.
+        // Live: the integration sets the LOD bias in QualitySettings anew at once.
         internal void SetCompensateLodBias(bool value)
         {
             CompensateLodBias = value;
-            if (Rig != null) { Rig.CompensateLodBias = CompensateLodBias; Rig.RefreshQualityOverrides(); }
+            if (Integration != null) { Integration.CompensateLodBias = CompensateLodBias; Integration.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " LOD bias compensation " + (CompensateLodBias ? "on" : "off"));
         }
 
-        // Live: the rig sets the MSAA override in QualitySettings anew at once.
+        // Live: the integration sets the MSAA override in QualitySettings anew at once.
         internal void SetDisableMsaa(bool value)
         {
             DisableMsaa = value;
-            if (Rig != null) { Rig.DisableMsaa = DisableMsaa; Rig.RefreshQualityOverrides(); }
+            if (Integration != null) { Integration.DisableMsaa = DisableMsaa; Integration.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " MSAA override " + (DisableMsaa ? "on" : "off"));
         }
 
-        // Live: the rig sets the anisotropic filtering override in QualitySettings anew at once.
+        // Live: the integration sets the anisotropic filtering override in QualitySettings anew at once.
         internal void SetForceAnisotropic(bool value)
         {
             ForceAnisotropic = value;
-            if (Rig != null) { Rig.ForceAnisotropic = ForceAnisotropic; Rig.RefreshQualityOverrides(); }
+            if (Integration != null) { Integration.ForceAnisotropic = ForceAnisotropic; Integration.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " Anisotropic override " + (ForceAnisotropic ? "on" : "off"));
         }
 
-        // Built into the FSR context: a new rig.
+        // Built into the FSR context: a new integration.
         internal void SetAutoExposure(bool value)
         {
             AutoExposure = value;
             Debug.Log(Log.Tag + " FSR auto exposure " + (AutoExposure ? "on" : "off"));
-            rigs.Reattach();
+            integrations.Reattach();
         }
 
-        // Live: the rig reads it every frame, and TUFX's next blend of its settings
+        // Live: the integration reads it every frame, and TUFX's next blend of its settings
         // puts every effect back on its own layer once it is off.
         internal void SetTufxAfterUpscaling(bool value)
         {
             TufxAfterUpscaling = value;
-            if (Rig != null) Rig.TufxAfterUpscaling = TufxAfterUpscaling;
+            if (Integration != null) Integration.TufxAfterUpscaling = TufxAfterUpscaling;
             Debug.Log(Log.Tag + " TUFX effects " + (TufxAfterUpscaling ? "after" : "before") + " FSR");
         }
 
-        // Live: the rig records the masks and hands them to FSR in every frame.
+        // Live: the integration records the masks and hands them to FSR in every frame.
         internal void SetTransparencyMask(bool value)
         {
             TransparencyMask = value;
-            if (Rig != null) Rig.TransparencyMask = TransparencyMask;
+            if (Integration != null) Integration.TransparencyMask = TransparencyMask;
             Debug.Log(Log.Tag + " Transparency mask " + (TransparencyMask ? "on" : "off"));
         }
 
-        // Live: the rig takes the reactive mask's source in the next frame.
+        // Live: the integration takes the reactive mask's source in the next frame.
         internal void SetReactiveMask(UpscalerMasks.ReactiveSource value)
         {
             ReactiveMask = value;
-            if (Rig != null) Rig.ReactiveMask = ReactiveMask;
+            if (Integration != null) Integration.ReactiveMask = ReactiveMask;
             Debug.Log(Log.Tag + " Reactive mask: " + ReactiveLabel(ReactiveMask));
         }
 
@@ -168,14 +168,14 @@ namespace ReDefinition.Modules
             SetBackend(value);
         }
 
-        // A new rig: the technique decides what it builds.
+        // A new integration: the technique decides what it builds.
         internal void SetBackend(UpscalerBackend value)
         {
             if (Backend == value) return;
             Backend = value;
-            rigs.ForgetNativeFailures(true);
+            integrations.ForgetNativeFailures(true);
             Debug.Log(Log.Tag + " Upscaler technique: " + UpscalerBackends.Name(Backend));
-            rigs.Reattach();
+            integrations.Reattach();
         }
 
         // Live: the proxy creates DLSS's feature anew when the preset differs.
@@ -183,7 +183,7 @@ namespace ReDefinition.Modules
         {
             if (DlssModel == value) return;
             DlssModel = value;
-            if (Rig != null) Rig.DlssPreset = DlssModels.Preset(DlssModel);
+            if (Integration != null) Integration.DlssPreset = DlssModels.Preset(DlssModel);
             Debug.Log(Log.Tag + " DLSS model: " + DlssModels.Name(DlssModel) + ".");
         }
 
@@ -192,8 +192,8 @@ namespace ReDefinition.Modules
         // is tried at once where it is chosen, not only after the next scene change.
         internal void NvidiaFilesPlaced()
         {
-            rigs.ForgetNativeFailures(false);
-            rigs.RetryIfFallenBack(UpscalerBackend.Dlss);
+            integrations.ForgetNativeFailures(false);
+            integrations.RetryIfFallenBack(UpscalerBackend.Dlss);
         }
 
         // Intel's download placed libxess.dll: as with nvngx_dlss.dll, XeSS is tried at
@@ -201,32 +201,32 @@ namespace ReDefinition.Modules
         // is there).
         internal void IntelFilesPlaced()
         {
-            rigs.ForgetNativeFailures(false);
-            rigs.RetryIfFallenBack(UpscalerBackend.Xess);
+            integrations.ForgetNativeFailures(false);
+            integrations.RetryIfFallenBack(UpscalerBackend.Xess);
         }
 
-        // Live: the rig reads it every frame.
+        // Live: the integration reads it every frame.
         internal void SetJitter(bool value)
         {
             Jitter = value;
-            if (Rig != null) Rig.EnableJitter = Jitter;
+            if (Integration != null) Integration.EnableJitter = Jitter;
             Debug.Log(Log.Tag + " Jitter " + (Jitter ? "on" : "off"));
         }
 
-        // Live: the rig sweeps the skinned renderers once a second while this is
+        // Live: the integration sweeps the skinned renderers once a second while this is
         // on, and puts back what they had once it is off (SkinnedMotionVectors).
         internal void SetSkinnedMotionVectors(bool value)
         {
             SkinnedMotionVectors = value;
-            if (Rig != null) Rig.ForceSkinnedMotionVectors = SkinnedMotionVectors;
+            if (Integration != null) Integration.ForceSkinnedMotionVectors = SkinnedMotionVectors;
             Debug.Log(Log.Tag + " Skinned motion vectors "
                       + (SkinnedMotionVectors ? "forced on" : "as the game set them"));
         }
 
-        // Live: the rig reads it every frame. Needs the dxgi.dll proxy next to
-        // KSP_x64.exe with frameGeneration=1 in its ini. The rig supplies depth,
+        // Live: the integration reads it every frame. Needs the dxgi.dll proxy next to
+        // KSP_x64.exe with frameGeneration=1 in its ini. The integration supplies depth,
         // motion vectors and the HUD-less image; with the upscaler off it runs for
-        // that alone (UpscalerRig.PassThrough), attached by RigLifecycle.Tick.
+        // that alone (UpscalerIntegration.PassThrough), attached by IntegrationLifecycle.Tick.
         // Without the proxy the switch is inert and the diagnostics say so.
         internal void SetFrameGeneration(bool value)
         {
@@ -236,8 +236,8 @@ namespace ReDefinition.Modules
                 return;
             }
             FrameGeneration = value;
-            rigs.ForgetSetupFailures();
-            rigs.ForgetLoggedSetupProblem();
+            integrations.ForgetSetupFailures();
+            integrations.ForgetLoggedSetupProblem();
             // Switched on by the player: a context the proxy could not make gets
             // another try, a standing failure included. What it requires of KSP's
             // V-Sync is held at the end of the frame, and let go once it is off
@@ -250,10 +250,10 @@ namespace ReDefinition.Modules
             }
             string switched = FrameGeneration ? "frame generation switched on" : "frame generation switched off";
             BundledSettingsAddon.AtEndOfFrame("frame-generation-requirements", () => Requirements.Enforce(switched));
-            if (Rig != null) Rig.FrameGeneration = FrameGeneration;
-            else if (FrameGeneration) rigs.AttachSoon();
-            // Off at once, rig or not: without a rig nobody dispatches, and a rig on
-            // its way down (Reattach, WantsRig) may not dispatch again, while its
+            if (Integration != null) Integration.FrameGeneration = FrameGeneration;
+            else if (FrameGeneration) integrations.AttachSoon();
+            // Off at once, integration or not: without an integration nobody dispatches, and an integration on
+            // its way down (Reattach, WantsIntegration) may not dispatch again, while its
             // teardown only switches the proxy off when frame generation is on.
             if (!FrameGeneration) FrameGenerationBridge.SetEnabled(false);
             Debug.Log(Log.Tag + " Frame generation " + (FrameGeneration ? "on" : "off"));
@@ -278,13 +278,13 @@ namespace ReDefinition.Modules
             SetQuality(mode);
         }
 
-        // A new rig at the new mode; a technique that failed at the old one is tried again.
+        // A new integration at the new mode; a technique that failed at the old one is tried again.
         internal void SetQuality(Fsr3Upscaler.QualityMode mode)
         {
             if (Quality == mode) return;
             Quality = mode;
-            rigs.ForgetNativeFailures(false);
-            rigs.Reattach();
+            integrations.ForgetNativeFailures(false);
+            integrations.Reattach();
         }
     }
 }

@@ -25,7 +25,7 @@ namespace ReDefinition.Upscaler
     // (VesselMotionVectors.NearVessels, tracks). The vessel's way is taken against its main body (Follow).
     // Left alone: a jump of more than four steps' worth of its
     // speed or 50 m (JumpMetres), a packed vessel, IVA and map view. Only
-    // while the rig hands frames to an upscaler or to frame generation (UpscalerRig.Feeding).
+    // while the integration hands frames to an upscaler or to frame generation (UpscalerIntegration.Feeding).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     [DefaultExecutionOrder(32000)]
     public sealed class RenderInterpolation : MonoBehaviour
@@ -154,7 +154,7 @@ namespace ReDefinition.Upscaler
         {
             active = null;
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (!Enabled || !UpscalerRig.Feeding || vessel == null || vessel.packed || vessel.rootPart == null
+            if (!Enabled || !UpscalerIntegration.Feeding || vessel == null || vessel.packed || vessel.rootPart == null
                 || vessel.mainBody == null || CameraManager.Instance == null
                 || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
             {

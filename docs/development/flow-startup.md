@@ -36,7 +36,7 @@ change.
    `RegisteredMod` of each. `ProfileReport.Start` asks at the main menu if nothing has before.
 8. At the main menu `BundleNotice` asks the player about new mods two seconds in, and
    `MainMenuEntry` adds the menu entry a frame after the menu starts.
-9. No upscaler rig attaches in the main menu or its settings screen
+9. No upscaler integration attaches in the main menu or its settings screen
    (`ReDefinitionAddon.OnlySettingsHere`). In every other scene `ReDefinitionAddon.Update`
    calls `ReDefinitionAddon.TryAttach` once a second.
 
@@ -50,7 +50,7 @@ flowchart TD
     D -- yes --> F["ModRegistry.LoadAll and Build"]
     F --> G["Main menu: ProfileReport, BundleNotice"]
     G --> H["Scene change"]
-    H --> I["ReapplyStored, Enforce, rig detached"]
+    H --> I["ReapplyStored, Enforce, integration detached"]
     I --> H
 ```
 
@@ -85,7 +85,7 @@ whole run.
 | `ToolbarHides` | `src/Window/ToolbarHides.cs` | Instantly, once |
 | `LoadingScreenWindows` | `src/Window/LoadingScreenWindows.cs` | Instantly, once |
 | `ScalingAddon` | `src/Scaling/ScalingAddon.cs` | Instantly, once |
-| `ScreenCoordinates` | `src/Upscaler/Rig/ScreenCoordinates.cs` | Instantly, once |
+| `ScreenCoordinates` | `src/Upscaler/Integration/ScreenCoordinates.cs` | Instantly, once |
 | `ReflectionProbeFix` | `src/Scenery/ReflectionProbeFix.cs` | Instantly, once |
 | `DashboardServer` | `src/Dashboard/DashboardServer.cs` | Instantly, once |
 | `DashboardStartup` | `src/Dashboard/DashboardStartup.cs` | Instantly, once |
@@ -148,7 +148,7 @@ whole run.
 
 - The add-ons marked `Flight`, `SpaceCentre`, `EditorAny` and the other scenes. KSP destroys
   them with the scene, and their HUD objects go with them.
-- The upscaler rig. `ReDefinitionAddon.Detach` tears it down and `TryAttach` builds a new one.
+- The upscaler integration. `ReDefinitionAddon.Detach` tears it down and `TryAttach` builds a new one.
 - The settings window. Its dialog's `onDestroy` handler in `SettingsWindow.Open` clears it.
 - ReDefinition's record of the other mods' open windows (`ModWindowClose.Forget`).
 - What a mod sets up anew per scene. That is why `ReapplyStored` runs three times per change.
@@ -172,7 +172,7 @@ Static state, Harmony patches and the add-ons with `DontDestroyOnLoad` last for 
   was queued with no add-on to run it".
 - A missing shader set logs "Upscaler not operational"; a complete set logs "All eleven
   required compute shaders found".
-- A rig that cannot start logs "Upscaler could not be set up yet, trying again in a second".
+- An integration that cannot start logs "Upscaler could not be set up yet, trying again in a second".
   After three failures it is not tried again before the next scene.
 - A failed hook is a warning of its own kind, such as "ReDefinition's profile step failed this
   frame".

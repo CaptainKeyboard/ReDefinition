@@ -14,7 +14,7 @@
 //
 // It also runs the HUD-less copy end to end. Every frame draws a "scene"
 // whose colour changes from frame to frame, copies it into a HUD-less texture
-// the way the rig blits it after the last scene camera, and then draws a "UI"
+// the way the integration blits it after the last scene camera, and then draws a "UI"
 // rectangle over it. The proxy's check must find exactly the rectangle in the
 // direct comparison and, because the scene carries a feature, more than that in
 // the mirrored one -- not nothing, which would mean the copy was taken after the
@@ -23,7 +23,7 @@
 // two comparisons swapped.
 //
 // And, when the FidelityFX runtime sits next to it, frame generation itself:
-// depth and motion vectors registered and captured every frame the way the rig
+// depth and motion vectors registered and captured every frame the way the integration
 // does it, interpolation on, off, on again, and on across a resize. The
 // swapchain's own present count says whether frames were generated -- about two
 // presents per rendered frame while it is on, one while it is off. DLSS's frame
@@ -143,7 +143,7 @@ namespace
     using DlssStatusFn = int (*)(char*, int);
     using DlssPacketSizeFn = unsigned int (*)();
     using DlssSizesFn = int (*)(unsigned int, unsigned int, int, unsigned int*, unsigned int*, unsigned int*);
-    // DLSS's render events: a frame, and the rig gone.
+    // DLSS's render events: a frame, and the integration gone.
     constexpr int kDlssEvent = 2;
     constexpr int kDlssReleaseEvent = 3;
     using redefinition::DlssPacket;
@@ -329,7 +329,7 @@ namespace
 
     using redefinition::HalfToFloat;
 
-    // What the rig hands over: R32_FLOAT depth and R16G16_FLOAT motion vectors,
+    // What the integration hands over: R32_FLOAT depth and R16G16_FLOAT motion vectors,
     // the formats measured in the game. A flat depth and no motion are enough
     // to drive the whole path; the look of the generated frames is not tested
     // here.
@@ -1377,9 +1377,9 @@ int main()
             return Fail("CreateTexture2D for the scene feature", hr);
     }
 
-    // The rig's inputs at a given size: depth, motion vectors and the HUD-less
+    // The integration's inputs at a given size: depth, motion vectors and the HUD-less
     // texture the scene is copied into before the UI. Registered together, as
-    // the rig does it, with the packet's render size to match.
+    // the integration does it, with the packet's render size to match.
     auto provideInputs = [&](UINT width, UINT height, UINT displayWidth, UINT displayHeight) -> HRESULT
     {
         HRESULT created = CreateInputs(device.Get(), width, height, inputs);
@@ -1393,7 +1393,7 @@ int main()
 
         registerInputs(inputs.depth.Get(), inputs.motion.Get(), hudLessCopy.Get());
 
-        // As the rig sends it: jitter, the motion vector scale of Unity's
+        // As the integration sends it: jitter, the motion vector scale of Unity's
         // vectors, raw clip planes, vertical field of view, frame time,
         // render size. And a valid camera basis, which the API requires.
         packet = {};
@@ -1411,7 +1411,7 @@ int main()
         packet.right[0] = 1.0f;
         packet.forward[2] = 1.0f;
 
-        // The rig's matrices for DLSS frame generation: row-major, view space
+        // The integration's matrices for DLSS frame generation: row-major, view space
         // down +z, Direct3D clip space with reversed depth -- and a camera that
         // does not move, so current and previous clip space are the same.
         const float yScale = 1.0f / std::tan(packet.verticalFovRadians * 0.5f);
@@ -1498,7 +1498,7 @@ int main()
             context->CopySubresourceRegion(backBuffer.Get(), 0, kFeatureX, kFeatureY, 0,
                                            feature.Get(), 0, &featureBox);
 
-            // The scene is finished: the rig blits the backbuffer into its
+            // The scene is finished: the integration blits the backbuffer into its
             // HUD-less texture here. Then this frame's packet, then the "UI"
             // on top. The proxy copies everything at Present.
             context->CopyResource(hudLessCopy.Get(), backBuffer.Get());
@@ -2969,7 +2969,7 @@ int main()
 
         // A resize, as a resolution change or a switch to fullscreen makes one:
         // every reference to the old buffer let go, the swapchain resized, the
-        // buffer fetched anew -- and the rig's inputs rebuilt at the new size.
+        // buffer fetched anew -- and the integration's inputs rebuilt at the new size.
         rtv.Reset();
         backBuffer.Reset();
         context->ClearState();
@@ -3177,7 +3177,7 @@ int main()
     }
 
     // DLSS Super Resolution on this D3D11 device through NVIDIA's NGX, the way the
-    // rig drives it: packets through the render event, Performance from
+    // integration drives it: packets through the render event, Performance from
     // 320x180 to 640x360 with preset K, a flat image that has to come out flat.
     bool dlssTested = false;
     if (!dlssDirectory.empty())
@@ -3222,7 +3222,7 @@ int main()
             return Fail("DLSS test textures", hr);
 
         // Every mode's render size at an output size, asked for before any
-        // feature exists, as the mod asks before it builds the rig. Another output
+        // feature exists, as the mod asks before it builds the integration. Another output
         // size than the frames below use, so what they find is the feature's own.
         constexpr UINT queryWidth = 1280;
         constexpr UINT queryHeight = 720;
@@ -3338,7 +3338,7 @@ int main()
         printf("      DLSS skipped: REDEFINITION_DLSS_DIR names no folder with nvngx_dlss.dll\n");
     }
 
-    // AMD's upscaler on the proxy's D3D12 device, the way the rig drives it:
+    // AMD's upscaler on the proxy's D3D12 device, the way the integration drives it:
     // packets through the render event, 320x180 to 640x360 over a flat image
     // that has to come out flat. On the adapter the proxy presents on, with
     // whichever version the DLL offers there; its name is in the status.

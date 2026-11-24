@@ -76,7 +76,7 @@ SOURCES = [
     'src/Fsr3/Fsr3UpscalerPass.cs',
     'src/Fsr3/Fsr3UpscalerResources.cs',
     'src/Fsr3/ResourceView.cs',
-    'src/Upscaler/Rig/RcasSharpener.cs',
+    'src/Upscaler/Integration/RcasSharpener.cs',
     # What RtCamera's probe and weather parts name (the KSP and add-on types they also name are stubs in GameStubs.cs).
     'src/Raytracing/RtParity.cs',
     'src/Raytracing/RtCamera.Weather.cs',
@@ -189,11 +189,11 @@ def upscale(exe, streamline, amd, ksp):
                    + 'dlssDirectory=' + streamline + chr(10) + 'amdUpscalerDirectory=' + amd + chr(10))
     bundle = os.path.join(ksp, 'GameData', 'ReDefinition', 'Shaders', 'redefinition.shaders')
     runs = [('upscale-native', ['-upscale', 'native'])]
-    # DLSS's own sizes for quality and performance, which the rig renders at.
+    # DLSS's own sizes for quality and performance, which the integration renders at.
     for scale in ('0.6666667', '0.5'):
         for upscaler in ('fsr3', 'dlss', 'amd'):
             runs.append(('upscale-%s-%s' % (upscaler, scale), ['-upscale', upscaler, '-scale', scale, '-bundle', bundle]))
-    # AMD's upscaler with the masks the rig hands it, empty: as without them.
+    # AMD's upscaler with the masks the integration hands it, empty: as without them.
     runs.append(('upscale-amd-masks-0.5', ['-upscale', 'amd', '-scale', '0.5', '-masks', '1', '-bundle', bundle]))
     folders = []
     try:

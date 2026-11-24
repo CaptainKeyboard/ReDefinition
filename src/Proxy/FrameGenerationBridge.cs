@@ -391,8 +391,8 @@ namespace ReDefinition.Proxy
             get { return ContextState() == ContextStands; }
         }
 
-        // Whether the rig's inputs are of use to the proxy: it can generate, and
-        // no failure to make the context stands. The rig and its capture follow
+        // Whether the integration's inputs are of use to the proxy: it can generate, and
+        // no failure to make the context stands. The integration and its capture follow
         // this; the switch follows CanGenerate, so a player can still switch
         // frame generation on to try again.
         public static bool InputsUsable
@@ -429,7 +429,7 @@ namespace ReDefinition.Proxy
         }
 
         // Depth and motion vectors at render size, and the HUD-less texture:
-        // the backbuffer as copied by the rig at the end of the last scene
+        // the backbuffer as copied by the integration at the end of the last scene
         // camera. All three are copied into shared textures by the proxy at
         // Present time.
         public static void RegisterInputs(RenderTexture depth, RenderTexture motionVectors, RenderTexture hudLess)
@@ -483,7 +483,7 @@ namespace ReDefinition.Proxy
             return renderEvent != IntPtr.Zero;
         }
 
-        // Every frame from the rig: the calls made once.
+        // Every frame from the integration: the calls made once.
         public static void SetEnabled(bool enabled)
         {
             if (!Available) return;

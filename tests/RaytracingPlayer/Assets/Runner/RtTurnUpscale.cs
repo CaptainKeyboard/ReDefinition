@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.RaytracingPlayer
 {
-    // The turn through one of the upscalers, as UpscalerRig sends each: FSR 3 through its
+    // The turn through one of the upscalers, as UpscalerIntegration sends each: FSR 3 through its
     // Unity port, DLSS and AMD's upscaler through the proxy (DlssBridge,
     // AmdUpscalerBridge). The camera renders at the render size with the upscaler's
     // jitter; the frame kept is the upscaled one, at the display size.
@@ -26,7 +26,7 @@ namespace ReDefinition.RaytracingPlayer
         private int lastUpscaledFrame = -1;
         private int upscaledFrames;
         internal bool ResetUpscaler;
-        // Counter-checks of the conventions UpscalerRig hands on (-jitterSign, -motionSign:
+        // Counter-checks of the conventions UpscalerIntegration hands on (-jitterSign, -motionSign:
         // "x", "y" or "xy" negated): the right ones measure best.
         private Vector2 jitterSign = Vector2.one, motionSign = Vector2.one;
 
@@ -42,7 +42,7 @@ namespace ReDefinition.RaytracingPlayer
         // Whether an upscaler is asked for, not the native render.
         internal bool Upscaling { get { return upscaler != null && upscaler != "native"; } }
 
-        // -masks: empty reactive and transparency masks for AMD's upscaler, as the rig
+        // -masks: empty reactive and transparency masks for AMD's upscaler, as the integration
         // hands its own; empty, they leave the image as it is without them.
         private System.IntPtr reactiveHandle, transparencyHandle;
 
@@ -101,7 +101,7 @@ namespace ReDefinition.RaytracingPlayer
             displaySize = display;
             renderSize = render;
             float ratio = (float)display.x / render.x;
-            // Fsr3Upscaler.GetJitterPhaseCount, as the rig takes it.
+            // Fsr3Upscaler.GetJitterPhaseCount, as the integration takes it.
             jitterPhases = Mathf.Max(8, (int)(8f * ratio * ratio));
             jitter = name != "native";
             if (!Upscaling) return;
@@ -179,7 +179,7 @@ namespace ReDefinition.RaytracingPlayer
             uint flags = NativeUpscalerLink.FlagHdr | NativeUpscalerLink.FlagAutoExposure
                          | (SystemInfo.usesReversedZBuffer ? NativeUpscalerLink.FlagDepthInverted : 0u)
                          | (reset ? NativeUpscalerLink.FlagReset : 0u);
-            // Reversed depth: the planes swapped, as the rig hands them on (SetupDispatch).
+            // Reversed depth: the planes swapped, as the integration hands them on (SetupDispatch).
             float near = cam.nearClipPlane, far = cam.farClipPlane;
             if (SystemInfo.usesReversedZBuffer)
             {

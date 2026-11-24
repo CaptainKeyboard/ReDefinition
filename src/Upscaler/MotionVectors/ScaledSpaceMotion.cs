@@ -8,7 +8,7 @@ namespace ReDefinition.Upscaler
     // The distant planets' own motion in the motion vectors.
     //
     // Camera ScaledSpace draws the planets seen from afar, their atmospheres and
-    // the clouds on them; Camera 00 draws the near scene over it. The rig's motion
+    // the clouds on them; Camera 00 draws the near scene over it. The integration's motion
     // vectors are Camera 00's. Where it draws nothing (depth at the far
     // plane) Unity fills them with its camera motion at infinity: the camera's
     // turn, nothing of the planet's rotation or of the vessel travelling along its
@@ -99,7 +99,7 @@ namespace ReDefinition.Upscaler
         }
 
         // Once the cameras are redirected: the scaled camera among them, whose
-        // drawing is in the rig's image.
+        // drawing is in the integration's image.
         internal void Attach(List<CameraRedirect> redirects, Vector2Int size)
         {
             Detach();
@@ -224,7 +224,7 @@ namespace ReDefinition.Upscaler
             RenderTextures.Release(ref merged);
         }
 
-        // Detach, and the material destroyed with it, when the rig goes.
+        // Detach, and the material destroyed with it, when the integration goes.
         internal void Dispose()
         {
             Detach();

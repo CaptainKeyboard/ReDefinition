@@ -118,13 +118,13 @@ namespace ReDefinition.Proxy
             return shownName;
         }
 
-        // The link to the proxy's AMD upscaler: render events 4 (a frame) and 5 (the rig gone), probed through
+        // The link to the proxy's AMD upscaler: render events 4 (a frame) and 5 (the integration gone), probed through
         // KspAmdUpscalerReady.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("AMD's upscaler", typeof(AmdPacket),
             () => KspAmdUpscalerPacketSize(), (buffer, size) => KspAmdUpscalerStatus(buffer, size), ProxyEvents.AmdFrame, ProxyEvents.AmdRelease,
             () => KspAmdUpscalerReady());
 
-        // The link, for the rig's state and teardown.
+        // The link, for the integration's state and teardown.
         internal static NativeUpscalerLink Link
         {
             get { return link; }

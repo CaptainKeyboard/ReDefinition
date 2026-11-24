@@ -407,7 +407,7 @@ namespace ReDefinition.Planner.Ui
             yield return leaves;
 
             DialogGUIButton vehicle = null;
-            vehicle = new DialogGUIButton(() => model.VehicleText(leg, role), () => PickFlyer(leg, role, vehicle), VehicleButton,
+            vehicle = new DialogGUIButton(() => model.VehicleText(leg, role), () => PickActiveVessel(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
             vehicle.tooltipText = "Choose which part of the vessel flies this step.";
             vehicle.OptionEnabledCondition = model.Sections.HasSections;
@@ -459,7 +459,7 @@ namespace ReDefinition.Planner.Ui
             DialogGUIButton together = Choice("Together", () => !model.SplitsBurns(leg + 1), () => model.SetSplitBurns(leg + 1, false), 88f);
             together.tooltipText = "Plan the departure and arrival burns as one step.";
             DialogGUIButton split = Choice("Split", () => model.SplitsBurns(leg + 1), () => model.SetSplitBurns(leg + 1, true), 84f);
-            split.tooltipText = "Plan the departure and arrival burns as separate steps, each with its own flyer.";
+            split.tooltipText = "Plan the departure and arrival burns as separate steps, each with its own active vessel.";
             yield return OptionLine(leg, role, "Burns", Cached(() => role == StepRole.Transfer && model.CanSplit(leg)), together, split);
 
             for (int i = 0; i < PlannerModel.MaxWarnings; i++)

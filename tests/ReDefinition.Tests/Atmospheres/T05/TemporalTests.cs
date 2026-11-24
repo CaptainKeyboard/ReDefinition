@@ -133,7 +133,7 @@ namespace ReDefinition.Tests
             return new UnityEngine.Vector3((nx + offset.x) * tanX * t, (ny + offset.y) * tanY * t, -t);
         }
 
-        // recon.hostJitter: the scene and its depth render with the projection CameraRedirect.Jittered makes from the published jitter (UpscalerRig.ChooseJitter: the
+        // recon.hostJitter: the scene and its depth render with the projection CameraRedirect.Jittered makes from the published jitter (UpscalerIntegration.ChooseJitter: the
         // upscaler's sequence at the frame count, 2 j / size in ndc). The raster samples each pixel at its centre, so the depth texel of a pixel holds what lies along the
         // ray the jittered projection draws at that centre. The march's ray through the pixel's centre with RayJitter's offset must be that ray: the jittered projection
         // draws it at the pixel's centre. Without the offset it lands j pixels away (the defect: the cut against the depth is that far off).

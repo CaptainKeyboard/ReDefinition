@@ -10,7 +10,7 @@ namespace ReDefinition.Upscaler
     // Deferred's screen-space reflections size their textures and command
     // buffers once, by their camera, and again only when HDR or VR change
     // (ScreenSpaceReflections.OnPreRender, "also need to detect width/height
-    // changes here"). The rig changes that size whenever it attaches, detaches
+    // changes here"). The integration changes that size whenever it attaches, detaches
     // or changes the mode. RecreateTexturesAndBuffers(1, false), which
     // OnPreRender calls on an HDR change, sizes them anew by
     // RenderingUtils.GetCameraRenderDimensions: the camera's activeTexture, the
@@ -18,7 +18,7 @@ namespace ReDefinition.Upscaler
     //
     // A component is sized anew only where its size -- its screenColor, made at
     // the camera's full size -- is not its camera's any more (pixelWidth, for a
-    // redirected camera the rig texture's): a rebuild throws its history away.
+    // redirected camera the integration texture's): a rebuild throws its history away.
     // At the end of the frame, after every camera has rendered: OnPreRender adds
     // the command buffers and OnPostRender takes those same ones off again, so a
     // rebuild between the two would leave the old ones on the camera. Where
@@ -162,7 +162,7 @@ namespace ReDefinition.Upscaler
             listening = false;
         }
 
-        // The size the camera renders at: for a redirected camera the rig texture's.
+        // The size the camera renders at: for a redirected camera the integration texture's.
         private static Vector2Int PixelSize(Camera camera)
         {
             return new Vector2Int(camera.pixelWidth, camera.pixelHeight);

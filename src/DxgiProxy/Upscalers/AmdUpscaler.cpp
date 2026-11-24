@@ -6,7 +6,7 @@
 #include "FileUtil.h"
 #include "Log.h"
 #include "RuntimeLoader.h"
-#include "UpscalerRig.h"
+#include "UpscalerIntegration.h"
 
 #include <FidelityFX/api/include/dx12/ffx_api_dx12.h>
 #include <FidelityFX/upscalers/include/ffx_upscale.h>

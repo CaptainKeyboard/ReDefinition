@@ -358,7 +358,7 @@ namespace ReDefinition.RaytracingPlayer
     }
 
     // After the raytracing (RtCamera, the component before it): DLSS Ray
-    // Reconstruction of the finished frame as UpscalerRig.Reconstruction.cs sends it,
+    // Reconstruction of the finished frame as UpscalerIntegration.Reconstruction.cs sends it,
     // and the frames to keep read back.
     internal sealed partial class RtTurnPass : MonoBehaviour
     {
@@ -394,7 +394,7 @@ namespace ReDefinition.RaytracingPlayer
         internal ulong Reconstructed;
         internal readonly StringBuilder Meta = new StringBuilder();
 
-        // The upscaler's jitter (CameraRedirect, UpscalerRig: FSR's Halton sequence, 8 phases at the render size):
+        // The upscaler's jitter (CameraRedirect, UpscalerIntegration: FSR's Halton sequence, 8 phases at the render size):
         // the offset in pixels as the upscalers take it, the projection without it and the one rendered with it.
         private bool jitter;
         internal Vector2 JitterPixels;
@@ -403,7 +403,7 @@ namespace ReDefinition.RaytracingPlayer
 
         // Sets the pass up for the camera and the raytracing: with or without Ray Reconstruction and jitter, the
         // output folder, the capture material, the command buffer, the packet ring and meta.txt's header. Ray
-        // Reconstruction runs as the game's upscaler sends it (UpscalerRig.Reconstruction.cs), at the render size
+        // Reconstruction runs as the game's upscaler sends it (UpscalerIntegration.Reconstruction.cs), at the render size
         // (DLAA).
         internal void Init(Camera camera, RtCamera rt, bool reconstruct, bool withJitter)
         {
@@ -540,7 +540,7 @@ namespace ReDefinition.RaytracingPlayer
             if (reconstructed)
             {
                 Fill(source.width, source.height);
-                // -sharpness: RCAS after Ray Reconstruction, as the rig sharpens DLSS's output
+                // -sharpness: RCAS after Ray Reconstruction, as the integration sharpens DLSS's output
                 // (RcasSharpener): Ray Reconstruction writes its input, RCAS the result.
                 if (Sharpener() != null) packet.Output = sharpenInputHandle;
                 ring.Issue(command, RtNative.RenderEvent, RtNative.ReconstructEvent, ref packet);
@@ -606,7 +606,7 @@ namespace ReDefinition.RaytracingPlayer
             });
         }
 
-        // As UpscalerRig.FillReconstruction: unjittered matrices as Streamline takes them,
+        // As UpscalerIntegration.FillReconstruction: unjittered matrices as Streamline takes them,
         // Unity's motion vectors scaled to Streamline's units, DLAA.
         private void Fill(int width, int height)
         {

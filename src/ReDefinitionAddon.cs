@@ -13,8 +13,8 @@ using UnityEngine;
 namespace ReDefinition
 {
     // The mod's main add-on, which starts with the game. It wires the hooks into KSP and other mods
-    // and calls the parts it owns once per frame, in a fixed order: the rig's lifecycle
-    // (RigLifecycle), the hotkeys (AddonHotkeys), the frame rates (FrameRateReadout) and the
+    // and calls the parts it owns once per frame, in a fixed order: the integration's lifecycle
+    // (IntegrationLifecycle), the hotkeys (AddonHotkeys), the frame rates (FrameRateReadout) and the
     // diagnostics window (DiagnosticsWindow). It also drives frame generation's capture and the
     // raytracing (RtKsp) from its Update.
     //
@@ -31,8 +31,8 @@ namespace ReDefinition
         private SettingsController config;
         private readonly ReDefinition.Raytracing.RtKsp raytracing = new ReDefinition.Raytracing.RtKsp();
 
-        // The rig's lifecycle: attached, rebuilt and detached as the scene, the camera and the settings ask.
-        private RigLifecycle rigs;
+        // The integration's lifecycle: attached, rebuilt and detached as the scene, the camera and the settings ask.
+        private IntegrationLifecycle integrations;
 
         // The other mods' antialiasing, kept in step with the upscaler.
         private HostStackSync hostStack;
@@ -68,10 +68,10 @@ namespace ReDefinition
             DontDestroyOnLoad(gameObject);
             HostLink.Connect();
             config = new SettingsController(raytracing);
-            rigs = new RigLifecycle(this, config, rates);
-            config.Connect(rigs);
-            hostStack = new HostStackSync(config, rigs);
-            diagnostics = new DiagnosticsWindow(config, rigs, hostStack, rates, recording, GetInstanceID());
+            integrations = new IntegrationLifecycle(this, config, rates);
+            config.Connect(integrations);
+            hostStack = new HostStackSync(config, integrations);
+            diagnostics = new DiagnosticsWindow(config, integrations, hostStack, rates, recording, GetInstanceID());
             hotkeys = new AddonHotkeys(config.Settings, diagnostics, config.ToggleEnabled);
             Instance = this;
             enforceProfileStep = config.EnforceProfile;
@@ -89,7 +89,7 @@ namespace ReDefinition
                       + " Toolbar button for the settings window; its Keys tab holds the hotkeys.");
 
             config.Load();
-            // The frame's state for every mod (ReDefinition.Api), with or without a rig; a
+            // The frame's state for every mod (ReDefinition.Api), with or without an integration; a
             // failure there costs the interface, not the rest of the add-on.
             Guarded("shared-frame", SharedFrame.Install);
             FrameGenerationBridge.RegisterMainThread();
@@ -112,12 +112,12 @@ namespace ReDefinition
             toolbarButton.Register();
 
             // Both sets, with and without HDR_COLOR_INPUT, right at startup: then the
-            // log already says whether AssetBundle and plugin match. Which one a rig
-            // takes is known once its camera is (RigLifecycle.TryAttach).
+            // log already says whether AssetBundle and plugin match. Which one an integration
+            // takes is known once its camera is (IntegrationLifecycle.TryAttach).
             if (ShaderBundle.Load(true) == null || ShaderBundle.Load(false) == null)
             {
                 string problem = ShaderBundle.LastError;
-                rigs.NoteProblem(problem);
+                integrations.NoteProblem(problem);
                 Debug.LogWarning(Log.Tag + " Upscaler not operational: " + problem);
             }
             else
@@ -130,19 +130,19 @@ namespace ReDefinition
         }
 
         // Each frame: a recording that is due, a new scene's reset, the hotkeys, the steps into other mods, the saving,
-        // the frame-rate meters, and the rig attached, rebuilt or detached as the settings and the cameras ask.
+        // the frame-rate meters, and the integration attached, rebuilt or detached as the settings and the cameras ask.
         private void Update()
         {
             recording.Tick();
-            rigs.FollowScene();
+            integrations.FollowScene();
 
             hotkeys.Handle();
             ReflectSettingsWindow();
-            raytracing.Update(rigs.PickCamera());
+            raytracing.Update(integrations.PickCamera());
 
             // Each into other mods by reflection, and each on its own: one that
             // throws -- a getter of a scene being torn down -- must not keep the
-            // saving or the rig below from running this frame.
+            // saving or the integration below from running this frame.
             Guarded("profile", enforceProfileStep);
             Guarded("host-stack", syncHostStackStep);
             Guarded("host-stack-reassert", ReassertHostStackStep);
@@ -150,16 +150,16 @@ namespace ReDefinition
             config.SaveIfChanged();
             SharedFrame.PollProfile();
 
-            UpscalerRig rig = rigs.Rig;
-            bool active = rig != null && rig.Ready;
-            // Neither on nor off: a rig for frame generation alone carries the
+            UpscalerIntegration integration = integrations.Integration;
+            bool active = integration != null && integration.Ready;
+            // Neither on nor off: an integration for frame generation alone carries the
             // capture's cost, or the native antialiasing's, which would skew the
             // upscaler's comparison.
-            if (rig == null || (!rig.PassThrough && config.WantEnabled)) rates.Sample(active);
+            if (integration == null || (!integration.PassThrough && config.WantEnabled)) rates.Sample(active);
             rates.Update(diagnostics.Visible);
             if (diagnostics.Visible) diagnostics.RefreshLiveStrip();
 
-            rigs.Tick();
+            integrations.Tick();
         }
 
         // Runs one step of Update; an exception is a warning in the log, a few per kind, and the frame goes on.
@@ -223,33 +223,33 @@ namespace ReDefinition
         }
 
         // Every scene load Unity reports, additive ones included -- a revert, a
-        // quickload, the editors' switch between VAB and SPH. The rig's sweep of
+        // quickload, the editors' switch between VAB and SPH. The integration's sweep of
         // skinned renderers counts these.
         private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene,
                                    UnityEngine.SceneManagement.LoadSceneMode mode)
         {
-            UpscalerRig.NoteSceneLoad();
+            UpscalerIntegration.NoteSceneLoad();
             ReDefinition.Raytracing.RtKsp.NewScene();
         }
 
         // KSP's own settings screens write the quality level and MSAA into
-        // QualitySettings when the player applies them, over what the rig set
+        // QualitySettings when the player applies them, over what the integration set
         // there. Both fire this event once they are done.
         private void OnGameSettingsApplied()
         {
-            rigs.ReassertQualityOverrides();
+            integrations.ReassertQualityOverrides();
         }
 
         // Takes everything back as the add-on goes: the raytracing, the event handlers, the toolbar button, the other
-        // mods' state, the settings saved, the rig, the frame's state for other mods and the shader bundle.
+        // mods' state, the settings saved, the integration, the frame's state for other mods and the shader bundle.
         private void OnDestroy()
         {
-            rigs.NoteDestroying();
+            integrations.NoteDestroying();
             raytracing.Detach("ReDefinition's add-on goes");
             if (Instance == this)
             {
                 Instance = null;
-                UpscalerRig.Current = null;
+                UpscalerIntegration.Current = null;
             }
             GameEvents.OnGameSettingsApplied.Remove(OnGameSettingsApplied);
             GameEvents.OnMapEntered.Remove(hostStack.NoteMapToggled);
@@ -262,7 +262,7 @@ namespace ReDefinition
                 toolbarButton = null;
             }
             // What was changed in other mods is taken back on teardown, each step
-            // on its own, so the rig still comes down when one throws.
+            // on its own, so the integration still comes down when one throws.
             Guarded("host-stack-restore", () =>
             {
                 if (HostStack.Applied) HostStack.Restore();
@@ -273,7 +273,7 @@ namespace ReDefinition
             // probe, whose settings were its measurements' (SettingsController.SaveIfChanged).
             if (!Probe.SceneProbe.Requested) Guarded("settings-save", () => config.Collect().Save());
 
-            rigs.Detach();
+            integrations.Detach();
             KeyCapture.Stop();
             SharedFrame.Uninstall();
             ShaderBundle.Unload();

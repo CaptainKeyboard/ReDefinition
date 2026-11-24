@@ -45,7 +45,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 
 | Area | What it is for | Start reading |
 |---|---|---|
-| (the add-on) | The add-on that starts with the game and runs the rig's life cycle | `src/ReDefinitionAddon.cs` |
+| (the add-on) | The add-on that starts with the game and runs the integration's life cycle | `src/ReDefinitionAddon.cs` |
 | `Api` | The interface other mods call | `src/Api/ApiInfo.cs` |
 | `Common` | What both packages stand on: the log, reflection into other mods, optional Harmony hooks, the dialog helpers | `src/Common/HarmonyHooks.cs` |
 | `Core` | The paths and the catalogue of what ReDefinition takes for granted about other mods | `src/Core/ForeignAssumptions.cs` |
@@ -64,7 +64,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Scenery` | Fixes to what the game draws at the space centre and in flight | `src/Scenery/KscGrass.cs` |
 | `Settings` | The store, the registrations and the graphics profiles | `src/Settings/BundledSettings.cs` |
 | `Ui` | The dialog helpers that only ReDefinition needs: the mouse events, the backdrop, confirmations | `src/Ui/UnityMouseEvents.cs` |
-| `Upscaler` | The rig that puts an upscaler on the camera stack | `src/Upscaler/Rig/UpscalerRig.cs` |
+| `Upscaler` | The integration that puts an upscaler on the camera stack | `src/Upscaler/Integration/UpscalerIntegration.cs` |
 | `Vendor` | What the GPU makers need: card class, downloads of their files | `src/Vendor/TechniqueFiles.cs` |
 | `Window` | The settings window and the ways to open it | `src/Window/SettingsWindow/SettingsWindow.cs` |
 

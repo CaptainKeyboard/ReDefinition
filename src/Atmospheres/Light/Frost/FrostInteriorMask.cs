@@ -6,12 +6,12 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Atmospheres
 {
     // The interior mask of the IVA: where the internal camera drew geometry (props, walls, seats), so that the host composite frosts only
-    // the windows. With the upscaler's rig the internal camera is part of the picture it upscales, so the interior is in the image the
+    // the windows. With the upscaler's integration the internal camera is part of the picture it upscales, so the interior is in the image the
     // frost is drawn onto; the mask is what keeps it clear. A command buffer on the internal camera copies its depth buffer into a small
     // target as covered / not covered after its geometry is drawn.
     //
     // Premises that were not measured when this was written [VERIFY in the game, series K-W3b, rows D37.iva_*]: that the internal camera
-    // clears depth before it draws (so its depth buffer holds the interior only), that it makes a depth texture at all (the rig asks
+    // clears depth before it draws (so its depth buffer holds the interior only), that it makes a depth texture at all (the integration asks
     // for one on the scene camera only), and at which event the depth is valid. So the mask is judged (FrostMaskJudge): it is read back
     // about once a second without stalling the GPU, and when the readings say empty or full the next way of taking it is tried (the
     // event and whether the camera is asked for the depth texture). When no way gives a plausible mask, Valid stays false and the

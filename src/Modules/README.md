@@ -12,7 +12,7 @@ that applies a change.
 | `src/Modules/GraphicsModule.cs` | `IGraphicsModule`, `ModuleSetting` and what a setting can declare |
 | `src/Modules/OwnSettings.cs` | The values themselves, and how `settings.cfg` loads and saves |
 | `src/Modules/SettingsController.cs` | `SettingsController.Apply`: how the settings load, save and apply a change |
-| `src/Modules/SettingsController.Setters.cs` | How each change takes effect on the rig, the proxy or the settings |
+| `src/Modules/SettingsController.Setters.cs` | How each change takes effect on the integration, the proxy or the settings |
 | `src/Modules/AutoSettings.cs` | What *Auto* resolves to for the card and the screen |
 | `src/Modules/TechniqueAvailability.cs` | Which technique the card and the proxy can run, and why a button is grey |
 
@@ -27,8 +27,8 @@ that applies a change.
 - `TechniqueAvailability` decides which techniques are offered and which wait for files
   (`Vendor` fetches them).
 - `OwnSettingsReset` gives the settings window's *Reset* what stays the player's.
-- `SettingsController` holds the add-on's settings and applies each change to the rig through
-  `RigLifecycle`. The add-on (`src/ReDefinitionAddon.cs`) owns it, and
+- `SettingsController` holds the add-on's settings and applies each change to the integration through
+  `IntegrationLifecycle`. The add-on (`src/ReDefinitionAddon.cs`) owns it, and
   `ReDefinitionAddon.Settings.cs` holds the add-on's members that forward to it.
 
 ## What it uses and what uses it

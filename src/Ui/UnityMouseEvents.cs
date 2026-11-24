@@ -13,30 +13,30 @@ namespace ReDefinition.Ui
     // That is in SendMouseEvents.DoSendMouseEvents (decompiled from KSP's
     // UnityEngine.InputLegacyModule: "if (camera == null || (skipRTCameras !=
     // 0 && camera.targetTexture != null)) continue;").
-    // Every camera the rig redirects is one.
+    // Every camera the integration redirects is one.
     // KSP takes the space centre's buildings
     // (SpaceCenterBuilding.OnMouseDown) and the IVA switches
     // (InternalButton.OnMouseDown) only that way, and so do FreeIva's hatches
     // (ClickWatcher.OnMouseDown). With the upscaler on, none of them would react.
     //
     // So each redirected camera gets its own target back, the screen, for
-    // the length of Unity's mouse event pass, and the rig's texture straight
+    // the length of Unity's mouse event pass, and the integration's texture straight
     // after (Install). The two parts stand in the shield's passes (WindowShield.BeforePass,
     // AfterPass), which also keep clicks on our windows from reaching what lies behind them.
     //
     // What this class adds to the shield is what only ReDefinition has: the windows of the mods it bundles, the diagnostics window.
     internal static class UnityMouseEvents
     {
-        // The cameras lent the screen for this pass, and the rig they belong to.
+        // The cameras lent the screen for this pass, and the integration they belong to.
         private static readonly List<CameraRedirect> lent = new List<CameraRedirect>();
-        private static UpscalerRig lentFor;
+        private static UpscalerIntegration lentFor;
 
-        // For the one line per rig that shows it working. Unity's hit array is
+        // For the one line per integration that shows it working. Unity's hit array is
         // private and never replaced (static readonly).
         private static Array currentHits;
         private static FieldInfo hitTarget;
         private static FieldInfo hitCamera;
-        private static UpscalerRig loggedFor;
+        private static UpscalerIntegration loggedFor;
 
         // The mod's IMGUI window where it is open, in GUI coordinates; empty while
         // it is closed. Clicks on it stay on it too.
@@ -91,11 +91,11 @@ namespace ReDefinition.Ui
         {
             try
             {
-                UpscalerRig rig = UpscalerRig.Current;
-                if (rig == null) return;
+                UpscalerIntegration integration = UpscalerIntegration.Current;
+                if (integration == null) return;
 
-                lentFor = rig;
-                rig.LendScreens(lent);
+                lentFor = integration;
+                integration.LendScreens(lent);
             }
             catch (Exception e)
             {
@@ -104,7 +104,7 @@ namespace ReDefinition.Ui
             }
         }
 
-        // After Unity's mouse events: each lent camera on the rig's texture again, and the first hit noted.
+        // After Unity's mouse events: each lent camera on the integration's texture again, and the first hit noted.
         private static void TakeBackScreens()
         {
             if (lent.Count == 0) return;
@@ -147,7 +147,7 @@ namespace ReDefinition.Ui
             return ImguiWindow.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
         }
 
-        // Once per rig: the first object Unity's mouse events found through a
+        // Once per integration: the first object Unity's mouse events found through a
         // camera that had lent its screen -- the log line that shows clicks reach
         // the space centre's buildings and the cockpit's switches.
         private static void NoteFirstHit()

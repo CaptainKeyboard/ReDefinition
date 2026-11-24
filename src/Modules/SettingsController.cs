@@ -10,7 +10,7 @@ namespace ReDefinition.Modules
     // The add-on's settings: what they are, how a change takes effect, and how they are loaded, saved
     // and applied from a settings view. The settings read live sit in the settings object itself;
     // the others in properties that Collect writes into it before it is saved or copied. A change
-    // that reaches the rig goes through RigLifecycle (SettingsController.Setters.cs).
+    // that reaches the integration goes through IntegrationLifecycle (SettingsController.Setters.cs).
     internal sealed partial class SettingsController
     {
         // NativeAA: on the development machine, the 3D scene rendered with 89 %
@@ -63,14 +63,14 @@ namespace ReDefinition.Modules
         // The diagnostic measurements (OwnSettings.DebugMode), read by the instruments
         // wherever they run.
         internal static bool DebugMode { get; private set; }
-        // Anisotropic filtering forced on every texture while the upscaler runs (UpscalerRig.ForceAnisotropic).
+        // Anisotropic filtering forced on every texture while the upscaler runs (UpscalerIntegration.ForceAnisotropic).
         internal bool ForceAnisotropic
         {
             get { return settings.ForceAnisotropic; }
             private set { settings.ForceAnisotropic = value; }
         }
         // FSR's own exposure for its internal tonemapping, as AMD recommends
-        // (UpscalerRig.AutoExposure).
+        // (UpscalerIntegration.AutoExposure).
         internal bool AutoExposure
         {
             get { return settings.AutoExposure; }
@@ -99,7 +99,7 @@ namespace ReDefinition.Modules
         internal bool DebugView { get; private set; }
 #endif
         // Not saved, off at every start: the motion vector check on fast turns
-        // (UpscalerRig.RecordFastTurns).
+        // (UpscalerIntegration.RecordFastTurns).
         internal bool RecordFastTurns { get; private set; }
         internal bool FrameGeneration { get; private set; }
         // 2x to 6x or Dynamic (FrameGenerationChoice): the proxy is told it live (SetFrameGenerationMultiplier).
@@ -117,7 +117,7 @@ namespace ReDefinition.Modules
             private set { settings.DlssModel = value; }
         }
 
-        // Skinned meshes made to write motion vectors (UpscalerRig.ForceSkinnedMotionVectors).
+        // Skinned meshes made to write motion vectors (UpscalerIntegration.ForceSkinnedMotionVectors).
         internal bool SkinnedMotionVectors
         {
             get { return settings.SkinnedMotionVectors; }
@@ -128,24 +128,24 @@ namespace ReDefinition.Modules
         // written into it by Collect.
         private readonly OwnSettings settings = new OwnSettings();
         // The raytracing (src/Raytracing/Ksp/RtKsp.cs), which the add-on keeps on the
-        // scene camera, and the lifecycle of the rig that the settings reach.
+        // scene camera, and the lifecycle of the integration that the settings reach.
         private readonly ReDefinition.Raytracing.RtKsp raytracing;
-        private RigLifecycle rigs;
+        private IntegrationLifecycle integrations;
         private int raytracingBounces = 2;
         private string savedSnapshot;
         private float nextSettingsCheck;
         private bool saveFailureLogged;
 
-        // Settings that apply their changes to the raytracing given; the rig's lifecycle is connected after it is made.
+        // Settings that apply their changes to the raytracing given; the integration's lifecycle is connected after it is made.
         public SettingsController(ReDefinition.Raytracing.RtKsp raytracing)
         {
             this.raytracing = raytracing;
         }
 
-        // Connects the rig's lifecycle, which reads these settings in turn, so that a change reaches the rig.
-        public void Connect(RigLifecycle rigs)
+        // Connects the integration's lifecycle, which reads these settings in turn, so that a change reaches the integration.
+        public void Connect(IntegrationLifecycle integrations)
         {
-            this.rigs = rigs;
+            this.integrations = integrations;
         }
 
         // The settings object itself: the add-on's own values in it are those of the last Collect.
@@ -154,10 +154,10 @@ namespace ReDefinition.Modules
             get { return settings; }
         }
 
-        // The rig running, null while none is.
-        private UpscalerRig Rig
+        // The integration running, null while none is.
+        private UpscalerIntegration Integration
         {
-            get { return rigs.Rig; }
+            get { return integrations.Integration; }
         }
 
         // Takes the settings file's values into the add-on, with Auto resolved and everything off without a profile.
@@ -367,8 +367,8 @@ namespace ReDefinition.Modules
             SaveIfChanged(true, true);
         }
 
-        // The new rig's properties from the settings as they stand, set before its Setup.
-        internal void ConfigureRig(UpscalerRig created, Fsr3Upscaler.QualityMode builtWith, UpscalerBackend runs, bool passThrough)
+        // The new integration's properties from the settings as they stand, set before its Setup.
+        internal void ConfigureIntegration(UpscalerIntegration created, Fsr3Upscaler.QualityMode builtWith, UpscalerBackend runs, bool passThrough)
         {
             created.QualityMode = builtWith;
             created.Sharpness = Sharpness;
@@ -427,9 +427,9 @@ namespace ReDefinition.Modules
         // applied: what the diagnostics window changed while the dialog was open
         // stays as that window left it.
         //
-        // Off first and on last; however many of the changes need a new rig, it is
+        // Off first and on last; however many of the changes need a new integration, it is
         // built once, before Apply returns: the settings views read back what came
-        // of it -- a rig that cannot start switches the upscaler off. They are
+        // of it -- an integration that cannot start switches the upscaler off. They are
         // uGUI dialogs, not the IMGUI window Reattach waits for.
         internal void Apply(OwnSettings before, OwnSettings after)
         {
@@ -444,8 +444,8 @@ namespace ReDefinition.Modules
             }
             finally
             {
-                // Also after a setter threw: what changed before it has its rig.
-                rigs.RebuildPending();
+                // Also after a setter threw: what changed before it has its integration.
+                integrations.RebuildPending();
             }
 
             // Now rather than at the next throttled check: KSP saves its own

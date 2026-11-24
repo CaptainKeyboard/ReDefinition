@@ -3,7 +3,7 @@
 // The parameters NGX is handed are those of the D3D11 path (Dlss.cpp), with D3D12 resources: the creation
 // parameters and flags from the packet, the optimal render size and its dynamic range from the capability map,
 // per frame the textures, jitter, motion vector scale, reset and render subrect. The hand-off across the devices
-// is AmdUpscaler's (UpscalerRig).
+// is AmdUpscaler's (UpscalerIntegration).
 
 #include "DlssD3d12.h"
 
@@ -59,7 +59,7 @@ namespace redefinition
         return on;
     }
 
-    DlssD3d12::DlssD3d12() : UpscalerRig("DLSS (Direct3D 12): ", "no DLSS frame yet")
+    DlssD3d12::DlssD3d12() : UpscalerIntegration("DLSS (Direct3D 12): ", "no DLSS frame yet")
     {
     }
 
@@ -367,7 +367,7 @@ namespace redefinition
                                   "DLSS.Hint.Render.Preset.UltraQuality" })
             map->Set(mode, static_cast<unsigned int>(packet.preset));
 
-        // Motion vectors at the render size ("MVLowRes") and without jitter: the rig's are Unity's own, rendered unjittered.
+        // Motion vectors at the render size ("MVLowRes") and without jitter: the integration's are Unity's own, rendered unjittered.
         int flags = kNgxFlagMotionVectorsLowRes;
         if ((packet.flags & kDlssHdr) != 0)
             flags |= kNgxFlagIsHdr;

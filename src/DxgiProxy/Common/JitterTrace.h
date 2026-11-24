@@ -2,7 +2,7 @@
 
 // Test switch -redefinitionJitterLog (the jitter tests of 2026-11-21, the rocket's step in a camera turn): one proxy log line per
 // DLSS packet (the jitter NGX is handed, the reset flag, the path) and one per present, each with a time in ms, so they can be read
-// beside the mod's per-frame jitter lines (UpscalerRig.ChooseJitter). Off by default: nothing is logged and nothing else changes.
+// beside the mod's per-frame jitter lines (UpscalerIntegration.ChooseJitter). Off by default: nothing is logged and nothing else changes.
 
 #include <windows.h>
 

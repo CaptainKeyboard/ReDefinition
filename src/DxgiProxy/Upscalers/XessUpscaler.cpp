@@ -5,7 +5,7 @@
 #include "FileUtil.h"
 #include "Log.h"
 #include "RuntimeLoader.h"
-#include "UpscalerRig.h"
+#include "UpscalerIntegration.h"
 
 #include <cmath>
 #include <cstdio>

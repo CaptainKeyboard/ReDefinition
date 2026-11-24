@@ -66,7 +66,7 @@ namespace redefinition
         xessFramesNow = 0;
         xessFramesMostNow = 0;
 
-        // Unity's textures, which the rig registers once, outlive a swapchain made
+        // Unity's textures, which the integration registers once, outlive a swapchain made
         // anew without a resize: shared again on the new devices. Only textures of
         // the D3D11 device attached can be copied from.
         if (depth.unity || motion.unity || hudLess.unity)
@@ -119,7 +119,7 @@ namespace redefinition
         DestroyContextLocked(swapChain);
         ForgetContextFailuresLocked();
 
-        // Unity's textures stay: the rig registers them once, and a swapchain made
+        // Unity's textures stay: the integration registers them once, and a swapchain made
         // anew shares them again (Attach).
         for (Input* input : { &depth, &motion, &hudLess })
         {

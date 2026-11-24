@@ -28,7 +28,7 @@ namespace ReDefinition
         }
 
         // What a settings view changed between the copy it was given and the one it hands back,
-        // applied through the setters; a rig that needs building is built before this returns.
+        // applied through the setters; an integration that needs building is built before this returns.
         internal void Apply(OwnSettings before, OwnSettings after)
         {
             config.Apply(before, after);

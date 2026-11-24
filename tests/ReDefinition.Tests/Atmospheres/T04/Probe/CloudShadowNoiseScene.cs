@@ -96,7 +96,7 @@ namespace ReDefinition.WeatherPlayer
                         ran++;
                     }
             Sink.Flag("noise_ran", ran == 6);
-            rig.Stop();
+            integration.Stop();
             renderer.Dispose();
         }
 
@@ -147,7 +147,7 @@ namespace ReDefinition.WeatherPlayer
                 if (lift == 1) Sink.AtMost("consist.parity.lift1", n > 0 ? diffs[n / 2] : double.NaN, 0.05);
                 SavePictures("consist-lift" + lift);
             }
-            rig.Stop();
+            integration.Stop();
             renderer.Dispose();
         }
 

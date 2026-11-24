@@ -192,7 +192,7 @@ namespace ReDefinition.Probe
         private const double VabLatitude = -0.0967, VabLongitude = -74.6187;
 
         // By day, the camera low behind the vessel looking 4 degrees down towards the VAB: the raytracing off, on,
-        // with the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
+        // with the G-buffer's specular reflection as Deferred gives it, and the surfaces' overlay.
         private static IEnumerator BuildingShots(ReDefinitionAddon addon, string folder, string time)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -210,7 +210,7 @@ namespace ReDefinition.Probe
             yield return Shot(folder, time + "-buildings-off");
             Set(addon, on, 10f, 0f);
             yield return Shot(folder, time + "-buildings-on");
-            // The same with the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
+            // The same with the G-buffer's specular reflection as Deferred gives it, and the surfaces' overlay.
             RtCamera.SurfacesAsDeferred = true;
             yield return ProbeSteps.Frames(30);
             yield return Shot(folder, time + "-buildings-deferred");
@@ -223,7 +223,7 @@ namespace ReDefinition.Probe
 
         // The pad shots of one time of day. By day the buildings come first. For each pose the raytracing is off, then
         // on with each moonlight variant, with the G-buffer's specular and the surfaces as PFM beside them. By
-        // day the Deferred shine and the surfaces' overlay are also shot.
+        // day the Deferred specular reflection and the surfaces' overlay are also shot.
         private static IEnumerator Shots(ReDefinitionAddon addon, string folder, string time, float heading, bool night)
         {
             RaytracingMode on = RaytracingOn(addon);
@@ -266,7 +266,7 @@ namespace ReDefinition.Probe
                 }
                 if (!night)
                 {
-                    // With the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
+                    // With the G-buffer's specular reflection as Deferred gives it, and the surfaces' overlay.
                     RtCamera.SurfacesAsDeferred = true;
                     yield return ProbeSteps.Frames(30);
                     yield return Shot(folder, time + "-" + pose.Name + "-deferred");

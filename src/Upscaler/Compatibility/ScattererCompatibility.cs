@@ -15,7 +15,7 @@ namespace ReDefinition.Upscaler
     // (renderWidth = screenWidth / 4; renderHeight = screenHeight / 4, or / 2
     // with terrain godrays) and tells its shader so (godrayRenderingResolution).
     // Afterwards only screenshots resize them (ResizeRenderTextures). A camera
-    // the rig renders smaller gets godrays made for the screen. Size gives each
+    // the integration renders smaller gets godrays made for the screen. Size gives each
     // renderer its camera's size.
     //
     // The godrays' history also leaves copies of a vessel's outline in the sky
@@ -246,7 +246,7 @@ namespace ReDefinition.Upscaler
         }
 
         // Runs inside Scatterer: nothing may escape. Scatterer makes godrays whenever it loads a body's effects, often
-        // with the rig long in place (SkyNode.Init), so a Harmony postfix sizes the renderer straight after each Init.
+        // with the integration long in place (SkyNode.Init), so a Harmony postfix sizes the renderer straight after each Init.
         private static void AfterInit(object __instance, bool __result)
         {
             try
@@ -256,8 +256,8 @@ namespace ReDefinition.Upscaler
                 // godrays: read again.
                 Component component = __instance as Component;
                 if (component != null) divisors.Remove(component.GetInstanceID());
-                UpscalerRig rig = UpscalerRig.Current;
-                if (rig == null) return;   // nothing redirected: Scatterer's own size is right
+                UpscalerIntegration integration = UpscalerIntegration.Current;
+                if (integration == null) return;   // nothing redirected: Scatterer's own size is right
 
                 if (Size(__instance as Component))
                     Debug.Log(Log.Tag + " Scatterer godrays made while the upscaler runs sized for its"
@@ -270,8 +270,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // Sizes every godrays renderer in the scene for its camera, after the rig changed the render size. It is
-        // checked whenever the rig attaches or detaches.
+        // Sizes every godrays renderer in the scene for its camera, after the integration changed the render size. It is
+        // checked whenever the integration attaches or detaches.
         public static void AfterRenderSizeChange(string reason)
         {
             if (!Present || !ForeignAssumptions.ScattererGodrays.Holds) return;
@@ -298,7 +298,7 @@ namespace ReDefinition.Upscaler
 
         // True when the renderer was resized; false when it was right already
         // or is not set up yet (Init sizes that one, and the hook follows). A renderer gets its camera's size,
-        // pixelWidth, which for a redirected camera is the rig texture's and for any other the screen's, as
+        // pixelWidth, which for a redirected camera is the integration texture's and for any other the screen's, as
         // Scatterer takes it. It gets the fraction Scatterer takes of it, as Scatterer's Init left it in screenWidth
         // over renderWidth, and Scatterer's own ResizeRenderTextures does the resize. It is resized only when the
         // size really differs: a resize releases the godrays' history as Scatterer's own screenshot resize does.

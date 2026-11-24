@@ -134,20 +134,20 @@ namespace ReDefinition.Atmospheres
             return small;
         }
 
-        // The flight chain as the game measured it once the rig runs (K-W3b start "frost", 2026-11-12, log line after "Upscaler running"):
+        // The flight chain as the game measured it once the integration runs (K-W3b start "frost", 2026-11-12, log line after "Upscaler running"):
         //   GalaxyCamera(-4) < Camera ScaledSpace(-3) < Camera 00(0) < markerCam(1) < ReDefinitionPresenter(1.1) < UIMainCamera(90)
         //   < UIVectorCamera(91) < Camera(100)
-        // The recon dump run2-cameras-flight.json has the presenter at 0.1, before markerCam: the rig puts the presenter 0.1 behind the
+        // The recon dump run2-cameras-flight.json has the presenter at 0.1, before markerCam: the integration puts the presenter 0.1 behind the
         // LAST camera it redirects (UpscalerCameras: lastDepth + 0.1), so the presenter's depth follows the stack, and the stable facts
         // are: the scaled-space camera before Camera 00, every redirected camera before the presenter, the presenter before the UI
-        // cameras. Before the rig has built its stack (the first seconds of the flight) the chain holds Camera 00 only and no presenter;
-        // with the rig running (rigRuns) the presenter must be there, so that a chain read too early fails instead of passing.
-        internal static bool ChainMatchesRecon(List<KeyValuePair<float, string>> chain, bool rigRuns)
+        // cameras. Before the integration has built its stack (the first seconds of the flight) the chain holds Camera 00 only and no presenter;
+        // with the integration running (integrationRuns) the presenter must be there, so that a chain read too early fails instead of passing.
+        internal static bool ChainMatchesRecon(List<KeyValuePair<float, string>> chain, bool integrationRuns)
         {
             float scaled = DepthOf(chain, "Camera ScaledSpace"), main = DepthOf(chain, "Camera 00"), presenter = DepthOf(chain, "ReDefinitionPresenter");
             float marker = DepthOf(chain, "markerCam"), ui = DepthOf(chain, "UIMainCamera"), vector = DepthOf(chain, "UIVectorCamera");
             if (float.IsNaN(main)) return false;
-            if (rigRuns && float.IsNaN(presenter)) return false;
+            if (integrationRuns && float.IsNaN(presenter)) return false;
             if (!float.IsNaN(scaled) && !(scaled < main)) return false;
             if (!float.IsNaN(presenter) && !(main < presenter)) return false;
             if (!float.IsNaN(presenter) && !float.IsNaN(marker) && !(main < marker && marker < presenter)) return false;
@@ -157,8 +157,8 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // Whether the rig has built its stack: the presenter camera is in the chain.
-        private static bool RigBuilt()
+        // Whether the integration has built its stack: the presenter camera is in the chain.
+        private static bool IntegrationBuilt()
         {
             List<KeyValuePair<float, string>> chain;
             Chain(out chain);
@@ -192,10 +192,10 @@ namespace ReDefinition.Atmospheres
             if (module == null || !module.PassReady) yield break;
             Emit("D37.atlas_build_ms", CameraFrostRenderer.AtlasBuildMs);
 
-            // The camera chain in the flight view, read once the rig has built its stack (the first frames of the flight have Camera 00
+            // The camera chain in the flight view, read once the integration has built its stack (the first frames of the flight have Camera 00
             // alone; the upscaler reports itself a moment later still).
-            // Neither wait ends the probe: a start without the rig or an upscaler records the rows as they are (rig_runs, upscaler_runs).
-            for (int k = 0; k < 1200 && Services.PostUpscale.HostAvailable && !RigBuilt(); k++)
+            // Neither wait ends the probe: a start without the integration or an upscaler records the rows as they are (rig_runs, upscaler_runs).
+            for (int k = 0; k < 1200 && Services.PostUpscale.HostAvailable && !IntegrationBuilt(); k++)
                 yield return ProbeWait.Frames(3);
             for (int k = 0; k < 600 && Services.PostUpscale.HostAvailable && WeatherHooks.Caps.Upscaler == UpscalerKind.None; k++)
                 yield return ProbeWait.Frames(3);
@@ -297,7 +297,7 @@ namespace ReDefinition.Atmospheres
                     Emit("D37.iva_hard_cold_frosts", CameraFrostRenderer.LastExposure > 0.3f);
                     yield return ProbeWait.Seconds(3);
 
-                    // The premises of the IVA path (review R1): which camera the rig upscales and the hook is called for, whether the
+                    // The premises of the IVA path (review R1): which camera the integration upscales and the hook is called for, whether the
                     // internal camera draws into the picture the upscaler gets, and which way of taking its depth gives a mask.
                     // The mask is given up to 25 s to settle (the judge reads it back about once a second and may try the next way).
                     for (int k = 0; k < 250 && CameraFrostRenderer.IvaMaskNeeded && !CameraFrostRenderer.IvaMaskValid && !CameraFrostRenderer.IvaMaskExhausted; k++)
@@ -305,7 +305,7 @@ namespace ReDefinition.Atmospheres
                     EmitText("D37.iva_draw_mode", CameraFrostRenderer.ActiveMode);
                     EmitText("D37.iva_mode_reason", CameraFrostRenderer.ModeReason ?? "none");
                     EmitText("D37.host_camera_iva", CameraFrostRenderer.LastHostCamera ?? "none");
-                    Emit("D37.iva_internal_in_rig_image", CameraFrostRenderer.InternalInRigImage);
+                    Emit("D37.iva_internal_in_rig_image", CameraFrostRenderer.InternalInIntegrationImage);
                     Emit("D37.iva_mask_needed", CameraFrostRenderer.IvaMaskNeeded);
                     Emit("D37.iva_hook_calls", CameraFrostRenderer.HostCallsIva);
                     Emit("D37.iva_hook_calls_flight_camera", CameraFrostRenderer.HostCallsIvaFlightCamera);

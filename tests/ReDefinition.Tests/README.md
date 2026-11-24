@@ -55,7 +55,7 @@ category Docs, so `dotnet test tests/ReDefinition.Tests --filter "TestCategory!=
 | `Fsr3ConstantsLayoutTests` | FSR 3's constants struct against the shaders' | The sizes differ, which shifts the constants without an error |
 | `SharedFoundationTests` | The mod's Direct3D 12 packets against the proxy's | A size or offset differs |
 | `ShippedRegistrationTests` | The registrations in `GameData/ReDefinition/Mods` | One reads with a problem |
-| `RaytracingPlayerStubTests` | The test player's stub against the rig | The stub's sharpness ceiling differs |
+| `RaytracingPlayerStubTests` | The test player's stub against the integration | The stub's sharpness ceiling differs |
 | `DeveloperDocumentationTests` | Every element documented, none dirty | `tools/DocLock check` exits 1 |
 
 ## Rules of the area

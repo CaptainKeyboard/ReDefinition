@@ -28,7 +28,7 @@ namespace redefinition
             fclose(file);
         }
 
-        // Bytes per texel of the formats the rig dumps: 8 for RGBA half floats, 4 for the rest.
+        // Bytes per texel of the formats the integration dumps: 8 for RGBA half floats, 4 for the rest.
         UINT BytesPerTexel(DXGI_FORMAT format)
         {
             switch (format)
@@ -37,7 +37,7 @@ namespace redefinition
             case DXGI_FORMAT_R16G16B16A16_TYPELESS:
                 return 8;
             default:
-                return 4;   // R32 float, R16G16 float, 8-bit RGBA: the rig's formats
+                return 4;   // R32 float, R16G16 float, 8-bit RGBA: the integration's formats
             }
         }
 

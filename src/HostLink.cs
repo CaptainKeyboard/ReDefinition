@@ -35,9 +35,9 @@ namespace ReDefinition
         // last poll saw.
         internal static void FillCaps(string profile)
         {
-            UpscalerRig rig = UpscalerRig.Current;
-            if (rig != null && rig.TornDown) rig = null;
-            WeatherCapsWriter.Fill(WeatherHooks.Caps, SharedFrame.UpscalerActive, rig != null ? rig.Backend : UpscalerBackend.Fsr3,
+            UpscalerIntegration integration = UpscalerIntegration.Current;
+            if (integration != null && integration.TornDown) integration = null;
+            WeatherCapsWriter.Fill(WeatherHooks.Caps, SharedFrame.UpscalerActive, integration != null ? integration.Backend : UpscalerBackend.Fsr3,
                                    SharedFrame.FrameGenerationActive, profile);
             EveOpticalDepthLink.Refresh();
         }

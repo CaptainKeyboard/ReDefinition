@@ -15,9 +15,9 @@ namespace ReDefinition.Planner.Planning
         }
 
         // Who flies the step, dim.
-        internal string StepFlyer(int step)
+        internal string StepActiveVessel(int step)
         {
-            return step >= 0 && step < Steps.Count ? "<color=" + Dim + ">" + Sections.FlyerName(Steps[step].Flyer) + "</color>" : "";
+            return step >= 0 && step < Steps.Count ? "<color=" + Dim + ">" + Sections.ActiveVesselName(Steps[step].ActiveVessel) + "</color>" : "";
         }
 
         // Who flies the step: green, bold and underlined where the player chose it.
@@ -25,7 +25,7 @@ namespace ReDefinition.Planner.Planning
         {
             int index = Slot(leg, role);
             if (index < 0) return "";
-            string name = Sections.FlyerName(Steps[index].Flyer);
+            string name = Sections.ActiveVesselName(Steps[index].ActiveVessel);
             return Steps[index].Chosen ? "<b><u><color=" + Good + ">" + name + "</color></u></b>" : "<color=" + Good + ">" + name + "</color>";
         }
 
@@ -43,10 +43,10 @@ namespace ReDefinition.Planner.Planning
             if (index < 0 || !Steps[index].Separates) return "";
             RouteStep step = Steps[index];
             string place = RouteSteps.At(Bodies.Bodies, step.From);
-            string leaver = Lower(Sections.FlyerName(Flyer.Alone(step.Leaver)));
-            if (step.Flyer.Kind == FlyerKind.Without) return "The " + leaver + " is left behind " + place;
+            string leaver = Lower(Sections.ActiveVesselName(ActiveVessel.Alone(step.Leaver)));
+            if (step.ActiveVessel.Kind == ActiveVesselKind.Without) return "The " + leaver + " is left behind " + place;
             if (step.LeavesFrom == 0) return "The " + leaver + " separates " + place;
-            return "The " + leaver + " separates from the " + Lower(Sections.FlyerName(Flyer.Alone(step.LeavesFrom))) + " " + place;
+            return "The " + leaver + " separates from the " + Lower(Sections.ActiveVesselName(ActiveVessel.Alone(step.LeavesFrom))) + " " + place;
         }
 
         // "The satellite is deployed here": the sections deployed at the step's end.
@@ -55,7 +55,7 @@ namespace ReDefinition.Planner.Planning
             int index = Slot(leg, role);
             if (index < 0 || Steps[index].Deploys.Count == 0) return "";
             List<string> names = new List<string>();
-            foreach (int id in Steps[index].Deploys) names.Add(Lower(Sections.FlyerName(Flyer.Alone(id))));
+            foreach (int id in Steps[index].Deploys) names.Add(Lower(Sections.ActiveVesselName(ActiveVessel.Alone(id))));
             return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " is deployed here" : " are deployed here");
         }
 

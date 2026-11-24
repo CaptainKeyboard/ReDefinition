@@ -78,7 +78,7 @@ How a value lasts is the mod's `saving`:
 | the proxy | ReDefinition's `dxgi.dll`, next to `KSP_x64.exe`. It presents the game's frames through Direct3D 12, runs DLSS, AMD's upscaler DLL, XeSS and frame generation, and runs the compute passes other mods ask for. |
 | `ReDefinitionProxy.ini` | The proxy's settings, next to `KSP_x64.exe`. The proxy writes it from its own template at the first start and adds the keys a newer version brings. |
 | `ReDefinitionProxy.defaults` | The proxy's record of the values it wrote into `ReDefinitionProxy.ini` itself. A value still as written follows a newer version's default; a value the player changed stays. |
-| the rig | The upscaler on one scene's camera stack: its render targets, the jitter, the captures and the dispatch. |
+| the integration | The upscaler on one scene's camera stack: its render targets, the jitter, the captures and the dispatch. |
 | the presenter | The camera behind the 3D stack that draws the upscaled image into the frame buffer, before the interface. |
 | technique | Which upscaler runs: *FSR 3*, *DLSS*, *AMD FSR (DLL)* or *XeSS (DLL)*. |
 | mode | How much smaller the scene renders, from *AA only* at full resolution to the smallest factor. |

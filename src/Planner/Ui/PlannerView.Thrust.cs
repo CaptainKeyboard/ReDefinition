@@ -84,7 +84,7 @@ namespace ReDefinition.Planner.Ui
             List<DialogGUIBase> cells = new List<DialogGUIBase>
             {
                 new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => ThrustAt(row) != null ? model.StepName(ThrustAt(row).Step) : ""), Place),
-                new DialogGUILabel(Text(() => ThrustAt(row) != null ? model.StepFlyer(ThrustAt(row).Step) : ""), VehicleButton),
+                new DialogGUILabel(Text(() => ThrustAt(row) != null ? model.StepActiveVessel(ThrustAt(row).Step) : ""), VehicleButton),
                 new DialogGUILabel(Text(() => thrust.NeedsText(ThrustAt(row))), FuelNeeds), new DialogGUILabel(Text(() => thrust.HasText(ThrustAt(row))), FuelLeft),
             };
             if (TurnFits) cells.Add(new DialogGUILabel(Text(() => thrust.TurnText(ThrustAt(row))), TurnColumn));

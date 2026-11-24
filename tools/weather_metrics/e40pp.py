@@ -847,7 +847,7 @@ def pin_poses(cap, frames):
 
 def pin_jitter(cap, pass_json, pin, frames):
     """The host's jitter of each record from the cut (render pixels), or (None, why). frames.json of the capture (OwnCloudModule.PinLogFrame, the global _ReDefinition_Jitter
-    of each record) where it exists; else the upscaler's own sequence (UpscalerRig.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount with GetJitterPhaseCount)
+    of each record) where it exists; else the upscaler's own sequence (UpscalerIntegration.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount with GetJitterPhaseCount)
     from the frame numbers of pass.json, the render width and the display width the start's tag names (perfNpic<width>...), for captures from before the frame log."""
     path = os.path.join(cap, "frames.json")
     if os.path.isfile(path):

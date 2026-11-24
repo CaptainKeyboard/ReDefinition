@@ -15,7 +15,7 @@ namespace ReDefinition.Upscaler
     // TUFX gives its profile to the camera it calls final (Camera 00 in flight,
     // InternalCamera in IVA, the scaled camera in the map view, Main Camera in the
     // editors). It does so as a PostProcessLayer whose volumeLayer takes the profile's volume
-    // (TexturesUnlimitedFXLoader.ApplyProfileToCamera). The rig redirects those
+    // (TexturesUnlimitedFXLoader.ApplyProfileToCamera). The integration redirects those
     // cameras into its render-size texture, so every effect of the profile would
     // run before the upscaler. AfterUpscaling sorts the effects, and the split
     // draws only the sorted ones after it.
@@ -56,7 +56,7 @@ namespace ReDefinition.Upscaler
         private static readonly object True = true;
 
         // Whether Resolve has run; why the split cannot run at all, or null; and why it stopped after an exception,
-        // with the status it shows -- cleared by Dispose, so that the next rig tries again.
+        // with the status it shows -- cleared by Dispose, so that the next integration tries again.
         private static bool resolved;
         private static string unavailable;
         private static string broken;
@@ -130,8 +130,8 @@ namespace ReDefinition.Upscaler
         private static int classified = -1;
         private static Texture2D neutralDither;
 
-        // What the hooks ask about, one rig at a time: the redirected cameras, the
-        // one whose depth and motion the rig copies, and ReDefinition's layer. The frame in
+        // What the hooks ask about, one integration at a time: the redirected cameras, the
+        // one whose depth and motion the integration copies, and ReDefinition's layer. The frame in
         // which a redirected layer carrying the profile was last split, and whether
         // each one so far was the scene camera's.
         private static readonly HashSet<Camera> redirectedCameras = new HashSet<Camera>();
@@ -181,7 +181,7 @@ namespace ReDefinition.Upscaler
             return builtin ? Array.IndexOf(BuiltinAfterUpscaling, effect) >= 0 : injectionPoint == "AfterStack";
         }
 
-        // From the rig's Update, before the frame's cameras render: whether the split
+        // From the integration's Update, before the frame's cameras render: whether the split
         // can run, and ReDefinition's layer on the profile's volumes. It runs only while the image FSR
         // receives is HDR: in an 8-bit render target the highlights bloom and tonemapping need are clamped before FSR.
         internal void Refresh(List<CameraRedirect> redirects, Camera scene, bool wanted, bool hdrInput, Vector2Int displaySize)
@@ -258,9 +258,9 @@ namespace ReDefinition.Upscaler
 
         // Draws TUFX's effects after the upscaler from source into destination. False
         // where nothing was drawn: the caller copies the image. Depth of field and motion blur read
-        // _CameraDepthTexture and _CameraMotionVectorsTexture. After FSR those are the presenter's, so the rig's
+        // _CameraDepthTexture and _CameraMotionVectorsTexture. After FSR those are the presenter's, so the integration's
         // copies and the scene camera's planes are bound for them, where the profile's layer is the scene camera's
-        // own. The globals stay bound afterwards, to the rig's copies, for any later camera that samples them
+        // own. The globals stay bound afterwards, to the integration's copies, for any later camera that samples them
         // without asking for depth of its own.
         internal bool Render(Texture source, RenderTexture destination, RenderTexture depth, RenderTexture motion)
         {
@@ -335,7 +335,7 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
-        // A new rig tries again after a failure.
+        // A new integration tries again after a failure.
         internal void Dispose()
         {
             Stop("off");
@@ -427,7 +427,7 @@ namespace ReDefinition.Upscaler
 
         // Whether any effect of the half after FSR is on in ReDefinition's layer this frame. Depth of field and motion
         // blur only count where the profile was split on the scene camera. Where the profile's layer is another's
-        // (InternalCamera in IVA, the scaled camera in the map view), the rig has no depth or motion of that camera.
+        // (InternalCamera in IVA, the scaled camera in the map view), the integration has no depth or motion of that camera.
         // The two stay in front of FSR with the camera's own.
         private bool AnyAfterEffectOn()
         {

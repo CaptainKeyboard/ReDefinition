@@ -64,7 +64,7 @@ namespace redefinition
     constexpr uint32_t kDlssReset = 1u << 3;
 
     // A question for the render sizes of every mode at an output size, sent the
-    // same way before the rig is built (Dlss::OnSizeQuery). The texture is any of
+    // same way before the integration is built (Dlss::OnSizeQuery). The texture is any of
     // Unity's, for its device.
     struct DlssSizeQuery
     {
@@ -110,7 +110,7 @@ namespace redefinition
         // feature for the packet's sizes and mode if they changed, evaluate.
         void OnPacket(const void* data);
 
-        // Event 3: the rig is gone; the feature goes with it.
+        // Event 3: the integration is gone; the feature goes with it.
         void OnRelease();
 
         // Event 6: the render sizes of every mode at the query's output size.
@@ -175,7 +175,7 @@ namespace redefinition
         ID3D11Device* failedDevice = nullptr;
         std::wstring failedSearch;
         // Whether that failure stands until the search changes -- no RTX GPU, an
-        // old driver, no usable DLL -- or a new rig tries again.
+        // old driver, no usable DLL -- or a new integration tries again.
         bool failedStable = false;
         // When the search may be looked at again after such a failure.
         ULONGLONG nextSearchCheck = 0;

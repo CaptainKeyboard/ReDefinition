@@ -494,7 +494,7 @@ namespace ReDefinition.Probe
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
                 yield break;
             yield return new WaitForSeconds(35f);
-            // The VAB's inside as the surfaces' materials mean their shine, as Deferred gives
+            // The VAB's inside as the surfaces' materials mean their specular reflection, as Deferred gives
             // it, and the surfaces' overlay (RtCamera, SurfaceIntent).
             string folder = Path.Combine(CaptureFolder.Root,
                                          DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-vab");
@@ -689,7 +689,7 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(5f);
             LightProbe.HideClouds();
             Debug.Log(Log.Tag + " Probe: the flight is the player's.");
-            // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
+            // -redefinitionProbeNoGloss: Parallax's materials without their specular reflection for the whole flight.
             if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
                 ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
             if (CommandLine.Has(SceneProbe.GrassArgument))
@@ -928,7 +928,7 @@ namespace ReDefinition.Probe
             // a pose depends on nothing but the step, whatever came before it.
             FlightCamera.fetch.sharpness = 1e4f;
             FlightCamera.fetch.orientationSharpness = 1e4f;
-            // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
+            // -redefinitionProbeNoGloss: Parallax's materials without their specular reflection for the whole flight.
             if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
                 ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
             LogMotionModes(FlightGlobals.ActiveVessel);

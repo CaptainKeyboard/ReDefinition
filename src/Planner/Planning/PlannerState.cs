@@ -94,7 +94,7 @@ namespace ReDefinition.Planner.Planning
             if (!Sections.Exists(item => item.Kind == section.Kind)) Dismissed.Add(section.Kind);
             foreach (RouteStop stop in Stops)
                 for (int i = 0; i < RouteStop.Roles; i++)
-                    if (stop.By[i] > 0 && Flyer.FromCode(stop.By[i]).Section == section.Id) stop.By[i] = -1;
+                    if (stop.By[i] > 0 && ActiveVessel.FromCode(stop.By[i]).Section == section.Id) stop.By[i] = -1;
         }
 
         // Adjusts the plan to the stop at `index` being gone (Stops.RemoveAt). The steps into the stop
@@ -182,26 +182,26 @@ namespace ReDefinition.Planner.Planning
         }
 
         // Who flies a step as the file keeps it: Auto, Ship, Section 3, Without 3.
-        private static string FlyerText(int code)
+        private static string ActiveVesselText(int code)
         {
             if (code < 0) return "Auto";
-            Flyer flyer = Flyer.FromCode(code);
-            switch (flyer.Kind)
+            ActiveVessel activeVessel = ActiveVessel.FromCode(code);
+            switch (activeVessel.Kind)
             {
-                case FlyerKind.Alone: return "Section " + flyer.Section;
-                case FlyerKind.Without: return "Without " + flyer.Section;
+                case ActiveVesselKind.Alone: return "Section " + activeVessel.Section;
+                case ActiveVesselKind.Without: return "Without " + activeVessel.Section;
                 default: return "Ship";
             }
         }
 
-        // Who flies a step from the file's text: a Flyer's code, -1 for Auto or a text it does not know.
-        private static int FlyerCode(string text)
+        // Who flies a step from the file's text: a ActiveVessel's code, -1 for Auto or a text it does not know.
+        private static int ActiveVesselCode(string text)
         {
             text = (text ?? "").Trim();
             int id;
             if (text == "Ship") return 0;
-            if (text.StartsWith("Section ") && int.TryParse(text.Substring(8), out id) && id > 0) return Flyer.Alone(id).Code;
-            if (text.StartsWith("Without ") && int.TryParse(text.Substring(8), out id) && id > 0) return Flyer.Without(id).Code;
+            if (text.StartsWith("Section ") && int.TryParse(text.Substring(8), out id) && id > 0) return ActiveVessel.Alone(id).Code;
+            if (text.StartsWith("Without ") && int.TryParse(text.Substring(8), out id) && id > 0) return ActiveVessel.Without(id).Code;
             return -1;
         }
 
@@ -242,7 +242,7 @@ namespace ReDefinition.Planner.Planning
                 // Per step on the way here, in the order launch, transfer, arrival,
                 // landing.
                 string[] by = new string[RouteStop.Roles];
-                for (int i = 0; i < RouteStop.Roles; i++) by[i] = FlyerText(stop.By[i]);
+                for (int i = 0; i < RouteStop.Roles; i++) by[i] = ActiveVesselText(stop.By[i]);
                 stopNode.AddValue("by", string.Join(", ", by));
                 stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
                 stopNode.AddValue("refuelFrom", string.Join(", ", Array.ConvertAll(stop.RefuelFrom, stage => stage.ToString())));
@@ -344,7 +344,7 @@ namespace ReDefinition.Planner.Planning
                 string[] refuelFrom = (stopNode.GetValue("refuelFrom") ?? "").Split(',');
                 for (int i = 0; i < RouteStop.Roles; i++)
                 {
-                    stop.By[i] = i < by.Length ? FlyerCode(by[i]) : -1;
+                    stop.By[i] = i < by.Length ? ActiveVesselCode(by[i]) : -1;
                     bool flag;
                     if (i < refuel.Length && bool.TryParse(refuel[i].Trim(), out flag)) stop.Refuel[i] = flag;
                     int stage;

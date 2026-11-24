@@ -86,7 +86,7 @@ namespace ReDefinition.Atmospheres
             public string Mode = "off", Why = "not started";
             public int Layers;
             public bool NearMarchActive;
-            // Whether the cloud shadow's rig is switched on this frame (ownClouds, cloudShadows and a layer) and whether its renderer exists.
+            // Whether the cloud shadow's integration is switched on this frame (ownClouds, cloudShadows and a layer) and whether its renderer exists.
             public bool ShadowOn, ShadowReady;
         }
 
@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres
         private LightCache lightCache;
         private readonly SceneWhiteBalance sceneWhiteBalance = new SceneWhiteBalance();
         private CloudShadowRenderer shadowRenderer;
-        private CloudShadowRig shadowRig;
+        private CloudShadowIntegration shadowIntegration;
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
         private readonly CloudShadowShapeNoise shadowNoise = new CloudShadowShapeNoise();
         private readonly float[] worldToMapRows = new float[9];
@@ -273,8 +273,8 @@ namespace ReDefinition.Atmospheres
         internal CameraEvent AttachedEvent { get { return attachedEvent; } }
         internal LayerReconstructDriver Driver { get { return driver; } }
         internal LayerFrame Frame { get { return frame; } }
-        // The cloud shadow's numbers of the last frame (the perf starts' proof rows); null without the shadow rig.
-        internal CloudShadowFrame ShadowFrame { get { return shadowRig != null ? shadowRig.Frame : null; } }
+        // The cloud shadow's numbers of the last frame (the perf starts' proof rows); null without the shadow integration.
+        internal CloudShadowFrame ShadowFrame { get { return shadowIntegration != null ? shadowIntegration.Frame : null; } }
         // The origin of the frame number (OwnCloudPlan.FrameNumber): 0 by default; the pinned capture (T09ProbePin.cs, -t09Pin) sets it so that the step dither, the light
         // cone's rotation and, with a history cut, the rotation's block index start from a known state.
         internal int FrameOrigin;
@@ -432,8 +432,8 @@ namespace ReDefinition.Atmospheres
             {
                 Camera.onPreCull += OnPreCull;
                 preCullSubscribed = true;
-                // After this module's handler, so the rig's handler of the same cull reads the frame written just before it.
-                if (shadowRig != null) shadowRig.Start();
+                // After this module's handler, so the integration's handler of the same cull reads the frame written just before it.
+                if (shadowIntegration != null) shadowIntegration.Start();
             }
             if (!preRenderSubscribed)
             {
@@ -584,8 +584,8 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // The cloud shadow's renderer (T04), made with the pass; the rig that attaches its buffers starts after this module's pre-cull handler
-        // is subscribed (Run), so that the rig reads the frame the handler has just written. Without the shader the clouds draw without shadow.
+        // The cloud shadow's renderer (T04), made with the pass; the integration that attaches its buffers starts after this module's pre-cull handler
+        // is subscribed (Run), so that the integration reads the frame the handler has just written. Without the shader the clouds draw without shadow.
         private void BuildShadow()
         {
             string error;
@@ -599,13 +599,13 @@ namespace ReDefinition.Atmospheres
             s.Noise = renderer.Noise;
             shadowRenderer = s;
             Stats.ShadowReady = true;
-            shadowRig = new CloudShadowRig(s, ShadowRole, () => Sun.Instance != null ? Sun.Instance.sunLight : null);
+            shadowIntegration = new CloudShadowIntegration(s, ShadowRole, () => Sun.Instance != null ? Sun.Instance.sunLight : null);
         }
 
         // The scene's cameras take the shadow; the scaled-space camera's disc is not wired (its frame is in scaled-space units, open in T09).
         internal static CloudShadowRole ShadowRole(Camera camera)
         {
-            CloudShadowRole role = CloudShadowRig.ClassifyByName(camera);
+            CloudShadowRole role = CloudShadowIntegration.ClassifyByName(camera);
             return role == CloudShadowRole.Scene ? role : CloudShadowRole.None;
         }
 
@@ -616,12 +616,12 @@ namespace ReDefinition.Atmospheres
             for (int r = 0; r < 3; r++)
                 for (int k = 0; k < 3; k++) worldToMapRows[r * 3 + k] = f.WorldToMap[r, k];
             shadowNoise.Update(renderer.Noise, stack, worldToMapRows, OwnCloudOptions.ShadowShapeNoise);
-            if (shadowRig == null) return;
+            if (shadowIntegration == null) return;
             bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
-            shadowRig.Enabled = on;
+            shadowIntegration.Enabled = on;
             Stats.ShadowOn = on;
             if (!on) return;
-            CloudShadowFrame s = shadowRig.Frame;
+            CloudShadowFrame s = shadowIntegration.Frame;
             s.PlanetCenter = f.PlanetCenter;
             s.RadiusUnits = b.Radius;
             s.MetresPerUnit = 1f;
@@ -723,7 +723,7 @@ namespace ReDefinition.Atmospheres
             Stats.Mode = "off";
             Stats.NearMarchActive = false;
             Stats.ShadowOn = false;
-            if (shadowRig != null) shadowRig.Enabled = false;
+            if (shadowIntegration != null) shadowIntegration.Enabled = false;
             // The scene's white balance follows the pass: with no cloud frame there is no tint of this frame to balance by.
             sceneWhiteBalance.Clear();
             Stats.SceneWhiteBalance = false;
@@ -754,8 +754,8 @@ namespace ReDefinition.Atmospheres
             motionVectors = motionDepth = null;
             motionCamera = null;
             DropStack("shutdown");
-            if (shadowRig != null) shadowRig.Stop();
-            shadowRig = null;
+            if (shadowIntegration != null) shadowIntegration.Stop();
+            shadowIntegration = null;
             if (shadowRenderer != null) shadowRenderer.Dispose();
             shadowRenderer = null;
             if (driver != null) driver.Dispose();

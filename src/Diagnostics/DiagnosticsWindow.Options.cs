@@ -52,13 +52,13 @@ namespace ReDefinition.Diagnostics
             }
         }
 
-        // The technique the rig runs, the chosen one where no rig runs.
+        // The technique the integration runs, the chosen one where no integration runs.
         private UpscalerBackend RunningBackend
         {
-            get { return rigs.Rig != null ? rigs.Rig.Backend : config.Backend; }
+            get { return integrations.Integration != null ? integrations.Integration.Backend : config.Backend; }
         }
 
-        // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet); DLSS and
+        // FSR 3 and AMD's upscaler take the masks (UpscalerIntegration.Native, the AMD packet); DLSS and
         // XeSS none.
         private bool TakesMasks
         {
@@ -300,7 +300,7 @@ namespace ReDefinition.Diagnostics
             DebugOption diagnostics = Button("writeDiagnostics", DebugCategory.Capture, log, "Write diagnostics to log", "Write",
                 () =>
                 {
-                    if (rigs.Rig != null) rigs.Rig.LogDiagnostics();
+                    if (integrations.Integration != null) integrations.Integration.LogDiagnostics();
                     else Debug.Log(Log.Tag + " Diagnostics: upscaler is not active.");
                 });
             set.Add(diagnostics);
@@ -315,10 +315,10 @@ namespace ReDefinition.Diagnostics
             set.Add(hooks);
 
             const string views = "Views";
-            // Each surface's shine as its material means it, as colours over the picture
+            // Each surface's specular reflection as its material means it, as colours over the picture
             // (RtCamera.SurfaceView; ReDefinitionDeferredReflections.shader). Needs the raytracing
             // with Deferred.
-            DebugOption surface = Switch("surfaceShine", DebugCategory.Capture, views, "Surface shine overlay", Session, false,
+            DebugOption surface = Switch("surfaceSpecular", DebugCategory.Capture, views, "Surface specular overlay", Session, false,
                 () => ReDefinition.Raytracing.RtCamera.SurfaceView, value => ReDefinition.Raytracing.RtCamera.SurfaceView = value);
             surface.Tooltip = "Needs Raytracing With Deferred";
             surface.Keywords = new[] { "raytracing", "reflections" };

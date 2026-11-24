@@ -350,9 +350,9 @@ namespace ReDefinition.Planner.Planning
                     int group = BudgetGroup(gone.Section);
                     if (group >= 0) budgetStep.Gone.Add(new GoneGroup { Group = group, Stays = gone.Stays, Waiting = gone.Waiting });
                 }
-                if (step.RefuelAfter && step.Flyer.Kind == FlyerKind.Alone)
+                if (step.RefuelAfter && step.ActiveVessel.Kind == ActiveVesselKind.Alone)
                 {
-                    budgetStep.RefuelGroup = BudgetGroup(step.Flyer.Section);
+                    budgetStep.RefuelGroup = BudgetGroup(step.ActiveVessel.Section);
                     budgetStep.RefuelFrom = model.State.Stops[step.Goal].RefuelFrom[(int)step.Role];
                 }
                 foreach (int id in step.Deploys)
@@ -401,35 +401,35 @@ namespace ReDefinition.Planner.Planning
         // ------------------------------------------------------------ who flies
 
         // "Ship", "Lander", "Without lander".
-        internal string FlyerName(Flyer flyer)
+        internal string ActiveVesselName(ActiveVessel activeVessel)
         {
-            if (flyer.Kind == FlyerKind.Ship) return "Ship";
-            LiveSection section = SectionById(flyer.Section);
+            if (activeVessel.Kind == ActiveVesselKind.Ship) return "Ship";
+            LiveSection section = SectionById(activeVessel.Section);
             string name = section != null ? section.Name : "Section";
-            return flyer.Kind == FlyerKind.Without ? "Without " + Lower(name) : name;
+            return activeVessel.Kind == ActiveVesselKind.Without ? "Without " + Lower(name) : name;
         }
 
         // The list of who can fly the step: the whole vessel, each section alone, the vessel without each lander; and the
         // planner's choice back where the player chose.
-        internal List<Choice> FlyerChoices(int leg, StepRole role)
+        internal List<Choice> ActiveVesselChoices(int leg, StepRole role)
         {
             List<Choice> choices = new List<Choice>();
             int index = model.Slot(leg, role);
             if (index < 0) return choices;
             RouteStep step = model.Steps[index];
-            AddFlyer(choices, leg, role, step, Flyer.Ship, "The whole vessel flies this step.");
+            AddActiveVessel(choices, leg, role, step, ActiveVessel.Ship, "The whole vessel flies this step.");
             foreach (LiveSection section in valid)
             {
-                AddFlyer(choices, leg, role, step, Flyer.Alone(section.Plan.Id), FlyTooltip(section.Plan.Kind));
+                AddActiveVessel(choices, leg, role, step, ActiveVessel.Alone(section.Plan.Id), FlyTooltip(section.Plan.Kind));
                 if (section.Plan.Kind == SectionKind.Lander)
-                    AddFlyer(choices, leg, role, step, Flyer.Without(section.Plan.Id),
+                    AddActiveVessel(choices, leg, role, step, ActiveVessel.Without(section.Plan.Id),
                         "The vessel continues without the " + Lower(section.Name) + ", which is left behind for good.");
             }
             if (step.Chosen)
                 choices.Add(new Choice
                 {
                     Label = "Planner's choice", Tooltip = "Let the planner decide who flies this step.",
-                    Pick = () => ChooseFlyer(leg, role, step.Flyer),
+                    Pick = () => ChooseActiveVessel(leg, role, step.ActiveVessel),
                 });
             return choices;
         }
@@ -446,28 +446,28 @@ namespace ReDefinition.Planner.Planning
         }
 
         // One entry for who flies the step; picking the player's choice again keeps it.
-        private void AddFlyer(List<Choice> choices, int leg, StepRole role, RouteStep step, Flyer flyer, string tooltip)
+        private void AddActiveVessel(List<Choice> choices, int leg, StepRole role, RouteStep step, ActiveVessel activeVessel, string tooltip)
         {
             choices.Add(new Choice
             {
-                Label = FlyerName(flyer), Tooltip = tooltip, Current = step.Flyer.Code == flyer.Code,
+                Label = ActiveVesselName(activeVessel), Tooltip = tooltip, Current = step.ActiveVessel.Code == activeVessel.Code,
                 Pick = () =>
                 {
                     int index = model.Slot(leg, role);
-                    if (index >= 0 && model.Steps[index].Chosen && model.Steps[index].Flyer.Code == flyer.Code) return;
-                    ChooseFlyer(leg, role, flyer);
+                    if (index >= 0 && model.Steps[index].Chosen && model.Steps[index].ActiveVessel.Code == activeVessel.Code) return;
+                    ChooseActiveVessel(leg, role, activeVessel);
                 },
             });
         }
 
         // The player's choice of who flies a step; the same choice again gives it
         // back to the planner.
-        private void ChooseFlyer(int leg, StepRole role, Flyer flyer)
+        private void ChooseActiveVessel(int leg, StepRole role, ActiveVessel activeVessel)
         {
             int index = model.Slot(leg, role);
             if (index < 0 || !model.Shown(leg + 1)) return;
             int[] by = model.State.Stops[leg + 1].By;
-            by[(int)role] = model.Steps[index].Chosen && model.Steps[index].Flyer.Code == flyer.Code ? -1 : flyer.Code;
+            by[(int)role] = model.Steps[index].Chosen && model.Steps[index].ActiveVessel.Code == activeVessel.Code ? -1 : activeVessel.Code;
             model.Changed();
         }
 

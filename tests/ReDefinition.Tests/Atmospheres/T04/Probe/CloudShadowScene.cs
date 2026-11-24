@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.WeatherPlayer
 {
-    // The cloud shadow on the GPU against the analytic expectations, with the mod's own CloudShadowRenderer and CloudShadowRig (the forward
+    // The cloud shadow on the GPU against the analytic expectations, with the mod's own CloudShadowRenderer and CloudShadowIntegration (the forward
     // path: the colour multiply at AfterForwardOpaque; the deferred mask pass 2 differs from it only in where the product goes). The planet is a 600 km body
     // with its centre 600 km below the origin and its map frame turned so that up is world +y, east +x and north +z. The cloud is a slab 20 m
     // thick at 2000 m whose coverage map is 1 west of longitude 0 and 0 east of it (a hard edge: the threshold of the bilinear map), or 1
@@ -36,8 +36,8 @@ namespace ReDefinition.WeatherPlayer
 
         private CloudShadowRenderer renderer;
         private LayerMapStore maps;
-        private CloudShadowRig rig;
-        private CloudShadowFrame frame { get { return rig.Frame; } }
+        private CloudShadowIntegration integration;
+        private CloudShadowFrame frame { get { return integration.Frame; } }
         private float[] lit, shadowed;
         private string oursFolder;
 
@@ -50,9 +50,9 @@ namespace ReDefinition.WeatherPlayer
             bool ok = renderer.Init(shader);
             Sink.Flag("shadow_compiled", ok);
             if (!ok) yield break;
-            // The mod's own rig puts the forward buffer on the camera in Camera.onPreCull and takes it off in Camera.onPostRender.
-            rig = new CloudShadowRig(renderer, c => c == Cam ? CloudShadowRole.Scene : CloudShadowRole.None, () => Sun);
-            rig.Start();
+            // The mod's own integration puts the forward buffer on the camera in Camera.onPreCull and takes it off in Camera.onPostRender.
+            integration = new CloudShadowIntegration(renderer, c => c == Cam ? CloudShadowRole.Scene : CloudShadowRole.None, () => Sun);
+            integration.Start();
             NaturalMode(false);
             // The sea reaches 25 km: the shadow edge of the 20 degree view falls at 5.5 km and its view reaches 9.6 km.
             GameObject sea = GameObject.Find("Sea");
@@ -278,7 +278,7 @@ namespace ReDefinition.WeatherPlayer
             QualitySettings.shadowDistance = 5000f;
             QualitySettings.shadowCascades = 2;
             Sun.shadows = LightShadows.Hard;
-            rig.Enabled = false;
+            integration.Enabled = false;
             yield return Frames(6);
             bool deferredOn = Cam.actualRenderingPath == RenderingPath.DeferredShading;
             Sink.Flag("deferred_active", deferredOn);
@@ -305,7 +305,7 @@ namespace ReDefinition.WeatherPlayer
             NaturalMode(false);
 
             Sink.Flag("shadow_finite", finite);
-            rig.Stop();
+            integration.Stop();
             renderer.Dispose();
         }
 
@@ -360,17 +360,17 @@ namespace ReDefinition.WeatherPlayer
         private void NaturalMode(bool on)
         {
             frame.DiffuseShare = on ? 1f : 0f;
-            rig.AutoForwardShare = on;
+            integration.AutoForwardShare = on;
             if (!on) frame.ForwardDirectShare = 1f;
         }
 
         // The share of the sun in the colour the camera really reads at a world point (flat-ish land): the lit picture against the picture with
-        // the sun switched off (ambient only), measured, so that the expected ratio of the natural checks does not repeat the formula of the rig.
+        // the sun switched off (ambient only), measured, so that the expected ratio of the natural checks does not repeat the formula of the integration.
         private double measuredShare;
         private IEnumerator MeasureShare(Vector3 world, int halfPixels)
         {
-            bool was = rig.Enabled;
-            rig.Enabled = false;
+            bool was = integration.Enabled;
+            integration.Enabled = false;
             yield return Frames(3);
             yield return new WaitForEndOfFrame();
             float[] withSun = Grab();
@@ -380,7 +380,7 @@ namespace ReDefinition.WeatherPlayer
             yield return new WaitForEndOfFrame();
             float[] ambientOnly = Grab();
             Sun.intensity = intensity;
-            rig.Enabled = was;
+            integration.Enabled = was;
             Vector3 s = Cam.WorldToScreenPoint(world);
             int cx = Mathf.RoundToInt(s.x), cy = Mathf.RoundToInt(s.y);
             double a = 0.0, b = 0.0;
@@ -401,7 +401,7 @@ namespace ReDefinition.WeatherPlayer
             return 1.0 - measuredShare * (1.0 - mask);
         }
 
-        // The share the rig's model (CloudShadowMath.DirectShare of the sun and ambient settings) gives, for the same point of view.
+        // The share the integration's model (CloudShadowMath.DirectShare of the sun and ambient settings) gives, for the same point of view.
         private double ModelShare(double elevationDeg)
         {
             double lum = Sun.intensity * (0.2126 * Sun.color.r + 0.7152 * Sun.color.g + 0.0722 * Sun.color.b);
@@ -412,11 +412,11 @@ namespace ReDefinition.WeatherPlayer
         // Renders the lit ground (no buffer) and the shadowed ground (the renderer's forward buffer on the camera) from the current pose.
         private IEnumerator Capture()
         {
-            rig.Enabled = false;
+            integration.Enabled = false;
             yield return Frames(4);
             yield return new WaitForEndOfFrame();
             lit = Grab();
-            rig.Enabled = true;
+            integration.Enabled = true;
             yield return Frames(4);
             yield return new WaitForEndOfFrame();
             shadowed = Grab();

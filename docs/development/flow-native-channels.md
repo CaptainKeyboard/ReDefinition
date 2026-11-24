@@ -10,7 +10,7 @@ packet field or an ini key, because each channel catches a mismatch in its own w
 |---|---|---|---|---|
 | (a) exports | mod to proxy, main thread | `DllImport("dxgi.dll")` of the `Ksp*` functions | the C signature in `src/DxgiProxy/Managed/ManagedBridge.cpp` | a missing name throws `EntryPointNotFoundException`; structures are size-checked |
 | (b) render events | mod to proxy, render thread | a struct in a `PacketRing` slot, sent with `IssuePluginEventAndData` | the native header; the C# struct copies it | the proxy checks size and magic; the mod checks the size first; tests pin both |
-| (c) shared textures | Unity's Direct3D 11 to the proxy's Direct3D 12 | a texture's native pointer, then a shared copy made by the proxy | Unity's texture; the proxy builds the copy from its description | the proxy logs a texture it cannot share; the rig is rebuilt when one is lost |
+| (c) shared textures | Unity's Direct3D 11 to the proxy's Direct3D 12 | a texture's native pointer, then a shared copy made by the proxy | Unity's texture; the proxy builds the copy from its description | the proxy logs a texture it cannot share; the integration is rebuilt when one is lost |
 | (d) the ini | the player or the mod to the proxy | `ReDefinitionProxy.ini` | `ProxyConfig` in `src/DxgiProxy/Common/Config.h` and the ini template | it is not caught: an unknown key does nothing |
 
 ```mermaid
@@ -65,7 +65,7 @@ field offsets and sizes with the C# side. `DlssPacketLayoutTests` and `FramePack
 pin the other packets to numbers.
 
 Before its first packet, `NativeUpscalerLink.Ready` asks the proxy for its packet size. A slot
-is never freed, because the render thread may still read it after the rig is gone.
+is never freed, because the render thread may still read it after the integration is gone.
 
 ## (c) Textures both devices see
 

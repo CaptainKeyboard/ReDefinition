@@ -57,7 +57,7 @@ namespace ReDefinition.MotionVectorCheck
             CommandBuffer capture = new CommandBuffer { name = "MotionVectorCheck capture" };
             capture.Blit(BuiltinRenderTextureType.MotionVectors, unityMotion);
             sceneDepth = new RenderTexture(Width, Height, 0, RenderTextureFormat.RFloat);
-            // As the rig captures it: in the deferred path the only source that holds depth.
+            // As the integration captures it: in the deferred path the only source that holds depth.
             capture.Blit(BuiltinRenderTextureType.ResolvedDepth, sceneDepth);
             cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, capture);
 
@@ -176,7 +176,7 @@ namespace ReDefinition.MotionVectorCheck
 
         // Which of the camera's depth sources hold an opaque object drawn in the forward
         // path after the deferred one: a cube with a forward-only shader in front of the
-        // sphere. The rig captures ResolvedDepth; frame generation and the vessel checks
+        // sphere. The integration captures ResolvedDepth; frame generation and the vessel checks
         // read it. One line: the depth each source holds at the cube's centre, where 0 is
         // the far plane.
         private IEnumerator DepthSources()
@@ -253,7 +253,7 @@ namespace ReDefinition.MotionVectorCheck
             AuditLine("audit", previousViewProjection, previousModel, unityMotion);
             AuditLine("auditWrong", previousViewProjection, sphere.transform.localToWorldMatrix, unityMotion);
 
-            // Pass 1 into motion vectors that hold none, as the rig's RGHalf ones: pass 0
+            // Pass 1 into motion vectors that hold none, as the integration's RGHalf ones: pass 0
             // must then find them right.
             RenderTexture written = new RenderTexture(Width, Height, 0, RenderTextureFormat.RGHalf);
             Graphics.Blit(Texture2D.blackTexture, written);
