@@ -10,8 +10,8 @@ and no absorption (the two-stream results of Meador and Weaver 1980; the slab-fl
 
 Since E40 L6 light the sky's light enters the anchors: it diffuses in the cloud like the sun's (before, the anchors had the sun alone and the model had the sky's light stop at the
 first optical depth: 0.04 of the 0.30 the two-stream gives at the top of a thick cloud). Both are radiances relative to W, the display's white, at the sun elevation of the type sheets (45.6 degrees). The shader's value is the mean over twelve view
-azimuths at a view elevation of 53 degrees. The table also lists the radiance with the per-type light factors of the cfg (the base factor on the direct light at the
-base, the top factor at the top).
+azimuths at a view elevation of 53 degrees. The types table also lists the radiance with the layer's lightAmbient on the sky's light (the per-type light factors
+baseLight / topLight / baseAmbient / topAmbient are deleted, 2026-11-24).
 
     python tools/weather_metrics/light_slab_check.py table      uniform slabs, tau 2 to 200
     python tools/weather_metrics/light_slab_check.py types      the shipped Kerbin types with their optical depth
@@ -196,8 +196,9 @@ def shipped_types():
 
             h = share * thick_layer
             tau = sigma * h * float(np.mean([profile((i + 0.5) / 128.0) for i in range(128)]))
-            out.append((e40o.val(layer, "name"), e40o.val(t, "name"), tau, h, sigma, profile, float(e40o.val(t, "baseLight", 1.0)), float(e40o.val(t, "topLight", 1.0)),
-                        float(e40o.val(t, "baseAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0)), float(e40o.val(t, "topAmbient", 1.0)) * float(e40o.val(layer, "lightAmbient", 1.0))))
+            # The per-type light factors (baseLight, topLight, baseAmbient, topAmbient) are deleted (2026-11-24): only the layer's lightAmbient scales the sky's light.
+            ambient = float(e40o.val(layer, "lightAmbient", 1.0))
+            out.append((e40o.val(layer, "name"), e40o.val(t, "name"), tau, h, sigma, profile, 1.0, 1.0, ambient, ambient))
     return out
 
 
@@ -228,9 +229,9 @@ def main():
                                                                                 r["base"] / r["anchor_base"], r["flux_base"], transmission(r["tau"])))
     else:
         print("the shipped Kerbin types as uniform-in-plane slabs of their own profile, radiance relative to W")
-        print("%-22s %6s | %6s %6s  (with cfg factors %6s) | %6s %6s  (with %6s)" % ("type", "tau", "top", "anchor", "top", "base", "anchor", "base"))
+        print("%-22s %6s | %6s %6s  (with lightAmbient %6s) | %6s %6s  (with %6s)" % ("type", "tau", "top", "anchor", "top", "base", "anchor", "base"))
         for r in types_table():
-            print("%-22s %6.1f | %6.3f %6.3f  (with cfg factors %6.3f) | %6.3f %6.3f  (with %6.3f)" % (r["name"], r["tau"], r["top"], r["anchor_top"], r["top_f"], r["base"],
+            print("%-22s %6.1f | %6.3f %6.3f  (with lightAmbient %6.3f) | %6.3f %6.3f  (with %6.3f)" % (r["name"], r["tau"], r["top"], r["anchor_top"], r["top_f"], r["base"],
                                                                                                     r["anchor_base"], r["base_f"]))
 
 
