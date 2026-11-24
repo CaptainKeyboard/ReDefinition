@@ -131,9 +131,11 @@ namespace ReDefinition.Atmospheres
         // (the strongest line 0.4 / 0.9 percent of the power against 4.2 / 3.5, series e40-f2-fix) and no power below 0.15 cycles per pixel in its tile.
         internal const string TuneDitherSequence = "layers.ditherSequence";
         // M2c (the low stratiform layers, 2026-11-23): cloud.undulatus draws the stratiform types' undulations (variety undulatus, CloudTypeDef.UndulatusAmount) with this share of their depth
-        // (0, the default: off, the layer of before, until the owner says yes on the pictures); cloud.undulatusWavelengthShare is the wavelength as a share of the layer's depth.
+        // (1, the default since 2026-11-24: the types' own amount, Stratus 0.2 of its thickness; 0: off, the layer of before); cloud.undulatusWavelengthShare is the wavelength as a share
+        // of the layer's depth (1: 1.68 km on Kerbin's low stratiform layers). Chosen on K-T2 perfNpic2560dlssqundulatusform (owner 2026-11-24: "so dass es echt und richtig aussieht und
+        // bei uns reinpasst"): soft long swells of a closed deck without holes; 0.6 tore holes at the troughs, 4 x the depth drew shapeless swells.
         internal const string TuneUndulatus = "cloud.undulatus", TuneUndulatusWavelengthShare = "cloud.undulatusWavelengthShare";
-        internal const float UndulatusDefault = 0f, UndulatusWavelengthShareDefault = 1f;
+        internal const float UndulatusDefault = 1f, UndulatusWavelengthShareDefault = 1f;
         internal const int DitherSequenceDefault = 3;
         // The per-pixel pattern of the step offset is read on the march target's own pixel grid (E40 F2).
 
