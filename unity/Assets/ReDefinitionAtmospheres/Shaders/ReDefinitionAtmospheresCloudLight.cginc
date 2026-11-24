@@ -459,10 +459,12 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     int lvSteps = 0;
     bool lvLit = Luma(_SunColor.rgb * SunAir(pc, sunDir)) > 0;
     [branch] if (tauReuse < 0 && lvLit) LightVolumePlan(pc, sunDir, t, steps, lvShare, lvNear, lvSteps, lvTau);
-    // M2c (the grey deck, PRUEFPROTOKOLL 227): the far path's near taps reach at least the top of the sample's own cloud type along the sun, so the volume is read above it and
-    // the cloud's own interior between the sample and its top comes from the march, not from the vertical blend of slices about 290 m high (a tau 26 stratus top read 0.45 W
-    // through the volume against 0.83-0.90 W with the full march). The taps' count stays; the longer near length only stretches them.
-    [branch] if (lvShare > 0.0)
+    // M2c (the grey deck, PRUEFPROTOKOLL 227, 228): within one slice's height below the top of the sample's own cloud type, the far path's near taps reach that top along the
+    // sun, so the volume is read above it and the cloud's interior between the sample and its top comes from the march, not from the vertical blend with a slice inside the
+    // cloud (a tau 26 stratus top read 0.45 W through the volume against 0.83-0.90 W with the full march). Deeper down both blended slices lie in the cloud and the volume
+    // stays (a near tap stretched over a tall cumulus' whole height read one point of its density for a kilometre: hard black and white blotches on the bases, 228).
+    float sliceM = (_LvZ.y - _LvZ.x) / max(_LvZ.z, 1.0);
+    [branch] if (lvShare > 0.0 && topAlt.x - (length(pc) - _PlanetR) <= sliceM)
     {
         float topR = _PlanetR + topAlt.x;
         float bt = dot(pc, sunDir), ct = dot(pc, pc) - topR * topR, disc = bt * bt - ct;
