@@ -327,8 +327,15 @@ namespace ReDefinition.Atmospheres
                 r.Warn("PROFILE", "the type " + name + " of " + layer + " needs a PROFILE with keys 'height density' (height 0 to 1 ascending); it is ignored");
                 return null;
             }
+            // PANNUS { PROFILE { ... } LIFT { ... } } (M2c 4a(1); CloudTypeDef.PannusProfile): both curves in the type's own heights; a node without a valid PROFILE is ignored with a warning.
+            BodyNodeReader pannusNode = r.Child("PANNUS");
+            Curve pannusProfile = ProfileCurve(pannusNode.Child("PROFILE"));
+            if (pannusNode.Present && pannusProfile == null)
+                pannusNode.Warn("PROFILE", "the PANNUS of the type " + name + " of " + layer + " needs a PROFILE with keys 'height density'; the pannus is ignored");
             return new CloudTypeSpec(name, baseShare, topShare, r.Float("erosion", 0.3f, 0f, 1f), profile)
             {
+                PannusProfile = pannusProfile,
+                PannusLift = pannusProfile == null ? null : ProfileCurve(pannusNode.Child("LIFT"), "lift"),
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
                 DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),

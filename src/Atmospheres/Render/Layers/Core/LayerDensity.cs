@@ -35,12 +35,8 @@ namespace ReDefinition.Atmospheres
                 erosion[t] = type.Erosion;
                 smoothing[t] = type.ShapeSmoothing >= 0f ? type.ShapeSmoothing : Math.Max(0f, layer.ShapeSmoothing);
             }
-            Bake();
             lift = new float[Count * ProfileSamples];
-            for (int t = 0; t < Count; t++)
-                for (int i = 0; i < ProfileSamples; i++)
-                    // The height-shaped threshold (E40 L2 D1) with the top's closure, in headroom units: the shader's profile texture channel a.
-                    lift[t * ProfileSamples + i] = (float)layer.Types[t].BakedLiftAt(i / (double)(ProfileSamples - 1));
+            Bake();
         }
 
         private readonly float[] lift;
@@ -111,7 +107,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The lift of the coverage threshold of all types, sample after sample (the shader's profile texture channel a; 0 where a type has no LIFT).
-        internal float[] LiftData { get { return lift; } }
+        internal float[] LiftData { get { Sync(); return lift; } }
 
         // The lift of the layer's threshold at a type value and a height share of the layer, in map units: the two neighbouring types' lifts at the same height of the interpolated
         // type, blended (the shader's read of the profile texture's channel a), times the layer's headroom (the shader's coverage + CoverageNoiseBound + 0.5 edge); 0 outside the type.
@@ -129,7 +125,8 @@ namespace ReDefinition.Atmospheres
 
         private double LiftSample(int type, double h)
         {
-            double x = (h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h) * (ProfileSamples - 1);
+            Sync();
+            double x =(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h) * (ProfileSamples - 1);
             int i = Math.Min((int)x, ProfileSamples - 2);
             double f = x - i;
             return lift[type * ProfileSamples + i] * (1.0 - f) + lift[type * ProfileSamples + i + 1] * f;
@@ -137,26 +134,33 @@ namespace ReDefinition.Atmospheres
 
         // The profile samples of every type: the type's curve times its density scale and, where the layer's density is the soft water content, the rise by height (E40 soft
         // density: the shader reads the rise and the scale through this texture, so it needs no code for them).
+        // The lift (E40 L2 D1: the height-shaped threshold with the top's closure, in headroom units: the shader's profile texture channel a) is baked with it: the pannus
+        // (cloud.pannus, CloudTypeDef.PannusProfile) changes both.
         private void Bake()
         {
-            bool soft = layer.Soft;
+            bool soft = layer.Soft, pannus = CloudLookTuning.Pannus;
             for (int t = 0; t < Count; t++)
             {
                 CloudTypeDef type = layer.Types[t];
+                Curve drawn = type.DrawnProfile(pannus);
                 for (int i = 0; i < ProfileSamples; i++)
                 {
                     double h = i / (double)(ProfileSamples - 1);
-                    profile[t * ProfileSamples + i] = (float)(type.Profile.Evaluate((float)h) * type.ProfileFactor(h, soft));
+                    profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
+                    lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
                 }
             }
             bakedSoft = soft;
+            bakedPannus = pannus;
             bakedStamp = CloudCoverShift.Stamp;
         }
 
-        // Bakes the profile again where the soft density's state changed since (a setting, a tuning key, a layer's noise amount).
+        private bool bakedPannus;
+
+        // Bakes the profile again where the soft density's state or the pannus changed since (a setting, a tuning key, a layer's noise amount).
         private void Sync()
         {
-            if (bakedStamp == CloudCoverShift.Stamp && bakedSoft == layer.Soft) return;
+            if (bakedStamp == CloudCoverShift.Stamp && bakedSoft == layer.Soft && bakedPannus == CloudLookTuning.Pannus) return;
             Bake();
         }
 

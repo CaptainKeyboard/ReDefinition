@@ -89,15 +89,40 @@ namespace ReDefinition.Atmospheres
         // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn as single clouds.
         internal int Form { get; set; }
 
+        // M2c 4a(1), the pannus (WMO International Cloud Atlas, accessory cloud pannus: "ragged shreds, sometimes constituting a continuous layer, situated below another cloud";
+        // under nimbostratus "often partially or totally hidden by pannus"; owner M1 D5 / D6b; cfg node PANNUS { PROFILE { ... } LIFT { ... } }, null: none): an alternative density
+        // profile and coverage lift of the type over the same heights, drawn while the tuning key cloud.pannus is on (CloudLookTuning.Pannus, default off: the type of before). The
+        // profile puts a band of shreds below the deck's base with a gap above it; the lift raises the coverage threshold in that band so only the noise's highs stay (separate,
+        // ragged shreds). LayerTypeTable bakes the chosen pair, so every reader of the table (the layer pass, the cloud shadow, the CPU readers) draws the same.
+        internal Curve PannusProfile { get; set; }
+        internal Curve PannusLift { get; set; }
+
+        // The profile drawn: the pannus profile where pannus is on and the type has one, else the type's own.
+        internal Curve DrawnProfile(bool pannus)
+        {
+            return pannus && PannusProfile != null ? PannusProfile : Profile;
+        }
+
         internal double LiftAt(double h)
         {
-            return Lift == null ? 0.0 : Lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+            return LiftAt(h, false);
+        }
+
+        internal double LiftAt(double h, bool pannus)
+        {
+            Curve lift = pannus && PannusProfile != null ? PannusLift : Lift;
+            return lift == null ? 0.0 : lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
         }
 
         // The lift the shader reads (headroom units): the LIFT curve, at least the top's closure ramp (TopClose).
         internal double BakedLiftAt(double h)
         {
-            double lift = LiftAt(h);
+            return BakedLiftAt(h, false);
+        }
+
+        internal double BakedLiftAt(double h, bool pannus)
+        {
+            double lift = LiftAt(h, pannus);
             if (!(TopClose > 0f)) return lift;
             double x = (h - (1.0 - TopClose)) / TopClose;
             x = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
