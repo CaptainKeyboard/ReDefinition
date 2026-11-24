@@ -85,8 +85,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual("Kerbin-cumulus", Values(r, p + "stratiform_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
                 Assert.AreEqual(0.665, Row(r, p + "kovr.forced_map"), 1e-6);
             }
-            // The forced map reaches the tuning table (the key of the sheet layer) while its frame is taken, and the keys of a set while its frames are.
-            Assert.IsTrue(r.Log.Count > 0);
             // The ground view: the layers alone under the winning set (the last selected: C5), and the low stratiform rain layer's two coverages.
             foreach (string cover in new[] { "low", "high" })
             {

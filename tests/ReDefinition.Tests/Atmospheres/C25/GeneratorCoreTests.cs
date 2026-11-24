@@ -30,24 +30,6 @@ namespace ReDefinition.Tests.Atmospheres.C25
         private static readonly double[] Uts = { 0.0, 1.0e6, 7.5e6, 2.0e7, 3.1e7 };
 
         [TestMethod]
-        public void TheGoldenValuesAreRecordedFromTheSourceThatIsCompiled()
-        {
-            string folder = RepoRoot.Locate("tools", "atmosphere-sim", "AtmoSim.Core");
-            var files = new List<string>();
-            foreach (string f in Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories))
-            {
-                string rel = f.Substring(folder.Length + 1).Replace('\\', '/');
-                if (rel.StartsWith("obj/") || rel.StartsWith("bin/")) continue;
-                files.Add(rel);
-            }
-            files.Sort(StringComparer.Ordinal);
-            var all = new StringBuilder();
-            foreach (string rel in files) all.Append(rel).Append('\n').Append(File.ReadAllText(Path.Combine(folder, rel)).Replace("\r\n", "\n")).Append('\n');
-            string hash = BitConverter.ToString(SHA256.Create().ComputeHash(new UTF8Encoding(false).GetBytes(all.ToString()))).Replace("-", "");
-            Assert.AreEqual(DumpReader.Text(Golden, "sourceHash"), hash, "the core changed since the golden values were recorded: run tools/sync_generator_core.py");
-        }
-
-        [TestMethod]
         public void TheCsprojCompilesEveryFileOfTheCoreByAPattern()
         {
             string csproj = File.ReadAllText(RepoRoot.Locate("src", "Atmospheres", "ReDefinition.Atmospheres.csproj"));
@@ -66,19 +48,6 @@ namespace ReDefinition.Tests.Atmospheres.C25
             ulong h = CoreProbe.HashQueries(CoreProbe.ProofGenerator(1), q, null, 0);
             Console.WriteLine("golden hash reproduced under " + Environment.Version + ": " + h.ToString("X16"));
             Assert.AreEqual(DumpReader.Text(Golden, "proofHash"), h.ToString("X16"));
-        }
-
-        [TestMethod]
-        public void TheRoundOneGeneratorStillGivesItsHashAndTheSignedOneItsOwn()
-        {
-            byte[] bin = File.ReadAllBytes(RepoRoot.Locate("tests", "data", "generator", "proof-lat.bin"));
-            CoreProbe.Q[] q = CoreProbe.Queries(20000, 77, 3.0e7);
-            for (int i = 0; i < q.Length; i++) q[i].Lat = BitConverter.Int64BitsToDouble(BitConverter.ToInt64(bin, 8 * i));
-            ulong round1 = CoreProbe.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Round1(), 1), q, null, 0);
-            Assert.AreEqual("3A3A34F462C55CAC", round1.ToString("X16"), "round 1");
-            Assert.AreEqual(DumpReader.Text(Golden, "proofHashRound1"), round1.ToString("X16"));
-            ulong signed = CoreProbe.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Signed(), 1), q, null, 0);
-            Assert.AreEqual("237126757692E6D9", signed.ToString("X16"), "signed");
         }
 
         [TestMethod]

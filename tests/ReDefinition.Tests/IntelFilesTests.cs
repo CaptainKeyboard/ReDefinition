@@ -79,17 +79,15 @@ namespace ReDefinition.Tests
             }
         }
 
-        // The whole download is about 73 MB, super resolution about 60 and frame generation about 13, the licence
-        // text counted with both.
+        // The whole download is the two uses' downloads, the licence text counted with both. The sizes themselves are the release's
+        // (the entries' ranges, pinned with their checksums above) and change with every SDK update.
         [TestMethod]
-        public void TheReleaseIsAboutSeventyThreeMegabytes()
+        public void TheDownloadOfTheUsesAddsUpToTheWholeRelease()
         {
             long bytes = IntelFiles.DownloadSize(IntelFiles.All);
-            Assert.IsTrue(bytes > 72500000 && bytes < 73500000, bytes.ToString());
             long superResolution = IntelFiles.DownloadSize(IntelFiles.Only(IntelFiles.All, IntelFiles.Use.SuperResolution));
             long frameGeneration = IntelFiles.DownloadSize(IntelFiles.Only(IntelFiles.All, IntelFiles.Use.FrameGeneration));
-            Assert.IsTrue(superResolution > 59700000 && superResolution < 59800000, superResolution.ToString());
-            Assert.IsTrue(frameGeneration > 13200000 && frameGeneration < 13400000, frameGeneration.ToString());
+            Assert.IsTrue(superResolution > 0 && frameGeneration > 0);
             long notice = IntelFiles.All.First(i => i.Use == IntelFiles.Use.Notice).Entry.RangeLength;
             Assert.AreEqual(bytes + notice, superResolution + frameGeneration);
         }

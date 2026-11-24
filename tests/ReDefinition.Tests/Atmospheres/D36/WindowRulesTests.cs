@@ -504,7 +504,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             WindowModel model = Model(WindowEnvironment.Alone(), marked, written);
             // The master switch is off: a Volume row is greyed out.
             Assert.IsFalse(model.Set(Def("volumeSteps"), 32));
-            Assert.AreEqual(28, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual((int)Def("volumeSteps").Default, AtmospheresSettings.VolumeSteps);
             Assert.IsTrue(model.Set(Def("weatherEffects"), 1));
             Assert.IsTrue(model.Set(Def("volumeSteps"), 32));
             Assert.AreEqual(32, AtmospheresSettings.VolumeSteps);
@@ -527,11 +527,12 @@ namespace ReDefinition.Tests.Atmospheres.D36
             var written = new List<string>();
             WindowModel model = Model(WindowEnvironment.Full(), marked, written);
             Assert.IsTrue(model.Set(Def("qualityTier"), (double)(int)QualityTier.Low));
-            Assert.AreEqual(16, AtmospheresSettings.VolumeSteps);
-            Assert.AreEqual(2, AtmospheresSettings.LightCount);
+            Assert.AreEqual(TierRows.For(QualityTier.Low).VolumeSteps, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual(TierRows.For(QualityTier.Low).LightCount, AtmospheresSettings.LightCount);
             CollectionAssert.AreEqual(new[] { QualityTier.Low }, marked);
             Assert.IsTrue(model.Set(Def("qualityTier"), (double)(int)QualityTier.Ultra));
-            Assert.AreEqual(36, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual(TierRows.For(QualityTier.Ultra).VolumeSteps, AtmospheresSettings.VolumeSteps);
+            Assert.AreNotEqual(TierRows.For(QualityTier.Low).VolumeSteps, TierRows.For(QualityTier.Ultra).VolumeSteps, "the two rows differ, so the second write is seen");
             Assert.AreEqual(QualityTier.Ultra, marked.Last());
             StringAssert.Contains(model.Tooltip(Def("qualityTier")), "In force: Ultra.");
         }
@@ -580,7 +581,8 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.AreEqual(0.0, AtmospheresSettings.Number("weatherEffects"));
             Assert.AreEqual(1.0f, AtmospheresSettings.HeavyShare);
             Assert.AreEqual(SeasonMode.RealSeasons, AtmospheresSettings.SeasonMode);
-            Assert.AreEqual(20, AtmospheresSettings.VolumeSteps, "the Medium row, not the table's 28");
+            Assert.AreNotEqual(TierRows.For(QualityTier.Medium).VolumeSteps, (int)Def("volumeSteps").Default, "the Medium row differs from the table's default, so the row's write is seen");
+            Assert.AreEqual(TierRows.For(QualityTier.Medium).VolumeSteps, AtmospheresSettings.VolumeSteps, "the Medium row, not the table's default");
             Assert.AreEqual(1, restored);
             CollectionAssert.AreEqual(new[] { QualityTier.Medium }, marked);
             CollectionAssert.Contains(written, "bodies:0");

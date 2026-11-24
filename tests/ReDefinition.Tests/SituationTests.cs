@@ -92,18 +92,29 @@ namespace ReDefinition.Tests
             Assert.AreEqual(PanelSituation.Air, FlightProfiles.Classify(facts, PanelSituation.Air));
         }
 
-        // The gauge's scales are logarithmic and fixed: time up to ten minutes, a minute at 64 %; speed up to
-        // 100 m/s, 1 m/s at 35 %.
+        // The gauge's scales are fixed: time from 0 up to ten minutes, speed up to 100 m/s, rising in between.
         [TestMethod]
         public void TheGaugesScalesAreFixed()
         {
+            // The ends and the order are the rule; the points between are the log curve's.
             Assert.AreEqual(0.0, GaugeReadings.TimeScale(0.0), 1e-9);
-            Assert.AreEqual(0.64, GaugeReadings.TimeScale(60.0), 0.01);
             Assert.AreEqual(1.0, GaugeReadings.TimeScale(600.0), 1e-9);
             Assert.AreEqual(1.0, GaugeReadings.TimeScale(3600.0), 1e-9);
             Assert.AreEqual(0.0, GaugeReadings.SpeedScale(-1.0), 1e-9);
-            Assert.AreEqual(0.347, GaugeReadings.SpeedScale(1.0), 0.001);
             Assert.AreEqual(1.0, GaugeReadings.SpeedScale(100.0), 1e-9);
+            double lastTime = 0.0, lastSpeed = 0.0;
+            foreach (double x in new[] { 1.0, 10.0, 60.0, 300.0, 599.0 })
+            {
+                double t = GaugeReadings.TimeScale(x);
+                Assert.IsTrue(t > lastTime && t < 1.0, "time " + x + ": " + t);
+                lastTime = t;
+            }
+            foreach (double x in new[] { 0.1, 1.0, 10.0, 99.0 })
+            {
+                double s = GaugeReadings.SpeedScale(x);
+                Assert.IsTrue(s > lastSpeed && s < 1.0, "speed " + x + ": " + s);
+                lastSpeed = s;
+            }
         }
     }
 }

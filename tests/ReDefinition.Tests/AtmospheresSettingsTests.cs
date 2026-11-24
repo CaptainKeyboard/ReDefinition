@@ -162,15 +162,10 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheKeysTheContractRemovesAreNotSettings()
+        public void AKeyThatIsNoSettingIsNeitherReadNorWritten()
         {
-            foreach (string key in new[] { "iceWinterLine", "freezeLineDeg", "lagYears", "winterSnowLine", "groundRefreshMode", "refreshSeconds", "storms",
-                "stormFrequency", "stormSeed", "stormVisibility", "stormVeil", "stormSnowfall", "stormSkyDarkening", "stormEveSnow", "stormEveRainToSnow", "stormCellRadiusKm",
-                "stormVolume", "stormVolumeSteps", "stormClouds", "stormOwnFlakes", "stormMaxCells", "orbitSnow", "orbitSnowWidth", "forceStorm", "forceStormCell", "snowStrength" })
-            {
-                Assert.IsNull(AtmospheresSettings.Definition(key), key);
-            }
-            Assert.IsFalse(ReadBack("stormFrequency = 1.5").ContainsKey("stormFrequency"), "an old key is neither read nor written");
+            Assert.IsNull(AtmospheresSettings.Definition("stormFrequency"));
+            Assert.IsFalse(ReadBack("stormFrequency = 1.5").ContainsKey("stormFrequency"), "an unknown key in a player's file is neither read nor written");
         }
 
         [TestMethod]

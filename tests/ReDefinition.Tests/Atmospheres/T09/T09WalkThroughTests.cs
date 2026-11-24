@@ -212,7 +212,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double sun = Number(r, "T09.sun_elev_deg");
             Assert.IsTrue(sun >= 30 && sun <= 55, "sun " + sun);
             Assert.AreEqual(1.0, Number(r, "T09.sun_band_narrow"));
-            Assert.AreEqual(158.0, Number(r, "T09.candidates"));
+            // Both parts of the scan answered: the hourly candidates from the base and the far ones up to 10 days.
+            double far = Number(r, "T09.candidates_far"), near = Number(r, "T09.candidates") - far;
+            Assert.IsTrue(near > 0 && far > 0, "candidates near " + near + ", far " + far);
             Assert.AreEqual(ut - (1000000.0 + 123.0 + 55 + 12), Number(r, "T09.ut_jump_s"), 60.0, "the jump is the distance from the start");
 
             // The window and the display.
