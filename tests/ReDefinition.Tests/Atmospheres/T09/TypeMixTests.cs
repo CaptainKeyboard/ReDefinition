@@ -276,6 +276,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
             try
             {
+                CheckTheMapsOfABodyWithFixedOptions(makeField, layers, radiusKm, depthKm, dayS, name);
+            }
+            finally
+            {
+                LayerWindOptions.SteeringOverride = null;
+            }
+        }
+
+        // The layer wind options stay as CheckTheMapsOfABody set them, so the layer maps of a field and time are cached.
+        private static void CheckTheMapsOfABodyWithFixedOptions(Func<int, GeneratorField> makeField, CloudLayerDef[] layers, double radiusKm, double depthKm, double dayS, string name)
+        {
+            using (TypeMixFixture.CachedLayers())
+            {
                 CloudLayerDef lowStratiform = layers[0], cumulus = layers[1], cb = layers[2], cirrus = layers[3];
                 foreach (int seed in new[] { 1, 2 })
                 {
@@ -358,10 +371,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         }
                     }
                 }
-            }
-            finally
-            {
-                LayerWindOptions.SteeringOverride = null;
             }
         }
 

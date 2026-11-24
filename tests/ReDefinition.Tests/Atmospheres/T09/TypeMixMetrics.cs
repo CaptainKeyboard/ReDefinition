@@ -48,37 +48,37 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double mean = 0.0;
             foreach (int j in rows) for (int i = 0; i < W; i++) mean += cover[j * W + i] / 255.0;
             mean /= rows.Count * W;
-            // zonal: periodic autocorrelation averaged over rows
+            // zonal: periodic autocorrelation averaged over rows, and the power spectrum of each row (harmonics 1..W/2). Both come from one FFT of the row: the spectrum is |F_k|^2 and the
+            // periodic autocorrelation sum_i f_i f_(i+lag) is the inverse transform of |F_k|^2 (Wiener-Khinchin). The direct sums cost O(W^2) per row, about 33 M sine and cosine pairs a map.
             var ac = new double[W / 2];
             double dxMean = 0.0;
             double shortV = 0.0, longV = 0.0, totalV = 0.0;
+            var re = new double[W];
+            var im = new double[W];
             foreach (int j in rows)
             {
-                var f = new double[W];
-                for (int i = 0; i < W; i++) f[i] = cover[j * W + i] / 255.0 - mean;
-                for (int lag = 0; lag < W / 2; lag++)
+                for (int i = 0; i < W; i++)
                 {
-                    double a = 0.0;
-                    for (int i = 0; i < W; i++) a += f[i] * f[(i + lag) % W];
-                    ac[lag] += a;
+                    re[i] = cover[j * W + i] / 255.0 - mean;
+                    im[i] = 0.0;
                 }
-                dxMean += DxKm(j);
-                // spectrum of the row (naive DFT, harmonics 1..W/2)
-                for (int hmc = 1; hmc <= W / 2; hmc++)
+                Fft(re, im, false);
+                for (int hmc = 0; hmc < W; hmc++)
                 {
-                    double re = 0.0, im = 0.0;
-                    for (int i = 0; i < W; i++)
+                    double p = re[hmc] * re[hmc] + im[hmc] * im[hmc];
+                    if (hmc >= 1 && hmc <= W / 2)
                     {
-                        double ang = 2 * Math.PI * hmc * i / W;
-                        re += f[i] * Math.Cos(ang);
-                        im -= f[i] * Math.Sin(ang);
+                        double wl = W * DxKm(j) / hmc;
+                        totalV += p;
+                        if (wl < 100.0 * Scale) shortV += p;
+                        else if (wl >= 300.0 * Scale) longV += p;
                     }
-                    double p = re * re + im * im;
-                    double wl = W * DxKm(j) / hmc;
-                    totalV += p;
-                    if (wl < 100.0 * Scale) shortV += p;
-                    else if (wl >= 300.0 * Scale) longV += p;
+                    re[hmc] = p;
+                    im[hmc] = 0.0;
                 }
+                Fft(re, im, true);
+                for (int lag = 0; lag < W / 2; lag++) ac[lag] += re[lag] / W;
+                dxMean += DxKm(j);
             }
             dxMean /= rows.Count;
             s.CorrZonalKm = FirstBelow(ac, 1.0 / Math.E) * dxMean;
@@ -107,6 +107,51 @@ namespace ReDefinition.Tests.Atmospheres.T09
             s.LargestFieldShare = total > 0 ? big / total : 0;
             s.FieldDiameterKm = WeightedMedianDiameter(areas);
             return s;
+        }
+
+        // The twiddle factors of the length-W transform: cos and sin of 2 pi k / W for k < W / 2.
+        private static readonly double[] TwiddleCos = Twiddles(true), TwiddleSin = Twiddles(false);
+
+        private static double[] Twiddles(bool cos)
+        {
+            var t = new double[W / 2];
+            for (int k = 0; k < t.Length; k++) t[k] = cos ? Math.Cos(2 * Math.PI * k / W) : Math.Sin(2 * Math.PI * k / W);
+            return t;
+        }
+
+        // In-place radix-2 FFT of length W (a power of two). Forward: F_k = sum_i x_i e^(-2 pi i k i / W); inverse: the same sum with e^(+...), unscaled.
+        internal static void Fft(double[] re, double[] im, bool inverse)
+        {
+            int n = re.Length;
+            for (int i = 1, j = 0; i < n; i++)
+            {
+                int bit = n >> 1;
+                for (; (j & bit) != 0; bit >>= 1) j ^= bit;
+                j |= bit;
+                if (i < j)
+                {
+                    double t = re[i]; re[i] = re[j]; re[j] = t;
+                    t = im[i]; im[i] = im[j]; im[j] = t;
+                }
+            }
+            double sign = inverse ? 1.0 : -1.0;
+            for (int len = 2; len <= n; len <<= 1)
+            {
+                int half = len >> 1, stride = n / len;
+                for (int start = 0; start < n; start += len)
+                {
+                    for (int k = 0; k < half; k++)
+                    {
+                        double wr = TwiddleCos[k * stride], wi = sign * TwiddleSin[k * stride];
+                        int a = start + k, b = a + half;
+                        double xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+                        re[b] = re[a] - xr;
+                        im[b] = im[a] - xi;
+                        re[a] += xr;
+                        im[a] += xi;
+                    }
+                }
+            }
         }
 
         private static double FirstBelow(double[] ac, double level)
