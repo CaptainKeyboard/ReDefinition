@@ -172,6 +172,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             List<StartDef> starts = KT2Starts();
             Assert.AreEqual(192, starts.Count, "the starts of K-T2.json were read");
+            // tools/atmo_series.py refuses the whole series on a duplicate id ("starts: duplicate id"), so a new start must not reuse one.
+            string[] duplicates = starts.GroupBy(s => s.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToArray();
+            Assert.AreEqual(0, duplicates.Length, "duplicate start ids: " + string.Join(", ", duplicates));
             foreach (StartDef s in starts)
             {
                 Assert.IsTrue(s.Switches.ContainsKey("weatherEffects") && s.Switches.ContainsKey("genEnabled") && s.Switches.ContainsKey("enabled") && s.Switches.ContainsKey("cloudSource"),
