@@ -102,6 +102,23 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
+        public void ThePannusNoiseScaleIsZeroOffAndTheCurveInTheShredsBandOn()
+        {
+            Clear();
+            CloudLayerDef layer = Layer("Kerbin-weather-rain");
+            int ns = TypeIndex(layer, "Nimbostratus");
+            var table = new LayerTypeTable(layer);
+            Assert.IsTrue(table.NoiseScaleData.All(v => v == 0f), "off: no type's noise is rescaled (the shader reads pc as before)");
+            Set(1f);
+            int band = (int)(0.05 * (LayerTypeTable.ProfileSamples - 1)), deck = (int)(0.5 * (LayerTypeTable.ProfileSamples - 1));
+            Assert.AreEqual(2f, table.NoiseScaleData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the shreds' band reads the noise 3 times finer");
+            Assert.AreEqual(0f, table.NoiseScaleData[ns * LayerTypeTable.ProfileSamples + deck], 1e-6, "on: the deck keeps the layer's noise scale");
+            int st = TypeIndex(layer, "Stratus");
+            for (int i = 0; i < LayerTypeTable.ProfileSamples; i++)
+                Assert.AreEqual(0f, table.NoiseScaleData[st * LayerTypeTable.ProfileSamples + i], "a type without a pannus keeps its noise");
+        }
+
+        [TestMethod]
         public void ATypeWithoutAPannusIsTheSameWithTheSwitchOn()
         {
             Clear();

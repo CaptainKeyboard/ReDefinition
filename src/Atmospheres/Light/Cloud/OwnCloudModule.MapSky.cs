@@ -171,6 +171,15 @@ namespace ReDefinition.Atmospheres
             {
                 rangeM = MapSkyRegions.LowStratiformRootRangeM(def);
                 byte[] lowStratiformType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
+                // A forced type (cloud.typeOverride.<name>, the probe's tool) is the type of every texel for the lift too: the layer then draws that type, and its base must be that
+                // type's (forced fog was drawn at the field's base, not on the ground: PRUEFPROTOKOLL 234).
+                float forcedType = CloudLookTuning.TypeOverrideOf(def.Name);
+                if (forcedType >= 0f)
+                {
+                    byte forced = (byte)Math.Min(255.0, Math.Round(forcedType * 255.0, MidpointRounding.ToEven));
+                    lowStratiformType = new byte[p.N];
+                    for (int i = 0; i < p.N; i++) lowStratiformType[i] = forced;
+                }
                 return MapSkyRegions.LowStratiformRoots(def, p, lowStratiformType);
             }
             if (role != WeatherMapSky.Role.Cumuliform && role != WeatherMapSky.Role.Tall) return null;

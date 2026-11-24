@@ -207,7 +207,8 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0)).r;
         }
 
-        // The whole texel of the profile: r the density, g the direct light factor, b the sky-fill factor of the type at the height h (E40 B3).
+        // The whole texel of the profile: r the density, g the pannus' noise scale factor (0: none), b unused (it held the per-type sky-fill factor, deleted 2026-11-24), a the lift
+        // of the coverage threshold, of the type at the height h.
         float4 TypeProfile4(int li, int type, float h)
         {
             float u = (saturate(h) * (PROFILE_SAMPLES - 1) + 0.5) / PROFILE_SAMPLES;
@@ -420,7 +421,11 @@ Shader "ReDefinition/AtmospheresLayers"
                 amountN = noiseAmount > 0.0 ? 1.0 : 0.0;
                 erosionN = 0.0;
             }
-            float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
+            // M2c 4a(1), the pannus: the profile texture's channel g is the type's noise scale factor at this height (0: none; LayerTypeTable bakes it only while cloud.pannus is on):
+            // the shape noise is read at pc (1 + g), so the shreds below a nimbostratus deck are smaller than the deck's own features (the layer's noise scale is the deck's).
+            float3 pcN = pc;
+            [branch] if (pf.g > 0.0) pcN = pc * (1.0 + pf.g);
+            float s = NoiseShare(li, pcN, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);

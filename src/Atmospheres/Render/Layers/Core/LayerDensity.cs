@@ -36,8 +36,13 @@ namespace ReDefinition.Atmospheres
                 smoothing[t] = type.ShapeSmoothing >= 0f ? type.ShapeSmoothing : Math.Max(0f, layer.ShapeSmoothing);
             }
             lift = new float[Count * ProfileSamples];
+            noiseScale = new float[Count * ProfileSamples];
             Bake();
         }
+
+        // The pannus' noise scale factor of all types, sample after sample (the shader's profile texture channel g; 0 where pannus is off or a type has no PANNUS SCALE).
+        private readonly float[] noiseScale;
+        internal float[] NoiseScaleData { get { Sync(); return noiseScale; } }
 
         private readonly float[] lift;
         // The width in noise scales the shape noise is smoothed over where each type is drawn (E40 L6 shape): the type's own key, the layer's where it has none.
@@ -148,6 +153,7 @@ namespace ReDefinition.Atmospheres
                     double h = i / (double)(ProfileSamples - 1);
                     profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
                     lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
+                    noiseScale[t * ProfileSamples + i] = (float)type.PannusScaleAt(h, pannus);
                 }
             }
             bakedSoft = soft;
