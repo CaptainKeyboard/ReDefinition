@@ -232,8 +232,6 @@ Shader "ReDefinition/AtmospheresLayers"
         static float gTopAlt = 0;
         // The altitude of the base of the cloud type at the last point LayerDensity reached the type table (E40 LM2: the type's height for the light's far depth); copied with gTopAlt.
         static float gBaseAlt = 0;
-        // The light factors of the type at the last point LayerDensity was asked for (x direct light, y sky fill; 1: neutral); copied by the march like gTopAlt.
-        static float2 gTypeLight = float2(1.0, 1.0);
         // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
         static float gEmptyM = 0;
         // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the type's
@@ -433,7 +431,6 @@ Shader "ReDefinition/AtmospheresLayers"
             if (s <= 0) return 0;
             float pw = waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
-            gTypeLight = pf.yz;
             return _LayerB[li].x * s * pf.x * fade;
         }
 
@@ -616,7 +613,6 @@ Shader "ReDefinition/AtmospheresLayers"
                         if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(gEmptyM / dtv)) traceGap = dtv * floor(gap / dtv);
                     }
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
-                    float2 typeLight = gTypeLight;
                     float slabM = gSlabM > 0.0 ? gSlabM : _CullL[li].x;
                     float bulgeD = gNoiseD;
                     // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
@@ -746,10 +742,6 @@ Shader "ReDefinition/AtmospheresLayers"
                         dirPart = _SunColor.rgb * SunAir(pc, _Sun.xyz) * lit * (lerp(ph, LIGHT_INV4PI, _LightL[li].w) + _LightM[li].z * LIGHT_INV4PI) * _PhaseP.w;
                         src = dirPart + ambPart;
                     }
-                    // The type's light response by height (E40 B3): the direct light and the sky's fill of the sample, scaled by the type's factors.
-                    src += dirPart * (typeLight.x - 1.0) + ambPart * (typeLight.y - 1.0);
-                    dirPart *= typeLight.x;
-                    ambPart *= typeLight.y;
                     // PUFF (_BulgeP.x): bulge shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
                     float bulgeShade = saturate(1.0 + _BulgeP.x * 2.0 * (bulgeD - _NoiseS.w));
                     src += dirPart * (bulgeShade - 1.0);

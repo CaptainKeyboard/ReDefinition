@@ -114,10 +114,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.BaseGain, f.BaseGain, 1e-6f, t + " base gain");
                 Assert.AreEqual(s.RiseShare, f.RiseShare, 1e-6f, t + " rise share");
                 Assert.AreEqual(s.DensityScale, f.DensityScale, 1e-6f, t + " density scale");
-                Assert.AreEqual(s.BaseLight, f.BaseLight, 1e-6f, t + " base light");
-                Assert.AreEqual(s.TopLight, f.TopLight, 1e-6f, t + " top light");
-                Assert.AreEqual(s.BaseAmbient, f.BaseAmbient, 1e-6f, t + " base ambient");
-                Assert.AreEqual(s.TopAmbient, f.TopAmbient, 1e-6f, t + " top ambient");
                 Assert.AreEqual(s.ShapeSmoothing, f.ShapeSmoothing, 1e-6f, t + " shape smoothing");
                 Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
                 Assert.AreEqual(s.Outflow, f.Outflow, 1e-6f, t + " outflow");
