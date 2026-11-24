@@ -71,7 +71,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _OutW;        // the white point's colour (E40 B3): the per-channel share of the white of a sunlit cloud (1, 1, 1: the white is grey); w unused
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
-        float4 _SpacingP;    // x, y unused; z the longest leap over empty grid points in the layer's noise scales (layers.leapScale); w the distance in m beyond which the step grows (layers.spanGrowthFromM)
+        float4 _SpacingP;    // x unused; y the longest vertical travel of a leap over a sample the map made empty, as a share of the layer's depth (layers.leapVerticalShare, 0: no cap); z the longest leap over empty grid points in the layer's noise scales (layers.leapScale); w the distance in m beyond which the step grows (layers.spanGrowthFromM)
         float4 _ReuseP;      // x unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z unused; w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
         float4 _LeapP;       // unused (kept so that the uniform layout stays)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
@@ -666,6 +666,17 @@ Shader "ReDefinition/AtmospheresLayers"
                             float toGap = dtv * max(1.0, floor(abs(gSlabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
                             capped = toGap < jump;
                             jump = min(jump, toGap);
+                        }
+                        // A sample the map made empty (the coverage bound returns before the type's slab is read, gSlabGap 0) gives the leap no altitude to end at: far away, where a
+                        // step is hundreds of metres, a leap of a few of them crossed a thin layer between two samples and drew a band of sky or sea through it at one distance (the
+                        // stripe under the horizon from above, PRUEFPROTOKOLL 167). layers.leapVerticalShare caps the part of the leap beyond the map's certain empty reach so that
+                        // it climbs or sinks at most that share of the layer's depth, in whole grid steps; 0 leaves the leap as it was.
+                        [branch] if (lbGap && gSlabGap == 0.0 && _SpacingP.y > 0.0)
+                        {
+                            float vertical = max(abs(dot(d, pc)) / length(pc), 1e-3);
+                            float leapPart = jump - reachSkip;
+                            float capLen = dtv * max(1.0, floor(_SpacingP.y * (_LayerA[li].y - _LayerA[li].x) / vertical / dtv));
+                            if (capLen < leapPart) jump = reachSkip + capLen;
                         }
                         t += jump;
                         // With the points by distance the leap's cap in grid points follows the step at the sample (the cap is a length in the layer's noise scales; dt is the

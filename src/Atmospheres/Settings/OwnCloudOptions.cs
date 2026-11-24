@@ -124,6 +124,12 @@ namespace ReDefinition.Atmospheres
         // layers.spanGrowthFromM (LayerFrame.SpanGrowthFromM, default 0): the distance from the camera beyond which layers.spanGrowthPerM grows the step.
         internal const string TuneSpanGrowthFromM = "layers.spanGrowthFromM";
 
+        // layers.leapVerticalShare (LayerFrame.LeapVerticalShare, default 0: off, the leap of before): with layers.spanGrowthPerM, the longest vertical travel of a leap over a sample
+        // the map made empty, as a share of the layer's depth (beyond the map's certain empty reach). Far away a step is hundreds of metres and an uncapped leap crossed a thin layer
+        // between two samples: a band of sky or sea through the low stratiform layer under the horizon, seen from above (PRUEFPROTOKOLL 167).
+        internal const string TuneLeapVerticalShare = "layers.leapVerticalShare";
+        internal const float LeapVerticalShareDefault = 0f;
+
         // layers.ditherSequence (LayerFrame.DitherSequence): 1 a per-pixel white hash offset, 2 the interleaved gradient noise, 3 (the default, E40 F2) the 16 x 16 blue-noise tile
         // (DitherMatrix), all advanced by the golden ratio per frame. 2 has the lower temporal noise than 1 (rim 0.0023 against 0.0032 at the soft 0.5, player series e40-gs3) but
         // a regular screen-fixed pattern (a few percent of the residual's power in single spatial lines); 3 has the temporal noise of 2 and a spectrum with no line
@@ -282,6 +288,7 @@ namespace ReDefinition.Atmospheres
             f.CostCutM = Mathf.Max(0f, Tuning.Get(TuneCostCutM, 0f));
             f.SpanGrowthPerM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthPerM, SpanGrowthDefaultPerM));
             f.SpanGrowthFromM = Mathf.Max(0f, Tuning.Get(TuneSpanGrowthFromM, 0f));
+            f.LeapVerticalShare = Mathf.Clamp01(Tuning.Get(TuneLeapVerticalShare, LeapVerticalShareDefault));
             f.LightCutoff = Mathf.Max(0f, Tuning.Get(TuneLightCutoff, CompiledFrame.LightCutoff));
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));

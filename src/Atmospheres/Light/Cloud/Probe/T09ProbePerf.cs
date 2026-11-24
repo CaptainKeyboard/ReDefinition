@@ -141,6 +141,8 @@ namespace ReDefinition.Atmospheres
                 case "leap2":
                 case "leap4":
                 case "leap2r3":
+                case "lvs01":
+                case "lvs01b":
                 case "r4lv":
                 case "r3lvf20":
                 case "r3lvf10":
@@ -345,6 +347,11 @@ namespace ReDefinition.Atmospheres
                 //   thirds75   third + layers.gridFine 0.75
                 //   r3s50      recon.rotate 3 + recon.trueDistance 1 + layers.gridFine 0.5
                 //   r3s50lv    r3s50 + cloud.lightVolume 1, cloud.lightVolume.handOverKm 0, cloud.lightVolume.farTaps 1
+                // The cost of the leap's vertical cap (layers.leapVerticalShare 0.1, PRUEFPROTOKOLL 167); two names so that a start can alternate it with plain and plain2.
+                case "lvs01":
+                case "lvs01b":
+                    ForceTuning(OwnCloudOptions.TuneLeapVerticalShare, 0.1f);
+                    break;
                 // The empty-leap block (2026-11-21): layers.leapScale (LayerFrame.LeapScales -> _SpacingP.z; default 1, OwnCloudOptions.LeapScaleDefault), the longest leap over empty grid
                 // points in the layer's noise scales (Layers.shader leapCap). leap0 the march without the leap, leap2 / leap4 two and four noise scales, leap2r3 leap2 with
                 // recon.rotate 3 and recon.trueDistance 1. (layers.emptyLeap only raises the floor leapMax of that cap, so 2 to 8 change nothing where a layer has a noise scale.)
