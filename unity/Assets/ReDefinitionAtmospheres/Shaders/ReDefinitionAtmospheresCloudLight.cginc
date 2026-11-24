@@ -263,10 +263,7 @@ float LightVolumeSlice(float3 q, int z, int pref, out bool ok)
 }
 
 // The fetch from the volume (spread false) or its blurred copy (spread true), from cascade `first` on.
-// floorAlt: the top of the cloud slab the read belongs to (m above the radius; far below for none). A point at or above it reads no slice whose centre lies below it: the
-// optical depth grows by several units within tens of metres under a dense top, a slice is hundreds of metres high, and the vertical blend of a point just above the top with
-// the slice inside the slab gave that point a share of the slab's own shadow, which varied with the density inside it: grey blotches on a closed flat top (PRUEFPROTOKOLL 187-193).
-float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out float w)
+float LightVolumeFetchFrom(float3 q, bool spread, int first, out float w)
 {
     w = 0.0;
     float r = length(q);
@@ -275,9 +272,7 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
     if (c <= LV_MIN_COS) return 0.0;
     float2 xy = _PlanetR * float2(dot(n, _LvE.xyz), dot(n, _LvN.xyz)) / c;
     float slices = _LvZ.z;
-    float zScale = slices / max(_LvZ.y - _LvZ.x, 1.0);
-    float zf = clamp((r - _PlanetR - _LvZ.x) * zScale - 0.5, 0.0, slices - 1.0);
-    if (r - _PlanetR >= floorAlt) zf = max(zf, min(ceil((floorAlt - _LvZ.x) * zScale - 0.5), slices - 1.0));
+    float zf = clamp((r - _PlanetR - _LvZ.x) / max(_LvZ.y - _LvZ.x, 1.0) * slices - 0.5, 0.0, slices - 1.0);
     float z0 = floor(zf), z1 = min(z0 + 1.0, slices - 1.0), fz = zf - z0;
     float4 oa = _LvO[(int)z0], ob = _LvO[(int)z1];
     float gridN = _LvC.z, sum = 0.0;
@@ -314,7 +309,7 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
 
 float LightVolumeFetch(float3 q, out float w)
 {
-    return LightVolumeFetchFrom(q, false, 0, -1e9, w);
+    return LightVolumeFetchFrom(q, false, 0, w);
 }
 
 // LV3, the lateral spread of the direct light: the sun's optical depth the direct term reads, blended in transmittance between the exact one (the march's, tau) and a spread
@@ -446,16 +441,15 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float3 lvPt[2];
     bool lvNeed[2], lvSp[2];
     int lvFirst[2];
-    float lvVal[2], lvW[2], lvFloor[2];
-    // The far path's read point lies along the sun from the sample: above the sample's own slab top it reads only the slices above that top (LightVolumeFetchFrom).
-    lvPt[0] = pc + sunDir * lvNear; lvNeed[0] = lvShare > 0.0; lvSp[0] = false; lvFirst[0] = 0; lvFloor[0] = topAlt.x;
-    lvPt[1] = pc; lvNeed[1] = _LvS.x > 0.5 && lvLit; lvSp[1] = _LvS.x < 1.5; lvFirst[1] = (_LvS.x > 1.5 && _LvS.x < 2.5) ? 1 : 0; lvFloor[1] = -1e9;
+    float lvVal[2], lvW[2];
+    lvPt[0] = pc + sunDir * lvNear; lvNeed[0] = lvShare > 0.0; lvSp[0] = false; lvFirst[0] = 0;
+    lvPt[1] = pc; lvNeed[1] = _LvS.x > 0.5 && lvLit; lvSp[1] = _LvS.x < 1.5; lvFirst[1] = (_LvS.x > 1.5 && _LvS.x < 2.5) ? 1 : 0;
     [loop] for (int lr = 0; lr < 2; lr++)
     {
         lvVal[lr] = 0.0;
         lvW[lr] = 0.0;
         if (!lvNeed[lr]) continue;
-        lvVal[lr] = LightVolumeFetchFrom(lvPt[lr], lvSp[lr], lvFirst[lr], lvFloor[lr], lvW[lr]);
+        lvVal[lr] = LightVolumeFetchFrom(lvPt[lr], lvSp[lr], lvFirst[lr], lvW[lr]);
     }
     lvTau = lvVal[0];
     lvShare *= lvW[0];
