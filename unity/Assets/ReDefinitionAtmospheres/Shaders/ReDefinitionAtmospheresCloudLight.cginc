@@ -149,6 +149,12 @@ float3 SunAir(float3 pc, float3 sunDir)
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
+// The place of each light tap within its stretch (0 .. 1; below 0: the stretch's middle). The march sets it per sample from the pixel's and the frame's step offset, so each tap reads
+// the density at a different place of its stretch from pixel to pixel and frame to frame, and the temporal reconstruction averages them into the stretch's mean. At the fixed middle
+// every pixel read the same few points: a cloud between them cast nothing, a cloud on one cast a hard-edged shadow of the tap's whole length, and the shadows of the layers above
+// changed completely with the tap count (K-T2 perfNpic2560dlssqshadowtaps, PRUEFPROTOKOLL 202). The fills of the light cache and the light volume keep the middle.
+static float gLightJitter = -1.0;
+
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size (each `ratio` times the one before) over at most `range` m (below 0: up to -range m from pc),
 // the other layers with half of them (own < 0: all layers with `steps`).
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
@@ -181,7 +187,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 if (i >= n) break;
                 float len = (b - a) * gain / norm;
                 float edge = prev + len;
-                float mid = 0.5 * (prev + edge);
+                float place = gLightJitter < 0.0 ? 0.5 : frac(gLightJitter + 0.618034 * (float)(i + 8 * lj + 4 * k));
+                float mid = prev + place * len;
                 float3 q = pc + dir * mid;
                 float qs;
                 acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
