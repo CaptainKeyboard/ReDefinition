@@ -4,7 +4,7 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {
-    // The VAB's and SPH's halls as their materials mean their shine (RtMaterialIntent) while
+    // The VAB's and SPH's halls as their materials mean their specular reflection (RtMaterialIntent) while
     // the raytracing runs. The editors draw the halls with a camera of their own, on the
     // scenery's layer, which the raytracing's surfaces never reach (RtCamera,
     // SurfaceIntent). So Deferred's G-buffer would keep its guesses there: the hall's concrete a
@@ -15,7 +15,7 @@ namespace ReDefinition.Raytracing
     // the highlight and a shininess for its roughness, both at the gloss's mean, as
     // Deferred cannot scale the strength by the gloss. Everything is put back when the
     // raytracing stops or the scene goes.
-    internal sealed class EditorHallShine
+    internal sealed class EditorHallSpecular
     {
         // A material's values before the change, for Restore.
         private sealed class Original
@@ -65,7 +65,7 @@ namespace ReDefinition.Raytracing
                     }
                 }
             }
-            Debug.Log("[ReDefinition] Raytracing: the editor's hall as its materials mean their shine: " + matt + " materials matt, "
+            Debug.Log("[ReDefinition] Raytracing: the editor's hall as its materials mean their specular reflection: " + matt + " materials matt, "
                       + shiny + " with KSP's highlight.");
         }
 
@@ -85,7 +85,7 @@ namespace ReDefinition.Raytracing
             appliedIn = GameScenes.LOADING;
         }
 
-        // The values as they were, and the shine they mean, which the rays keep taking
+        // The values as they were, and the specular reflection they mean, which the rays keep taking
         // (RtMaterialIntent.Hold).
         private void Remember(Material material, RtMaterialIntent intent)
         {
@@ -108,7 +108,7 @@ namespace ReDefinition.Raytracing
             Shader target = material.shader;
             if (name.IndexOf("Specular") < 0)
             {
-                // KSP's diffuse shaders take Deferred's fixed shine: the specular variant of the
+                // KSP's diffuse shaders take Deferred's fixed specular reflection: the specular variant of the
                 // same shader instead, as Deferred replaced it (taken from a material using it).
                 string variant = name.Replace("Bumped", "Bumped Specular").Replace("/Diffuse", "/Specular");
                 if (variant == name || !specularVariants.TryGetValue(variant, out target))

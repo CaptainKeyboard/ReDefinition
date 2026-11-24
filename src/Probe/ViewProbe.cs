@@ -21,26 +21,26 @@ namespace ReDefinition.Probe
     // (RtCamera.SurfaceView) is written as <shot>-v<i>-<mode>-overlay.png.
     // With -redefinitionProbeViewTarget <part of a name>, the views are about the renderer so named instead of the vessel.
     //
-    // -redefinitionProbeNoGloss gives Parallax's materials no shine. Specular, Fresnel rim and
-    // environment reflection are set to nothing, and so is the raytracing's shine for them, which it reads from
+    // -redefinitionProbeNoGloss gives Parallax's materials no specular reflection. Specular, Fresnel rim and
+    // environment reflection are set to nothing, and so is the raytracing's specular reflection for them, which it reads from
     // the same values (RtMaterialIntent). They are set again every two seconds, since Parallax makes its
     // scatter's materials as the scatter loads.
     internal static class ViewProbe
     {
-        // The switch with the poses, the surfaces written per view, and the Parallax properties that hold its shine.
+        // The switch with the poses, the surfaces written per view, and the Parallax properties that hold its specular reflection.
         internal const string ViewsArgument = "-redefinitionProbeViews";
         private static readonly string[] SurfaceNames = { "gbuffer0", "gbuffer1", "gbuffer2", "surface", "surfacemode", "specular", "sun", "diffuse" };
         private static readonly int SpecularIntensity = Shader.PropertyToID("_SpecularIntensity");
         private static readonly int EnvironmentMapFactor = Shader.PropertyToID("_EnvironmentMapFactor");
         private static readonly int FresnelColor = Shader.PropertyToID("_FresnelColor");
 
-        // Whether KSP was started to take Parallax's shine off.
+        // Whether KSP was started to take Parallax's specular reflection off.
         internal static bool NoGloss
         {
             get { return CommandLine.Has("-redefinitionProbeNoGloss"); }
         }
 
-        // Parallax's shine off on every material of its shaders found now; how many.
+        // Parallax's specular reflection off on every material of its shaders found now; how many.
         internal static int TakeGlossOff()
         {
             int changed = 0;
@@ -75,7 +75,7 @@ namespace ReDefinition.Probe
             while (true)
             {
                 int changed = TakeGlossOff();
-                if (changed > 0) Debug.Log(Log.Tag + " Probe: no gloss: " + changed + " of Parallax's materials without shine.");
+                if (changed > 0) Debug.Log(Log.Tag + " Probe: no gloss: " + changed + " of Parallax's materials without specular reflection.");
                 yield return new WaitForSecondsRealtime(2f);
             }
         }
@@ -235,7 +235,7 @@ namespace ReDefinition.Probe
                 yield return Timings(name);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, name));
             Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
-                      + " m, heading " + heading + (NoGloss ? ", without Parallax's shine" : "") + ".");
+                      + " m, heading " + heading + (NoGloss ? ", without Parallax's specular reflection" : "") + ".");
             yield return null;
             // -redefinitionProbeSurfaces: with the raytracing on, the surfaces of the frame after at every
             // second pixel (RtCamera.WriteSurfaceImages), for tools/surface_sheet.py.

@@ -581,7 +581,7 @@ namespace ReDefinition.Raytracing
 
         // Hands the material's values to the proxy under `id`, its texture at `layer` of the proxy's array (-1 for
         // none). The values are the surface (RtMaterial), its colour from the terrain's where it is terrain, its
-        // shine as meant (RtMaterialIntent), and its diffuse share and highlight for the forward light.
+        // specular reflection as meant (RtMaterialIntent), and its diffuse share and highlight for the forward light.
         private void SendMaterial(Material material, int id, int layer, bool scenery)
         {
             RtMaterial surface = RtMaterial.Of(material);
@@ -632,7 +632,7 @@ namespace ReDefinition.Raytracing
                 desc.HighlightB = highlight.z;
                 desc.HighlightShape = highlight.w;
             }
-            // Where the shine is meant otherwise than the G-buffer's, the hits take it as well.
+            // Where the specular reflection is meant otherwise than the G-buffer's, the hits take it as well.
             if (intent.Mode != RtNative.SurfaceKeep)
             {
                 desc.SpecularR = intent.Specular.r;

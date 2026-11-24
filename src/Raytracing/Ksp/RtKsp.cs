@@ -52,7 +52,7 @@ namespace ReDefinition.Raytracing
         private RtParallaxScatter scatter;
         private ReflectionProbe probe;
         private readonly SeaFrameAnchor seaFrame = new SeaFrameAnchor();
-        private readonly EditorHallShine hall = new EditorHallShine();
+        private readonly EditorHallSpecular hall = new EditorHallSpecular();
         private GameScenes lookedUpIn = GameScenes.LOADING;
         private float lookedUpAt = float.NegativeInfinity;
         private string loggedProblem;

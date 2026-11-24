@@ -130,7 +130,7 @@ struct MaterialData
     float3 emission;
     int texture;
     // x: where > 0, the albedo is in Unity's colour space and the vertex colour times x
-    // is added to it; y: how its shine is meant (RT_SURFACE_*); z: the gloss divisor;
+    // is added to it; y: how its specular reflection is meant (RT_SURFACE_*); z: the gloss divisor;
     // w: the mean gloss (Raytracing.h, RtMaterialDesc).
     float4 vertexColour;
     // x: what of the frame's colour the forward light keeps as diffuse (RtMaterialDesc).
@@ -1580,7 +1580,7 @@ float LegacySmoothness(float smoothness, float3 specular)
     return 1.0f - sqrt(m);
 }
 
-// A material's shine as its shader means it, for a hit without a G-buffer: the legacy
+// A material's specular reflection as its shader means it, for a hit without a G-buffer: the legacy
 // families' highlight at their mean gloss (RtMaterialIntent.cs).
 float3 IntendedSpecular(MaterialData material)
 {
@@ -1590,17 +1590,17 @@ float3 IntendedSpecular(MaterialData material)
     if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
         return material.specular * material.vertexColour.w;
     // The space centre's ground, where a ray hits it: matt, as its tarmac is; its lawn's
-    // shine is only told apart by the drawn colour.
+    // specular reflection is only told apart by the drawn colour.
     if (mode == RT_SURFACE_GROUND)
         return 0.0f;
     return material.specular;
 }
 
-// The share of the G-buffer's shine the space centre's tarmac and concrete keep under the rays.
+// The share of the G-buffer's specular reflection the space centre's tarmac and concrete keep under the rays.
 // Dry, they came out darker than the picture without the rays, whose sky reflection is part of
 // their look. All of it shone more than the player wanted (2026-10-05, matt concrete); the
 // player asked for a look between the two (2026-10-27).
-static const float kTarmacShine = 0.5f;
+static const float kTarmacSpecular = 0.5f;
 
 // The greatest smoothness SurfaceIntent keeps from the G-buffer's own, so that a surface is
 // never a perfect mirror.
@@ -1622,7 +1622,7 @@ float LawnShare(float3 drawn)
 // nearer than the grass's range, and from the range on the meadow's shade
 // (shadowFadeScale.w), faded in over its last fifth as the grass fades out, and so to the
 // horizon. It is 1 where Parallax draws no grass. `lawn`: the space centre's lawn, where it
-// shines as the terrain (SurfaceIntent), told from its tarmac and concrete by its drawn
+// reflects specularly as the terrain (SurfaceIntent), told from its tarmac and concrete by its drawn
 // colour (LawnShare).
 float MeadowShade(uint2 pixel, float3 position, bool lawn = false)
 {
@@ -1692,7 +1692,7 @@ bool IsBlade(Hit hit)
 float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn,
                      out uint region)
 {
-    // Deferred's G-buffer gives every KSP shader a shine by one formula (LegacyToStandard.cginc),
+    // Deferred's G-buffer gives every KSP shader a specular reflection by one formula (LegacyToStandard.cginc),
     // diffuse-only shaders and the space centre's ground included (shine-table, 2026-10-05:
     // concrete at 0.16 / 0.45, the ground at 0.22 / 0.55, steel at a smoothness of 1).
     float4 g1 = gbuffer1[pixel];
@@ -1716,7 +1716,7 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     // the green of it only), not the grass's blades, which shade themselves.
     // A blade the rays meet in front of the drawn surface -- the rays' grass is not the drawn grass, blade for
     // blade -- stands on the ground behind it, which the pixel shows: the ray goes on past it, and past a
-    // few more, to the ground, whose shine the pixel takes (IsBlade).
+    // few more, to the ground, whose specular reflection the pixel takes (IsBlade).
     float front = distance - (distance * 0.005f + 0.05f);
     bool behind = false;
     for (uint pass = 0u; pass < 4u && hit.found && hit.distance < front && IsBlade(hit); pass++)
@@ -1734,10 +1734,10 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     float tolerance = (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? distance * 0.03f + 2.0f : distance * 0.005f + 0.05f;
     bool near = hit.found && abs(hit.distance - distance) < tolerance;
     uint hitMode = hit.found ? uint(materialData[hit.material].vertexColour.y + 0.5f) : RT_SURFACE_KEEP;
-    // The lawn's rules (MeadowShade): the space centre's ground at the drawn surface, where it shines as the
+    // The lawn's rules (MeadowShade): the space centre's ground at the drawn surface, where it reflects specularly as the
     // terrain (its material's specular colour, RtMaterialIntent.Ground).
-    float3 groundShine = near && hitMode == RT_SURFACE_GROUND ? materialData[hit.material].specular : 0.0f;
-    lawn = max(groundShine.r, max(groundShine.g, groundShine.b)) > 0.0f;
+    float3 groundSpecular = near && hitMode == RT_SURFACE_GROUND ? materialData[hit.material].specular : 0.0f;
+    lawn = max(groundSpecular.r, max(groundSpecular.g, groundSpecular.b)) > 0.0f;
     region = !hit.found ? (behind ? RT_REGION_OTHER_MISSED : RT_REGION_NOTHING)
              : near ? (behind ? RT_REGION_BEHIND_BLADE : (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? RT_REGION_TERRAIN
                        : hitMode == RT_SURFACE_GROUND ? RT_REGION_GROUND : IsBlade(hit) ? RT_REGION_BLADE : RT_REGION_OTHER)
@@ -1757,7 +1757,7 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     MaterialData material = materialData[hit.material];
     mode = uint(material.vertexColour.y + 0.5f);
     // A surface a mod made shinier after the G-buffer pass, as EVE's wet effect does for what the rain wets, is marked
-    // in the alpha of the normals' copy, which Unity writes as 1 (RtCamera, the wet flag). It keeps the G-buffer's shine,
+    // in the alpha of the normals' copy, which Unity writes as 1 (RtCamera, the wet flag). It keeps the G-buffer's specular reflection,
     // puddles included, over the dry one its material means.
     if (mode != RT_SURFACE_KEEP && gbuffer2[pixel].a < 0.5f)
     {
@@ -1770,12 +1770,12 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
         return float4(material.specular, material.smoothness);
     if (mode == RT_SURFACE_GROUND)
     {
-        // The lawn by its drawn colour (LawnShare). It shines as the terrain beside it, the
+        // The lawn by its drawn colour (LawnShare). It reflects specularly as the terrain beside it, the
         // material's values (RtMaterialIntent.Ground, Parallax's terrain at its gloss there),
         // or without them the G-buffer's (0.22 at a smoothness of 0.013 there, rough); the
-        // rest keeps a part of the G-buffer's shine (kTarmacShine).
+        // rest keeps a part of the G-buffer's specular reflection (kTarmacSpecular).
         float share = LawnShare(gbuffer0[pixel].rgb);
-        float4 tarmac = float4(g1.rgb * kTarmacShine, g1.a) * (1.0f - share);
+        float4 tarmac = float4(g1.rgb * kTarmacSpecular, g1.a) * (1.0f - share);
         if (max(material.specular.r, max(material.specular.g, material.specular.b)) > 0.0f)
             return float4(material.specular * share, material.smoothness * share) + tarmac;
         return float4(g1.rgb * share, g1.a * share) + tarmac;
@@ -1792,7 +1792,7 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     return float4(g1.rgb, min(g1.a, kMostSmoothness));
 }
 
-// A pixel's surface (SurfaceData). It is the G-buffer's, with the intended shine where the
+// A pixel's surface (SurfaceData). It is the G-buffer's, with the intended specular reflection where the
 // sun's pass found it. Else it is the material of the triangle the camera's ray meets at the
 // depth. Else it is a grey guess on the depth's normal, found false.
 SurfaceData SurfaceAt(uint2 pixel, float3 position)

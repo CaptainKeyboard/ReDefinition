@@ -7,9 +7,9 @@ space centre's lawn against the terrain beside it with the raytracing and withou
 
 For each <prefix>-surface.bin in the run folder (the scene probe's views: <shot>-v<i>-Full), the script
 writes a sheet <prefix>-sheet.png and a table on the console and in <prefix>-regions.txt. The regions are
-RT_REGION_* in RtContract.h, with the space centre's ground split by the shine it gets, its lawn from its
+RT_REGION_* in RtContract.h, with the space centre's ground split by the specular reflection it gets, its lawn from its
 tarmac. The region terrain is the terrain at the drawn surface. The region lawn is the space centre's
-ground where it shines (its lawn). The region tarmac is the space centre's ground without shine. The
+ground where it reflects specularly (its lawn). The region tarmac is the space centre's ground without specular reflection. The
 region blade is a blade or other scatter at the drawn surface. The region behind blade is ground behind a
 blade the rays meet in front of the drawn surface. The region nothing is nothing near (far away). The
 region other is something else at the drawn surface (buildings, the vessel). The region other missed is
@@ -69,7 +69,7 @@ def heat(value, top):
 
 
 def regions_of(surface, mode):
-    """Each pixel's region (RT_REGION_*, -2 for the space centre's ground without shine, 0 for the sky)."""
+    """Each pixel's region (RT_REGION_*, -2 for the space centre's ground without specular reflection, 0 for the sky)."""
     region = np.rint(mode[..., 2] * 8.0).astype(int)
     shine = surface[..., :3].max(axis=2)
     region[(region == 2) & (shine <= 1e-4)] = -2

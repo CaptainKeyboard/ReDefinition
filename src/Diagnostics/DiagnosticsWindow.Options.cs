@@ -315,10 +315,10 @@ namespace ReDefinition.Diagnostics
             set.Add(hooks);
 
             const string views = "Views";
-            // Each surface's shine as its material means it, as colours over the picture
+            // Each surface's specular reflection as its material means it, as colours over the picture
             // (RtCamera.SurfaceView; ReDefinitionDeferredReflections.shader). Needs the raytracing
             // with Deferred.
-            DebugOption surface = Switch("surfaceShine", DebugCategory.Capture, views, "Surface shine overlay", Session, false,
+            DebugOption surface = Switch("surfaceSpecular", DebugCategory.Capture, views, "Surface specular overlay", Session, false,
                 () => ReDefinition.Raytracing.RtCamera.SurfaceView, value => ReDefinition.Raytracing.RtCamera.SurfaceView = value);
             surface.Tooltip = "Needs Raytracing With Deferred";
             surface.Keywords = new[] { "raytracing", "reflections" };

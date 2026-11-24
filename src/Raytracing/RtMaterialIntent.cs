@@ -5,23 +5,23 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {
-    // How a material's shine is meant, by its shader's family and its own values, for the
+    // How a material's specular reflection is meant, by its shader's family and its own values, for the
     // surfaces the raytracing writes back into Unity's G-buffer (RtCommon.hlsli,
-    // SurfaceIntent). Deferred gives every KSP shader a shine by one formula, diffuse-only
+    // SurfaceIntent). Deferred gives every KSP shader a specular reflection by one formula, diffuse-only
     // ones and the space centre's ground included. What each shader draws without Deferred
     // was read from KSP's compiled shaders and Deferred's replacements (2026-10-05). Of tells
     // the families apart, and the constants below carry the numbers of the legacy and Parallax ones.
     // Unity's physically based shaders and every other one keep the G-buffer's own.
     internal struct RtMaterialIntent
     {
-        // How the shine is meant (RtNative's Surface constants).
+        // How the specular reflection is meant (RtNative's Surface constants).
         public uint Mode;
         // The specular colour and smoothness the hits take where Mode is not Keep.
         public Color Specular;
         public float Smoothness;
         // For the legacy families, what the G-buffer's smoothness is divided by for the gloss.
         public float GlossDivisor;
-        // The gloss where no G-buffer gives it. The ground's shine does not use the gloss.
+        // The gloss where no G-buffer gives it. The ground's specular reflection does not use the gloss.
         public float GlossMean;
 
         // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness. KSP's legacy
@@ -52,29 +52,29 @@ namespace ReDefinition.Raytracing
         // The shaders already logged as taken as drawn, so that each is logged once.
         private static readonly HashSet<string> Unknown = new HashSet<string>();
 
-        // Materials whose values are set for Deferred's G-buffer (EditorHallShine),
-        // with the shine their own values mean. It is not read again from the set ones, as a
+        // Materials whose values are set for Deferred's G-buffer (EditorHallSpecular),
+        // with the specular reflection their own values mean. It is not read again from the set ones, as a
         // highlight's colour and shininess set for Deferred's conversion give another. The
         // rays take a material's again whenever its texture arrives (RtScene.Deliver), after
         // the hall's values are set.
         private static readonly Dictionary<Material, RtMaterialIntent> meant = new Dictionary<Material, RtMaterialIntent>();
 
-        // Holds the shine a material's own values mean before they are changed for Deferred (EditorHallShine).
+        // Holds the specular reflection a material's own values mean before they are changed for Deferred (EditorHallSpecular).
         internal static void Hold(Material material, RtMaterialIntent intent)
         {
             if (material != null) meant[material] = intent;
         }
 
-        // Drops the shine held for a material, as its own values are put back.
+        // Drops the specular reflection held for a material, as its own values are put back.
         internal static void Release(Material material)
         {
             if (!ReferenceEquals(material, null)) meant.Remove(material);
         }
 
-        // The material's shine as meant; `scenery` for the space centre and other scenery, whose diffuse and default
+        // The material's specular reflection as meant; `scenery` for the space centre and other scenery, whose diffuse and default
         // specular shaders stay matt where a vessel's part keeps the G-buffer's. Diffuse-only shaders (KSP/Diffuse,
         // Bumped, the scenery's Diffuse and Bumped, the ground without specular, cut-outs, lightmapped and flag
-        // shaders, Unity's Lambert) have no shine on the scenery; a vessel's parts keep Deferred's. The space
+        // shaders, Unity's Lambert) have no specular reflection on the scenery; a vessel's parts keep Deferred's. The space
         // centre's ground (Diffuse Ground KSC and its Specular variant) has Unity's specular setup with
         // _SpecularColor as its specular colour, black on every stock material (Ground).
         internal static RtMaterialIntent Of(Material material, bool scenery)
@@ -91,9 +91,9 @@ namespace ReDefinition.Raytracing
                 float intensity = material.HasProperty("_SpecularIntensity") ? material.GetFloat("_SpecularIntensity") : 0f;
                 return Legacy(intensity * Color.white, power, ParallaxGlossDivisor, RtNative.SurfaceLegacy);
             }
-            // KSP's own terrain: grass, sand and rock, matt (its Lambert shaders have no shine;
+            // KSP's own terrain: grass, sand and rock, matt (its Lambert shaders have no specular reflection;
             // the atlas shader's own reflection of the sky is in the frame already). Kept
-            // otherwise, the forward light gave it the default shine, and the grass at a
+            // otherwise, the forward light gave it the default specular reflection, and the grass at a
             // glancing view mirrored the sky: 30 % brighter than the matt space centre's
             // lawn and runway beside it (measured on the pad, 2026-10-13).
             if (shader.StartsWith("Terrain/PQS/", StringComparison.Ordinal)) return Dry();
@@ -134,22 +134,22 @@ namespace ReDefinition.Raytracing
                     || shader.IndexOf("Decal", StringComparison.Ordinal) >= 0 || shader.IndexOf("Flag", StringComparison.Ordinal) >= 0
                     || shader.IndexOf("Emissive", StringComparison.Ordinal) >= 0)
                     // A vessel's part with no highlight of KSP's (the Mk1-3 pod, KSP/Emissive/
-                    // Diffuse) keeps the shine Deferred gives it (the player, 2026-10-05: the
+                    // Diffuse) keeps the specular reflection Deferred gives it (the player, 2026-10-05: the
                     // pod looks like a shiny material); the scenery's stays matt.
                     return scenery ? Dry() : keep;
             }
             if (!material.HasProperty("_Glossiness") && !material.HasProperty("_Metallic") && Unknown.Add(shader))
-                Debug.Log("[ReDefinition] Raytracing: the shine of shader '" + shader + "' is taken as drawn (Deferred's G-buffer, or"
+                Debug.Log("[ReDefinition] Raytracing: the specular reflection of shader '" + shader + "' is taken as drawn (Deferred's G-buffer, or"
                           + " the material's own values), at most a smoothness of 0.95 (material '" + material.name + "').");
             return keep;
         }
 
         // The space centre's ground (RT_SURFACE_GROUND): its lawn, told apart per pixel by
-        // its drawn colour, shines as Parallax's terrain beside it does, at the terrain's
+        // its drawn colour, reflects specularly as Parallax's terrain beside it does, at the terrain's
         // gloss there (LawnGloss); its tarmac and concrete not at all. With the G-buffer's
-        // shine (0.22 at a smoothness of 0.013, rough and strong) the lawn is lighter than
+        // specular reflection (0.22 at a smoothness of 0.013, rough and strong) the lawn is lighter than
         // the terrain towards a low sun (the player, 2026-10-25). Without Parallax the
-        // G-buffer's shine stays, as before.
+        // G-buffer's specular reflection stays, as before.
         private static RtMaterialIntent Ground()
         {
             var ground = new RtMaterialIntent
@@ -164,13 +164,13 @@ namespace ReDefinition.Raytracing
         }
 
         // Parallax's terrain of the home body as its config gives it (ParallaxTerrain, Body, ShaderProperties:
-        // _SpecularIntensity at _SpecularPower), the shine the terrain beside the space centre's lawn gets;
+        // _SpecularIntensity at _SpecularPower), the specular reflection the terrain beside the space centre's lawn gets;
         // false without Parallax.
         private static bool homeTerrainRead;
         private static bool homeTerrainFound;
         private static RtMaterialIntent homeTerrain;
 
-        // The space centre's lawn shines as the terrain, and the raytracing lifts it to the terrain's albedo
+        // The space centre's lawn reflects specularly as the terrain, and the raytracing lifts it to the terrain's albedo
         // (RtCommon.hlsli, MeadowShade): Parallax's terrain found.
         internal static bool LawnAsTerrain
         {
@@ -181,7 +181,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // The home body's Parallax terrain shine, read from the config once GameDatabase is there; false without it.
+        // The home body's Parallax terrain specular reflection, read from the config once GameDatabase is there; false without it.
         private static bool HomeTerrain(out RtMaterialIntent terrain)
         {
             if (!homeTerrainRead && GameDatabase.Instance != null)
@@ -207,13 +207,13 @@ namespace ReDefinition.Raytracing
             return homeTerrainFound;
         }
 
-        // No shine at all (RT_SURFACE_DRY).
+        // No specular reflection at all (RT_SURFACE_DRY).
         private static RtMaterialIntent Dry()
         {
             return new RtMaterialIntent { Mode = RtNative.SurfaceDry, Specular = Color.black, Smoothness = 0f };
         }
 
-        // A Blinn-Phong highlight of colour `specular` at exponent `exponent` as a shine: the roughness Unity relates to
+        // A Blinn-Phong highlight of colour `specular` at exponent `exponent` as a specular reflection: the roughness Unity relates to
         // the exponent, the colour as bright as the highlight, the gloss read from the G-buffer by `divisor`.
         private static RtMaterialIntent Legacy(Color specular, float exponent, float divisor, uint mode)
         {
@@ -233,7 +233,7 @@ namespace ReDefinition.Raytracing
         // The space centre's concrete, which KSP gives a highlight (the launch pad's
         // kap_pad_launchPad_mat, _SpecColor 0.28, _Shininess 0.45; its ramps, floors and
         // foundations; the shader inventory, 2026-10-05). It is matt (the player: the pad must not
-        // shine). Its metal (tanks, the water tower, pipes, steel beams) keeps its shine.
+        // shine). Its metal (tanks, the water tower, pipes, steel beams) keeps its specular reflection.
         private static readonly string[] ConcreteNames = { "launchPad", "ramp", "floor", "Foundation", "runway", "concrete" };
 
         // Whether a material's name is one of the space centre's concrete ones (ConcreteNames), steel excepted.

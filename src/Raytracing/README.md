@@ -12,7 +12,7 @@ proxy, and sets up the light that comes back into Unity's lighting.
 | `src/Raytracing/RtScene.cs` | `IRtSource`, `RtItem`, and how meshes and materials reach the proxy. |
 | `src/Raytracing/Ksp/RtKspSources.cs` | What the rays see: vessels, terrain, the space centre, Parallax's scatter. |
 | `src/Raytracing/RtLighting.cs` | The two lighting shaders that take Unity's place while it runs. |
-| `src/Raytracing/RtMaterialIntent.cs` | How a material's shine is meant, for the surfaces the rays write back. |
+| `src/Raytracing/RtMaterialIntent.cs` | How a material's specular reflection is meant, for the surfaces the rays write back. |
 | `src/Raytracing/Ksp/RtReflectors.cs` | The sun-lit planet and moons as the rays' lights. |
 
 ## What it does
@@ -24,7 +24,7 @@ proxy, and sets up the light that comes back into Unity's lighting.
 - `RtScene` hands each mesh and material over once and the instances every frame.
 - `RtPacketBuilder` writes the values `RtCamera` hands it into the frame packet's arrays, in place.
 - `RtMaterial`, `RtMaterialIntent`, `RtDeferredLook` and `RtForwardHighlight` work out what a ray
-  that hits a surface takes: albedo, shine and the highlight the forward light keeps.
+  that hits a surface takes: albedo, specular reflection and the highlight the forward light keeps.
 - `RtStockTerrain` and `RtTerrainColour` work out the ground's colour as KSP's and Parallax's
   terrain shaders give it.
 - `Ksp/RtKspMods.cs` is where the rest of the raytracing asks for the installed mods (Deferred,
@@ -34,7 +34,7 @@ proxy, and sets up the light that comes back into Unity's lighting.
 - `Ksp/RtReflectors.cs`, `RtReflectorLight`, `CloudLightBlend` and `Ksp/NightAdaptation.cs` make
   the moons' light; `Ksp/EveCloudMoonlight.cs` and `Ksp/EveCloudRelight.cs` put it on EVE's clouds.
 - `Ksp/RtEveClouds.cs`, `Ksp/SeaFrameAnchor.cs`, `Ksp/SeaHighlights.cs`, `Ksp/MoonGlow.cs` and
-  `Ksp/EditorHallShine.cs` cover clouds, sea and moons in the sky, and the editors' halls.
+  `Ksp/EditorHallSpecular.cs` cover clouds, sea and moons in the sky, and the editors' halls.
 
 The area is a stop on
 [Raytracing from scene to screen](../../docs/development/flow-raytracing.md) and on
@@ -59,5 +59,5 @@ The add-on in the root, Diagnostics, Modules, Probe, Scenery, Settings and Upsca
   holds `src/Proxy/RtNative.cs` to it.
 - `src/Raytracing/CloudLightBlend.cs` and `src/Raytracing/RtReflectorLight.cs` stay free of Unity
   and KSP, so the tests can run them.
-- A surface's shine goes through `RtMaterialIntent` and `RtNative`'s `Surface` constants, so that
+- A surface's specular reflection goes through `RtMaterialIntent` and `RtNative`'s `Surface` constants, so that
   the managed and the native side agree on the intent.

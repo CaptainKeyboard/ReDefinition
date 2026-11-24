@@ -83,7 +83,7 @@ void PrimaryCheck(uint3 id : SV_DispatchThreadID)
     {
         // As the other passes' rays meet it: a cut-out surface counts where its texture does.
         Hit met = TraceClosest(float3(0.0f, 0.0f, 0.0f), direction, 1.0e7f);
-        // The surface's look as the rays take it in u5 (albedo, shine as its material means it) and as the
+        // The surface's look as the rays take it in u5 (albedo, specular reflection as its material means it) and as the
         // G-buffer holds it in u6 (albedo in the rays' colour space, its smoothness).
         float4 raysLook = 0.0f;
         if (met.found)
@@ -410,7 +410,7 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     }
     float3 position = ClipToWorld(PixelToNdc(id.xy), depth);
     SurfaceData surface = SurfaceAt(id.xy, position);
-    // A surface the rays do not hold keeps Unity's shading: its colour and shine unknown,
+    // A surface the rays do not hold keeps Unity's shading: its colour and specular reflection unknown,
     // light added to it would be a guess's.
     if (!surface.found)
     {
