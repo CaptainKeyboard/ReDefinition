@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using ReDefinition.Atmospheres;
 
-namespace ReDefinition.Atmospheres
+namespace ReDefinition.Tests.Atmospheres.E41
 {
-    // Reads the volumetric layers out of EVE_CLOUDS nodes: what a pack's config (or one of our generated files) puts on a body. Pure: it
-    // takes ConfigNodes and returns plain data, so the discovery runs in tests on stored pack files. The key names are those of EVE's
-    // raymarched layers (release-5 tree, CloudsObject and CloudsRaymarchedVolume): OBJECT { name, body, altitude, layerRaymarchedVolumeV5
-    // { coverageMap, cloudTypeMap, cloudTypes { Item { typeName } }, raymarchingSettings { fxOnlyLayer }, particleField
-    // { particleFieldConfig } } }. An OBJECT without layerRaymarchedVolumeV5 is a classic 2D layer and is not a layer of ours.
+    // Reads the volumetric layers out of EVE_CLOUDS nodes of stored pack files, so that the layer discovery runs in tests on them. The game builds
+    // its PackLayerInfo from the live layers (LiveLayerInfo); this reader is the tests' only. The key names are those of EVE's raymarched layers
+    // (release-5 tree, CloudsObject and CloudsRaymarchedVolume): OBJECT { name, body, altitude, layerRaymarchedVolumeV5 { coverageMap, cloudTypeMap,
+    // cloudTypes { Item { typeName } }, raymarchingSettings { fxOnlyLayer }, particleField { particleFieldConfig } } }. An OBJECT without
+    // layerRaymarchedVolumeV5 is a classic 2D layer and is not a layer of ours.
     internal static class PackConfigReader
     {
         internal const string NodeName = "EVE_CLOUDS";
@@ -33,13 +34,6 @@ namespace ReDefinition.Atmospheres
                 }
             }
             return layers;
-        }
-
-        // The layers of a file's text.
-        internal static List<PackLayerInfo> ReadText(string text, string origin)
-        {
-            ConfigNode root = ConfigNode.Parse(text ?? "");
-            return Read(new[] { root }, origin);
         }
 
         private static bool IsCloudsNode(string name)

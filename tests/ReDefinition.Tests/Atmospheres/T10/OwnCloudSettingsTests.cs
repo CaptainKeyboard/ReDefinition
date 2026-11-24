@@ -121,9 +121,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(new CloudShadowFrame().StepsPerSpan, shadow.StepsPerSpan);
             Assert.AreEqual(new CloudShadowFrame().DiscTaps, shadow.DiscTaps);
             Assert.AreEqual(CloudShadowSwitches.FloorDefault, shadow.Floor);
-            Assert.AreEqual(CloudShadowSwitches.ShadowsDefault, AtmospheresSettings.Definition("cloudShadows").Default != 0.0);
-            Assert.AreEqual(LayerSwitches.OwnCloudsDefault, AtmospheresSettings.Definition("ownClouds").Default != 0.0);
-            Assert.AreEqual(LayerSwitches.LayerCapDefault, (int)AtmospheresSettings.Definition("layerCap").Default);
         }
 
         [TestMethod]

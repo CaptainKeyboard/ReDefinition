@@ -180,6 +180,15 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The plan of a build read and built in one call on this thread (the game runs the same plan through HeightJob over frames).
+        private static void BuildAtOnce(LayerStackSource source, IWeatherField field, HeightTuning body)
+        {
+            HeightPlan plan = HeightPlan.Make(source, body, Ut, BodySeed, W, H);
+            HeightGather gather = plan.Gather(field);
+            gather.Step(0.0);
+            plan.Build(gather, HeightNoiseCache.Shared, null).ApplyTo(source);
+        }
+
         private static HeightResult Wait(HeightJob job, IWeatherField field, double pumpBudgetMs = 0.8)
         {
             HeightResult result;
@@ -207,8 +216,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(expected[3], "the fog layer has no height variation");
 
             LayerStackSource byDriver = Stack();
-            HeightDriver.Update(byDriver, field, body, Ut, BodySeed, W, H);
-            AssertSameMaps(expected, byDriver, "driver");
+            BuildAtOnce(byDriver, field, body);
+            AssertSameMaps(expected, byDriver, "plan built at once");
 
             // On the worker, the field thread safe: the job reads it there.
             LayerStackSource viaJob = Stack();
@@ -230,7 +239,7 @@ namespace ReDefinition.Tests
         public void TheGpuBytesAreTheTexelsOfTheMapsWithAnOpaqueAlpha()
         {
             LayerStackSource s = Stack();
-            HeightDriver.Update(s, FieldFixture.Field(), new HeightTuning(), Ut, BodySeed, W, H);
+            BuildAtOnce(s, FieldFixture.Field(), new HeightTuning());
             HeightMaps m = s.Heights.MapsOf(0);
             byte[] rgba = m.MakeRgba();
             Assert.AreSame(rgba, m.MakeRgba());
@@ -422,11 +431,11 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void WithoutAFieldTheMapsAreTheNeutralOnesOfTheOldDriver()
+        public void WithoutAFieldTheMapsAreTheNeutralOnes()
         {
             LayerStackSource a = Stack(), b = Stack();
             var body = new HeightTuning();
-            HeightDriver.Update(a, null, body, Ut, BodySeed, W, H);
+            BuildAtOnce(a, null, body);
             HeightMaps[] expected = new HeightMaps[a.LayerCount];
             for (int l = 0; l < a.LayerCount; l++)
             {
@@ -436,7 +445,7 @@ namespace ReDefinition.Tests
                 t.Seed = seed;
                 expected[l] = HeightMapBuilder.Build(new HeightInputs { Width = W, Height = H }, t, R, seed);
             }
-            AssertSameMaps(expected, a, "driver, no field");
+            AssertSameMaps(expected, a, "no field");
         }
 
         [TestMethod]

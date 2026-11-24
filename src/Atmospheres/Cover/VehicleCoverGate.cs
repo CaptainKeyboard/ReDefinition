@@ -27,12 +27,5 @@ namespace ReDefinition.Atmospheres
                 if (shaderName.StartsWith(AcceptedPrefixes[i], StringComparison.Ordinal)) return true;
             return false;
         }
-
-        // Whether the ray-traced scene leaves a mesh with this shader out: the cover shell is a thin skin over a part that is already in
-        // the scene, and the rays must not see a second surface two centimetres above it.
-        internal static bool RayTracingLeavesOut(string shaderName)
-        {
-            return shaderName == ShellShaderName;
-        }
     }
 }
