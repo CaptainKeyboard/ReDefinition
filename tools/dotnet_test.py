@@ -9,6 +9,9 @@ It waits while an exclusive timing lock is held (tools/gpu_lock.py status shows 
                                      (Docs runs once per merge, by the orchestrator; Bench holds wall-clock gates that are judged only
                                      under the exclusive timing lock; Explore and Profile are measurement runs that need their
                                      environment variables)
+  -c Release                         (the Atmospheres half took 13 min 35 s in Debug and 3 min 27 s in Release on 2026-11-24, all passed in
+                                     both; the players get Release; --debug runs Debug)
+  --logger trx                       (every run leaves its durations in TestResults)
 unless the caller gives its own. --include CATEGORY takes one of those four back into the default filter (repeatable), e.g. under the
 exclusive lock: python tools/gpu_lock.py run --exclusive ... -- python tools/dotnet_test.py --include Bench. --smoke runs only the
 category Smoke.
@@ -77,7 +80,7 @@ def wait_while_exclusive(path, poll):
         time.sleep(poll)
 
 
-def build_command(dotnet, project, filt, smoke, extra):
+def build_command(dotnet, project, filt, smoke, extra, configuration="Release"):
     """The dotnet test command line."""
     if smoke:
         filt = "TestCategory=Smoke"
@@ -87,6 +90,10 @@ def build_command(dotnet, project, filt, smoke, extra):
         command += ["--filter", filt]
     if "DeployToGameData" not in flags:
         command.append(NO_DEPLOY)
+    if not any(a in ("-c", "--configuration") or a.startswith("--configuration=") for a in extra):
+        command += ["-c", configuration]
+    if not any(a == "--logger" or a.startswith("--logger") or a == "-l" for a in extra):
+        command += ["--logger", "trx"]
     return command + list(extra)
 
 
@@ -115,12 +122,12 @@ def run_checked(command):
     return code, crashed, counts
 
 
-def run_halves(dotnet, project, halves, extra):
+def run_halves(dotnet, project, halves, extra, configuration="Release"):
     """Runs the halves one after the other; prints a total; returns the worst exit code."""
     total, worst, lines = [0, 0, 0, 0], 0, []
     for i, filt in enumerate(halves, 1):
         print("dotnet_test: half %d/%d: --filter \"%s\"" % (i, len(halves), filt), flush=True)
-        code, crashed, counts = run_checked(build_command(dotnet, project, filt, False, extra))
+        code, crashed, counts = run_checked(build_command(dotnet, project, filt, False, extra, configuration))
         if counts:
             total = [a + b for a, b in zip(total, counts)]
         status = "CRASHED" if crashed else ("ok" if code == 0 else "FAILED (exit %d)" % code)
@@ -142,6 +149,7 @@ def main(argv):
     p.add_argument("--filter", default=None, help="one run with this filter; default: two halves")
     p.add_argument("--halves", nargs=2, metavar=("A", "B"), help="two filter expressions to run as the halves (for checking the script)")
     p.add_argument("--smoke", action="store_true", help="only the category Smoke")
+    p.add_argument("--debug", action="store_true", help="build and run the Debug configuration (default: Release)")
     p.add_argument("--include", action="append", default=[], choices=EXCLUDED, metavar="CATEGORY",
                    help="take a category the default filter leaves out (%s) back in; repeatable" % ", ".join(EXCLUDED))
     p.add_argument("--dotnet", default=DEFAULT_DOTNET if os.path.exists(DEFAULT_DOTNET) else "dotnet")
@@ -154,19 +162,20 @@ def main(argv):
         sys.exit("dotnet_test: --lock-path and --print-command are accepted only together with --selftest")
 
     wait_while_exclusive(gpu_lock.lock_path("gpu", args.lock_path), args.poll)
+    configuration = "Debug" if args.debug else "Release"
     own_filter = args.filter is not None or any(a.startswith("--filter") for a in extra)
     base = default_filter(args.include)
     halves = list(args.halves) if args.halves else (list(halves_of(base)) if not own_filter and not args.smoke else None)
     if args.print_command:
         for filt in halves or [args.filter or base]:
-            print(" ".join(build_command(args.dotnet, args.project, filt, args.smoke, extra)))
+            print(" ".join(build_command(args.dotnet, args.project, filt, args.smoke, extra, configuration)))
         return 0
     if ksp_running():
         print("dotnet_test: KSP_x64 runs; a build must not run beside it", file=sys.stderr)
         return 3
     if halves:
-        return run_halves(args.dotnet, args.project, halves, extra)
-    code, _, _ = run_checked(build_command(args.dotnet, args.project, args.filter or base, args.smoke, extra))
+        return run_halves(args.dotnet, args.project, halves, extra, configuration)
+    code, _, _ = run_checked(build_command(args.dotnet, args.project, args.filter or base, args.smoke, extra, configuration))
     return code
 
 
