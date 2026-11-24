@@ -294,7 +294,9 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
     float slices = _LvZ.z;
     float zScale = slices / max(_LvZ.y - _LvZ.x, 1.0);
     float zf = clamp((r - _PlanetR - _LvZ.x) * zScale - 0.5, 0.0, slices - 1.0);
-    if (r - _PlanetR >= floorAlt) zf = max(zf, clamp(ceil((floorAlt - _LvZ.x) * zScale - 0.5), 0.0, slices - 1.0));
+    // A metre's tolerance: the far path's read point is put ON the top (LightSource), and without it rounding decided pixel by pixel whether the floor held (a 2-pixel lattice
+    // on a bright closed top, PRUEFPROTOKOLL 229).
+    if (r - _PlanetR >= floorAlt - 1.0) zf = max(zf, clamp(ceil((floorAlt - _LvZ.x) * zScale - 0.5), 0.0, slices - 1.0));
     float z0 = floor(zf), z1 = min(z0 + 1.0, slices - 1.0), fz = zf - z0;
     float4 oa = _LvO[(int)z0], ob = _LvO[(int)z1];
     float gridN = _LvC.z, sum = 0.0;
