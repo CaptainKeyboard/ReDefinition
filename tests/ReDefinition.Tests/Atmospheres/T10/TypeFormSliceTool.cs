@@ -39,11 +39,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.BeginFrame(++frame);
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Explore")]
         public void WriteTheFormSlicesOfTheTypes()
         {
             string folder = Environment.GetEnvironmentVariable("ATMO_FORM_SLICE");
-            if (string.IsNullOrEmpty(folder)) return;
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A measurement run: it runs only when ATMO_FORM_SLICE is set.");
             Directory.CreateDirectory(folder);
             NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), 1u);
             var text = new StringBuilder();
