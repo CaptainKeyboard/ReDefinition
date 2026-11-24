@@ -78,6 +78,10 @@ namespace ReDefinition.Atmospheres
                 case "noerode":
                 case "shnoise0":
                 case "lightown":
+                case "devplain":
+                case "devplain2":
+                case "noslab":
+                case "noslab2":
                 case "noragged":
                 case "noheight":
                 case "bare":
@@ -502,6 +506,17 @@ namespace ReDefinition.Atmospheres
                 case "noerode": ForceTuning(OwnCloudOptions.TuneCostDebug, 4f); break;
                 case "shnoise0": ForceTuning(CloudShadowShapeNoise.TuneKey, 0f); break;
                 case "lightown": ForceTuning(OwnCloudOptions.TuneCostDebug, 8f); break;
+                // The cost of the leap's vertical bound by the slab's thickness (the stripe under the horizon from above, PRUEFPROTOKOLL 195), both on the test variant of the shader
+                // (layers.devVariant 1) so that only the bound differs: devplain / devplain2 with it, noslab / noslab2 without it.
+                case "devplain":
+                case "devplain2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    break;
+                case "noslab":
+                case "noslab2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(OwnCloudOptions.TuneCostDebug, 16f);
+                    break;
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
                 case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;

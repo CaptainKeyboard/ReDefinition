@@ -678,8 +678,8 @@ Shader "ReDefinition/AtmospheresLayers"
                         // a few hundred metres thick in a few far steps, and far away the leaps of a row did so at one distance and drew a band of sky or sea through the low
                         // stratiform layer under the horizon, seen from above (PRUEFPROTOKOLL 166-167). So that part of the leap climbs or sinks at most half the slab's thickness
                         // (at least one sample inside any slab it crosses): the slab at the sample, or the layer's thinnest where the sample never reached the slab test (a sample
-                        // the map made empty), in whole grid steps.
-                        [branch] if (slabM > 0.0)
+                        // the map made empty), in whole grid steps. layers.costDebug bit 16 leaves it out (cost attribution only).
+                        [branch] if (slabM > 0.0 && fmod(floor(DEV(_CostP.y, 0.0) / 16.0), 2.0) < 0.5)
                         {
                             float vertical = max(abs(dot(d, pc)) / length(pc), 1e-3);
                             float capLen = dtv * max(1.0, floor(0.5 * slabM / vertical / dtv));

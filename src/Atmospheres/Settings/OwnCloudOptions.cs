@@ -18,7 +18,8 @@ namespace ReDefinition.Atmospheres
         internal const string TuneMinStepM = "layers.minStepM", TuneEarlyOut = "layers.earlyOut", TuneSunMarchM = "layers.sunMarchM", TuneSunSteps = "layers.sunSteps";
 
         // layers.costDebug (LayerFrame.CostDebug, 0 to 15, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
-        // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone; the K-T2 perf variants nolight, noshape, noerode and lightown set it.
+        // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone, bit 16 the leap without the slab's vertical bound; the K-T2 perf variants nolight,
+        // noshape, noerode, lightown and noslab set it.
         internal const string TuneCostDebug = "layers.costDebug";
 
         // E40 C1: layers.emptyReach (LayerFrame.EmptyReach, default 1): the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps). The
