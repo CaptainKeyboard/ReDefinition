@@ -296,8 +296,8 @@ namespace ReDefinition.Atmospheres
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
-            // Four channels per sample: r the density profile, g and b unused (they held the per-type light factors, deleted 2026-11-24), a the lift of the coverage threshold
-            // (E40 L2 D1, 0: none).
+            // Four channels per sample: r the density profile, g the pannus' noise scale factor (0: none), b unused (it held a per-type light factor, deleted 2026-11-24), a the lift of
+            // the coverage threshold (E40 L2 D1, 0: none).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             bool extras = false;
@@ -334,11 +334,12 @@ namespace ReDefinition.Atmospheres
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
-                float[] density = table.ProfileData, liftData = table.LiftData;
+                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
                     int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;
                     profile[texel] = density[i];
+                    profile[texel + 1] = scaleData[i];
                     profile[texel + 3] = liftData[i];
                 }
                 Noise.SetStretch(l, layer.FilamentStretch);

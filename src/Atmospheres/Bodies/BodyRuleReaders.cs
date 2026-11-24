@@ -336,6 +336,7 @@ namespace ReDefinition.Atmospheres
             {
                 PannusProfile = pannusProfile,
                 PannusLift = pannusProfile == null ? null : ProfileCurve(pannusNode.Child("LIFT"), "lift"),
+                PannusScale = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("SCALE")),
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
                 DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),
@@ -391,6 +392,30 @@ namespace ReDefinition.Atmospheres
                 Humidity = ProfileCurve(r.Child("HUMIDITY"), "weight"),
                 Precipitation = ProfileCurve(r.Child("PRECIPITATION"), "weight")
             };
+        }
+
+        // SCALE { key0 = height factor, ... } (the pannus' noise scale factor, CloudTypeDef.PannusScale): heights 0 to 1 ascending, factors 0 to 8. Null where there is no valid curve.
+        private static Curve ScaleCurve(BodyNodeReader r)
+        {
+            if (!r.Present) return null;
+            var xs = new List<float>();
+            var ys = new List<float>();
+            for (int i = 0; i < 64; i++)
+            {
+                string text = r.Raw("key" + i);
+                if (text == null) break;
+                string[] parts = text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                double x, y;
+                if (parts.Length != 2 || !BodyNodeReader.TryNumber(parts[0], out x) || !BodyNodeReader.TryNumber(parts[1], out y)
+                    || x < 0.0 || x > 1.0 || y < 0.0 || y > 8.0 || (xs.Count > 0 && !(x > xs[xs.Count - 1])))
+                {
+                    r.Warn("key" + i, "'" + text + "' is not 'height factor' with the height in 0 to 1 (ascending) and the factor in 0 to 8; the curve is ignored");
+                    return null;
+                }
+                xs.Add((float)x);
+                ys.Add((float)y);
+            }
+            return xs.Count == 0 ? null : new Curve(xs.ToArray(), ys.ToArray());
         }
 
         // PROFILE { key0 = height density, ... } (and LIFT { key0 = height lift, ... }, the same form): heights 0 to 1 ascending, values 0 to 1. Null where there is no valid curve.

@@ -69,6 +69,7 @@ namespace ReDefinition.Atmospheres
         // The type's pannus (cfg node PANNUS { PROFILE, LIFT }; null: none): see CloudTypeDef.PannusProfile.
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
+        internal Curve PannusScale { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -92,7 +93,7 @@ namespace ReDefinition.Atmospheres
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 Lift = Lift, Climate = Climate,
                 ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form,
-                PannusProfile = PannusProfile, PannusLift = PannusLift
+                PannusProfile = PannusProfile, PannusLift = PannusLift, PannusScale = PannusScale
             };
         }
     }

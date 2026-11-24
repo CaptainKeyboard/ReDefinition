@@ -96,6 +96,16 @@ namespace ReDefinition.Atmospheres
         // ragged shreds). LayerTypeTable bakes the chosen pair, so every reader of the table (the layer pass, the cloud shadow, the CPU readers) draws the same.
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
+        // The pannus' noise scale factor by height (cfg node PANNUS { SCALE { key0 = height factor } }, null: none): where it is g above 0 the layer's shape noise is read at
+        // pc (1 + g), so the shreds are 1 + g times smaller than the deck's own features (the profile texture's channel g; drawn only while the pannus is).
+        internal Curve PannusScale { get; set; }
+
+        // The pannus' scale factor at h (0 where pannus is off, the type has none or no SCALE).
+        internal double PannusScaleAt(double h, bool pannus)
+        {
+            if (!pannus || PannusProfile == null || PannusScale == null) return 0.0;
+            return PannusScale.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
+        }
 
         // The profile drawn: the pannus profile where pannus is on and the type has one, else the type's own.
         internal Curve DrawnProfile(bool pannus)
