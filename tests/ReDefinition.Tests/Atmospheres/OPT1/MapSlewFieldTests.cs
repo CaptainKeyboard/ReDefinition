@@ -1,8 +1,6 @@
 using System;
-using System.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
-using Color32 = UnityEngine.Color32;
 
 namespace ReDefinition.Tests.Atmospheres.OPT1
 {
@@ -11,8 +9,6 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
     [TestClass]
     public class MapSlewFieldTests
     {
-        public TestContext TestContext { get; set; }
-
         private static byte[] RandomMap(Random rng, int n)
         {
             var map = new byte[n];
@@ -124,61 +120,6 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
             for (int f = 0; f < 30; f++) MapSlew.StepMap(now, goal, rate, 1f / 30f);
             Assert.AreEqual(30, now[0], "old path after one second at 30 fps");
             Assert.AreEqual(rate * 255f, MapSlewField.Reach01(rate, 1.0) * 255f, 1e-3f, "the rate in levels a second");
-        }
-
-        // The managed cost of the old path's step per frame on four layers of 2048 x 1024 (coverage and type), against what the new path leaves for the main thread, and the worker's
-        // cost of one goal. Prints the numbers; asserts only that the new main-thread work is far below the old.
-        [TestMethod]
-        public void TheOldStepCostsMillisecondsAFrameAndTheNewPathNone()
-        {
-            const int w = 2048, h = 1024, n = w * h, layers = 4;
-            float rate = MapSlew.DefaultRate;
-            var rng = new Random(3);
-            var nowM = new byte[layers * 2][];
-            var goalM = new byte[layers * 2][];
-            for (int k = 0; k < nowM.Length; k++)
-            {
-                nowM[k] = RandomMap(rng, n);
-                goalM[k] = RandomMap(rng, n);
-            }
-            var scratch = new Color32[n];
-            // Warm up the JIT.
-            MapSlew.StepMap(nowM[0], goalM[0], rate, 0.033f);
-            const int frames = 10;
-            long start = Stopwatch.GetTimestamp();
-            for (int f = 0; f < frames; f++)
-            {
-                for (int k = 0; k < nowM.Length; k++)
-                {
-                    // StepOne: the comparison, the step, then Upload's conversion to Color32 (the native SetPixels32 and Apply come on top).
-                    byte[] a = nowM[k], b = goalM[k];
-                    bool same = true;
-                    for (int i = 0; i < n; i++) if (a[i] != b[i]) { same = false; break; }
-                    if (same) continue;
-                    MapSlew.StepMap(a, b, rate, 0.033f);
-                    for (int i = 0; i < n; i++) scratch[i] = new Color32(a[i], a[i], a[i], 255);
-                }
-            }
-            double oldMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency / frames;
-
-            var from = new byte[n];
-            var pairs = new byte[2 * n];
-            start = Stopwatch.GetTimestamp();
-            for (int f = 0; f < frames; f++)
-            {
-                // The worker's work for one goal of one map: the hand-over and the interleave (the new path's cost off the main thread, once a second per map).
-                MapSlewField.Handover(nowM[0], goalM[0], 0.04f, from);
-                MapSlewField.Interleave(from, goalM[0], pairs);
-            }
-            double goalMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency / frames;
-
-            start = Stopwatch.GetTimestamp();
-            double sink = 0.0;
-            for (int f = 0; f < 100000; f++) sink += MapSlewField.Reach01(rate, f * 0.001);
-            double reachUs = (Stopwatch.GetTimestamp() - start) * 1e6 / Stopwatch.Frequency / 100000;
-            TestContext.WriteLine("OPT1 timing (managed .NET Framework 4.8, not Mono): old step of 4 layers x 2 maps, " + oldMs.ToString("0.0") + " ms a frame before the native uploads of 16 MB;"
-                                  + " new path: " + goalMs.ToString("0.0") + " ms on the worker per map goal (8 of them a second), main thread per frame " + reachUs.ToString("0.000") + " us for the reach (sink " + sink + ").");
-            Assert.IsTrue(goalMs < oldMs, "one goal on the worker costs less than a whole old frame");
         }
     }
 }

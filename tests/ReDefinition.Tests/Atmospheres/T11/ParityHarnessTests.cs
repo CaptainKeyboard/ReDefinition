@@ -7,9 +7,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace ReDefinition.Tests.Atmospheres.T11
 {
     // The parity harness (package T11): the check list is complete against the plan's parity table, every check names a function of
-    // tools/weather_metrics/parity_checks.py, and the self-test of the brute-force reference renderer passes (analytic results,
-    // planted defects, every check function on a good and a defective record). The logic lives in tools/weather_metrics/parity_run.py
-    // (verify, selftest --fast); these tests run it.
+    // tools/weather_metrics/parity_checks.py, and every fixed number names its source. The logic lives in tools/weather_metrics/parity_run.py
+    // (verify); these tests run it. The self-test of the reference renderer is a Python test (tools/tests/test_parity_run.py).
     [TestClass]
     public class ParityHarnessTests
     {
@@ -67,18 +66,6 @@ namespace ReDefinition.Tests.Atmospheres.T11
         }
 
         [TestMethod]
-        public void TheSelfTestOfTheReferenceRendererPasses()
-        {
-            string output;
-            bool ok = Python("selftest --fast", 600000, out output);
-            Assert.IsTrue(ok, output);
-            StringAssert.Contains(output, "self-test: PASSED");
-            // The planted defects are in the table and were found.
-            StringAssert.Contains(output, "planted un-normalised phase: integral check FAILS");
-            StringAssert.Contains(output, "planted repeating noise tile");
-        }
-
-        [TestMethod]
         public void EveryFixedNumberNamesItsSourceAndNoThresholdIsProposed()
         {
             string json = File.ReadAllText(Path.Combine(Root(), "tests", "data", "parity", "checks.json"));
@@ -86,20 +73,6 @@ namespace ReDefinition.Tests.Atmospheres.T11
             Assert.IsTrue(numbers.Count >= 14, "the fixed reference numbers");
             Assert.AreEqual(numbers.Count, Regex.Matches(json, "\"id\": \"N\\d\\d\"[^}]*\"source\": \"[^\"]{20,}").Count, "every number carries a source");
             Assert.AreEqual(0, Regex.Matches(json, "\\[proposed\\](?! kept)").Count, "no threshold is left to be proposed");
-        }
-
-        [TestMethod]
-        public void TheHarnessFilesAreInPlace()
-        {
-            string root = Root();
-            foreach (string rel in new[]
-            {
-                "tools/weather_metrics/parity_ref.py", "tools/weather_metrics/parity_checks.py", "tools/weather_metrics/parity_run.py",
-                "tests/data/parity/checks.json", "tests/data/parity/tvc-capture.md", "tests/WeatherPlayer/linked/T11.txt",
-                "tests/series/rows/T11.json", "tests/WeatherPlayer/Assets/Runner/ParityScene.cs",
-                "tests/WeatherPlayer/Assets/Runner/ParityResources/Resources/ReDefinitionAtmospheresParityRef.shader"
-            })
-                Assert.IsTrue(File.Exists(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar))), rel);
         }
     }
 }

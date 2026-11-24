@@ -279,16 +279,15 @@ namespace ReDefinition.Tests
         {
             GeneratorField field = FieldFixture.Field();
             LayerStackSource s = Stack();
-            var release = new ManualResetEvent(false);
+            var start = new ManualResetEvent(false);
             var job = new HeightJob { Cache = new HeightNoiseCache(16) };
-            // A worker that takes 3 s before it starts (a slow machine, a busy pool).
-            job.Schedule = work => new Thread(() => { release.WaitOne(); Thread.Sleep(3000); work(); }) { IsBackground = true }.Start();
+            // A worker that does not start before the polling below is over (a slow machine, a busy pool): it waits for the event.
+            job.Schedule = work => new Thread(() => { start.WaitOne(); work(); }) { IsBackground = true }.Start();
             var watch = Stopwatch.StartNew();
             Assert.IsTrue(job.Begin(HeightPlan.Make(s, new HeightTuning(), Ut, BodySeed, W, H), field, s));
             double worst = watch.Elapsed.TotalMilliseconds;
             HeightResult result;
             int polls = 0;
-            release.Set();
             watch.Restart();
             while (watch.ElapsedMilliseconds < 400)
             {
@@ -296,12 +295,13 @@ namespace ReDefinition.Tests
                 job.Pump(0.8);
                 HeightTake take = job.TryTake(out result);
                 worst = Math.Max(worst, (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency);
-                Assert.AreEqual(HeightTake.None, take, "the worker is still sleeping");
+                Assert.AreEqual(HeightTake.None, take, "the worker has not started");
                 polls++;
                 Thread.Sleep(1);
             }
             Assert.IsTrue(worst < 25.0, "the worst main-thread call was " + worst.ToString("0.0") + " ms");
             Assert.IsTrue(job.Busy);
+            start.Set();
             Wait(job, field).ApplyTo(s);
             Assert.IsFalse(job.Busy);
             Assert.IsNotNull(s.Heights.MapsOf(0));

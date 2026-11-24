@@ -82,8 +82,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 var taus = new System.Collections.Generic.List<double>();
                 for (int s = 0; s < sites; s++)
                 {
-                    NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, index);
-                    CoverMeaningModel.Place(ref prm, s);
+                    NoiseLayerParams prm = NoiseSites.ParamsOf(layer, index);
+                    NoiseSites.Place(ref prm, s);
                     for (int j = 0; j < cells; j++)
                         for (int i = 0; i < cells; i++)
                         {
@@ -171,8 +171,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int n = 0, a50 = 0, a95 = 0;
                         for (int s = 0; s < 12; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, li);
+                            NoiseSites.Place(ref prm, s);
                             for (int j = 0; j < 10; j++)
                                 for (int i = 0; i < 10; i++)
                                 {
@@ -221,8 +221,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int sites = 6;
                         for (int s = 0; s < sites; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, 1);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, 1);
+                            NoiseSites.Place(ref prm, s);
                             var closed = new bool[N * N];
                             int count = 0;
                             for (int j = 0; j < N; j++)
@@ -294,10 +294,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int sites = 4;
                         for (int s = 0; s < sites; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li + 1);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, li + 1);
                             prm.SphereScale = sphere;
                             prm.ReferenceRadiusM = 600000.0 + 0.5 * (layer.InnerAltitudeM + layer.OuterAltitudeM);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseSites.Place(ref prm, s);
                             for (int variant = 0; variant < 2; variant++)
                             {
                                 var topBody = new bool[N * N];

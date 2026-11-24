@@ -36,11 +36,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
 
         private static NoiseLayerParams ParamsOf(CloudLayerDef layer, LayerTypeTable table, int index, int site, double typeValue)
         {
-            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, index);
+            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, index);
             if (layer.VerticalScale > 0f) prm.SphereScale = layer.VerticalScale;
             prm.ReferenceRadiusM = R + 0.5 * (layer.InnerAltitudeM + layer.OuterAltitudeM);
             prm.ShapeLod = CloudShapeModel.SmoothingLod(table.SmoothingOf(typeValue), Volumes.ShapeN);
-            CoverMeaningModel.Place(ref prm, site);
+            NoiseSites.Place(ref prm, site);
             return prm;
         }
 
