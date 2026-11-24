@@ -149,13 +149,22 @@ float3 SunAir(float3 pc, float3 sunDir)
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
+// The most taps a march sample's light takes through one OTHER layer (LightTau).
+#define LIGHT_OTHER_TAPS 16
+
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size (each `ratio` times the one before) over at most `range` m (below 0: up to -range m from pc),
-// the other layers with half of them (own < 0: all layers with `steps`).
+// the other layers with even taps of about one of that layer's noise scales (at least half of `steps`, at most LIGHT_OTHER_TAPS) (own < 0: all layers with `steps` growing taps).
+// The other layers' taps: four taps each twice the one before over a span of 10 km are 0.7 to 5.3 km long, and each reads the density at one point: a cloud above
+// between those points cast no shadow, one on a point a hard-edged shadow of the tap's whole length, and the shadows changed completely with the tap count (K-T2
+// perfNpic2560dlssqshadowtaps, PRUEFPROTOKOLL 202). Even taps of the layer's noise scale (a cumulus layer's 250 m, up to the cap) resolve the clouds the way the layer
+// draws them; a map-empty tap ends at the coverage bound.
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
 float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, float range, float ratioIn)
 {
     float tau = 0;
     float ratio = max(ratioIn, 1.0);
+    // Measurement only (layers.costDebug bit 32): the other layers with the former half of the taps, each `ratio` times the one before.
+    bool formerOther = fmod(floor(DEV(_CostP.y, 0.0) / 32.0), 2.0) > 0.5;
     [loop] for (int lj = 0; lj < MAXL; lj++)
     {
         if (lj >= (int)_LayerCount) break;
@@ -164,15 +173,22 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
         float4 sp;
         LayerSpans(lj, pc, dir, 1e30, sp);
         CellClip(pc, dir, sp);
-        // Measurement only (layers.costDebug bit 32): the other layers with the own layer's taps.
-        int n = (lj == own || own < 0 || fmod(floor(DEV(_CostP.y, 0.0) / 32.0), 2.0) > 0.5) ? steps : max(1, steps / 2);
+        bool other = own >= 0 && lj != own;
         [loop] for (int k = 0; k < 2; k++)
         {
             float a = k == 0 ? sp.x : sp.z, b = k == 0 ? sp.y : sp.w;
             // range > 0: at most that far from the span's start; range < 0: no farther than -range from pc (the light cache's near taps, whose far part the cache holds).
             b = range < 0 ? min(b, -range) : min(b, a + range);
             if (b <= a) continue;
-            float norm = ratio == 1.0 ? (float)n : (pow(ratio, (float)n) - 1.0) / (ratio - 1.0);
+            int n = other ? max(1, steps / 2) : steps;
+            float r = ratio;
+            [branch] if (other && !formerOther)
+            {
+                float scale = _LayerD[lj].y > 0.0 ? 1.0 / _LayerD[lj].y : b - a;
+                n = clamp((int)ceil((b - a) / max(scale, 1.0)), max(1, steps / 2), LIGHT_OTHER_TAPS);
+                r = 1.0;
+            }
+            float norm = r == 1.0 ? (float)n : (pow(r, (float)n) - 1.0) / (r - 1.0);
             float prev = a;
             float gain = 1.0;
             float acc = 0;
@@ -186,7 +202,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 float qs;
                 acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
-                gain *= ratio;
+                gain *= r;
             }
             tau += acc;
         }

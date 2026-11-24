@@ -82,6 +82,10 @@ namespace ReDefinition.Atmospheres
                 case "devplain2":
                 case "noslab":
                 case "noslab2":
+                case "fullnew":
+                case "fullnew2":
+                case "fullold":
+                case "fullold2":
                 case "noragged":
                 case "noheight":
                 case "bare":
@@ -516,6 +520,19 @@ namespace ReDefinition.Atmospheres
                 case "noslab2":
                     ForceTuning(CloudDevVariant.TuneForce, 1f);
                     ForceTuning(OwnCloudOptions.TuneCostDebug, 16f);
+                    break;
+                // The cost of the other layers' even light taps (PRUEFPROTOKOLL 206) on the full light march (the light volume off, the march's own light everywhere, as at High),
+                // both on the test variant: fullnew / fullnew2 the even taps, fullold / fullold2 the former ones (layers.costDebug bit 32).
+                case "fullnew":
+                case "fullnew2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
+                    break;
+                case "fullold":
+                case "fullold2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
+                    ForceTuning(OwnCloudOptions.TuneCostDebug, 32f);
                     break;
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
