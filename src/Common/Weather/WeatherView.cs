@@ -58,6 +58,7 @@ namespace ReDefinition.Core
         public float SkyDimming;
         // What the ambient light is multiplied by; 1 is none.
         public float AmbientFactor = 1f;
+        public Color AmbientTint = Color.white;
         public float CloudCoverAlongSun;
 
         // --- Wind ---
