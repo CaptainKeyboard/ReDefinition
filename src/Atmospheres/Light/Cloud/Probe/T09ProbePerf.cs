@@ -86,6 +86,8 @@ namespace ReDefinition.Atmospheres
                 case "fullnew2":
                 case "fullold":
                 case "fullold2":
+                case "und0":
+                case "und0b":
                 case "noragged":
                 case "noheight":
                 case "bare":
@@ -533,6 +535,11 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(CloudDevVariant.TuneForce, 1f);
                     ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
                     ForceTuning(OwnCloudOptions.TuneCostDebug, 32f);
+                    break;
+                // The cost of the undulatus default (cloud.undulatus 1 since e3c0d370): und0 / und0b with it off, to alternate with plain and plain2.
+                case "und0":
+                case "und0b":
+                    ForceTuning(OwnCloudOptions.TuneUndulatus, 0f);
                     break;
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
