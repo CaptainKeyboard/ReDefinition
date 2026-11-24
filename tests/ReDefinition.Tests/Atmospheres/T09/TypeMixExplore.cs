@@ -23,7 +23,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void DumpTheMapsOfAGameDay()
         {
             string folder = Environment.GetEnvironmentVariable("TYPEMIX_OUT");
-            if (string.IsNullOrEmpty(folder)) return;
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A measurement run: it runs only when TYPEMIX_OUT is set.");
             bool stage = Environment.GetEnvironmentVariable("TYPEMIX_STAGE") != "0";
             Directory.CreateDirectory(folder);
             int[] seeds = { 1, 2, 3 };

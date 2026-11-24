@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """dotnet test for the Atmospheres work, the way agents run it. Stdlib only.
 
-  python tools/dotnet_test.py [--smoke] [--filter EXPR] [--project PATH] [-- extra dotnet test arguments]
+  python tools/dotnet_test.py [--smoke] [--filter EXPR] [--include CATEGORY ...] [--project PATH] [-- extra dotnet test arguments]
 
 It waits while an exclusive timing lock is held (tools/gpu_lock.py status shows who), refuses to build while KSP_x64 runs, and passes
   -p:DeployToGameData=false          (the main project deploys into the game by default, and the test project builds it)
-  --filter "TestCategory!=Docs"      (the Docs category runs once per merge, by the orchestrator)
-unless the caller gives its own. --smoke runs only the category Smoke.
+  --filter "TestCategory!=Docs&TestCategory!=Bench&TestCategory!=Explore&TestCategory!=Profile"
+                                     (Docs runs once per merge, by the orchestrator; Bench holds wall-clock gates that are judged only
+                                     under the exclusive timing lock; Explore and Profile are measurement runs that need their
+                                     environment variables)
+unless the caller gives its own. --include CATEGORY takes one of those four back into the default filter (repeatable), e.g. under the
+exclusive lock: python tools/gpu_lock.py run --exclusive ... -- python tools/dotnet_test.py --include Bench. --smoke runs only the
+category Smoke.
 
 Without --filter (and without --smoke or a --filter after "--") the suite runs as two halves, one dotnet test invocation each, because one
 test host crashed after about 2955 tests when it ran everything: the tests of Atmospheres first, then all the others. Each half prints its
@@ -31,8 +36,21 @@ import gpu_lock  # noqa: E402
 DEFAULT_PROJECT = os.path.join(os.path.dirname(HERE), "tests", "ReDefinition.Tests", "ReDefinition.Tests.csproj")
 DEFAULT_DOTNET = os.path.join(os.path.expanduser("~"), ".dotnet", "dotnet.exe")
 NO_DEPLOY = "-p:DeployToGameData=false"
-DEFAULT_FILTER = "TestCategory!=Docs"
-HALVES = (DEFAULT_FILTER + "&FullyQualifiedName~Atmospheres", DEFAULT_FILTER + "&FullyQualifiedName!~Atmospheres")
+EXCLUDED = ("Docs", "Bench", "Explore", "Profile")
+
+
+def default_filter(include=()):
+    """The default filter: every category of EXCLUDED left out but those in include."""
+    return "&".join("TestCategory!=" + c for c in EXCLUDED if c not in include)
+
+
+def halves_of(filt):
+    """The two halves of the suite under a filter: the tests of Atmospheres, then all the others."""
+    return ((filt + "&" if filt else "") + "FullyQualifiedName~Atmospheres", (filt + "&" if filt else "") + "FullyQualifiedName!~Atmospheres")
+
+
+DEFAULT_FILTER = default_filter()
+HALVES = halves_of(DEFAULT_FILTER)
 SUMMARY = re.compile(r"(Passed|Failed)!\s+-\s+Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+),\s*Total:\s*(\d+)")
 CRASH = ("test host process crashed", "test run was aborted", "the active test run was aborted")
 
@@ -124,6 +142,8 @@ def main(argv):
     p.add_argument("--filter", default=None, help="one run with this filter; default: two halves")
     p.add_argument("--halves", nargs=2, metavar=("A", "B"), help="two filter expressions to run as the halves (for checking the script)")
     p.add_argument("--smoke", action="store_true", help="only the category Smoke")
+    p.add_argument("--include", action="append", default=[], choices=EXCLUDED, metavar="CATEGORY",
+                   help="take a category the default filter leaves out (%s) back in; repeatable" % ", ".join(EXCLUDED))
     p.add_argument("--dotnet", default=DEFAULT_DOTNET if os.path.exists(DEFAULT_DOTNET) else "dotnet")
     p.add_argument("--poll", type=float, default=5.0)
     p.add_argument("--selftest", action="store_true", help="allows --lock-path and --print-command")
@@ -135,9 +155,10 @@ def main(argv):
 
     wait_while_exclusive(gpu_lock.lock_path("gpu", args.lock_path), args.poll)
     own_filter = args.filter is not None or any(a.startswith("--filter") for a in extra)
-    halves = list(args.halves) if args.halves else (list(HALVES) if not own_filter and not args.smoke else None)
+    base = default_filter(args.include)
+    halves = list(args.halves) if args.halves else (list(halves_of(base)) if not own_filter and not args.smoke else None)
     if args.print_command:
-        for filt in halves or [args.filter or DEFAULT_FILTER]:
+        for filt in halves or [args.filter or base]:
             print(" ".join(build_command(args.dotnet, args.project, filt, args.smoke, extra)))
         return 0
     if ksp_running():
@@ -145,7 +166,7 @@ def main(argv):
         return 3
     if halves:
         return run_halves(args.dotnet, args.project, halves, extra)
-    code, _, _ = run_checked(build_command(args.dotnet, args.project, args.filter or DEFAULT_FILTER, args.smoke, extra))
+    code, _, _ = run_checked(build_command(args.dotnet, args.project, args.filter or base, args.smoke, extra))
     return code
 
 

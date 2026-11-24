@@ -203,10 +203,11 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(expected.ToArray(), wire.ToArray());
         }
 
-        // Waits up to five seconds for the writer thread to put `count` bytes on the stream.
+        // Waits up to five seconds for the writer thread to put `count` bytes on the stream. It watches Position, not Length: MemoryStream.Write
+        // sets the length before it copies the bytes and the position after, so a length that has arrived can still stand over bytes not yet copied.
         private static void WaitForBytes(System.IO.MemoryStream wire, int count)
         {
-            for (int i = 0; i < 500 && wire.Length < count; i++) System.Threading.Thread.Sleep(10);
+            for (int i = 0; i < 500 && wire.Position < count; i++) System.Threading.Thread.Sleep(10);
         }
 
         // The update skips the text of a scalar that is the same as the one sent: the same number to the bit, bool,

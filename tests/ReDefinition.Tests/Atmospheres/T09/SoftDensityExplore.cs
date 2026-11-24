@@ -145,7 +145,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void OpacityPerTypeThroughTheProduct()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
             double[] maps = { 0.2, 0.4, 0.6, 0.8 };
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
@@ -202,7 +202,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void CellStructureFromAbove()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
             const int N = 56;
             double[] maps = { 0.2, 0.3, 0.4, 0.5, 0.6 };
@@ -268,7 +268,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void LiftedShapePerType()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
             const int N = 40;
             File.AppendAllText(path, "HEIGHT-SHAPED THRESHOLD, product mapping (softness " + CloudSoftDensity.Softness.ToString("0.0") + "), " + N + " x " + N + " columns at half a noise scale, 4 sites; per map value:"
@@ -362,7 +362,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void ClosedSharePerMapValue()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus() };
             double[][] types = { new[] { 0.5 }, new[] { 0.0, 0.25, 0.75 }, new[] { 0.229 } };
             var sets = new[]

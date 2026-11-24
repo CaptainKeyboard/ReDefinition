@@ -432,11 +432,11 @@ namespace ReDefinition.Tests
         // The captures of the 'ours' column of tools/weather_metrics/parity_run.py table (one folder per check id with meta.json). Written
         // only when ATMO_T04_CAPTURE names a folder.
         // ---------------------------------------------------------------------------------------------------------------------------
-        [TestMethod]
+        [TestMethod, TestCategory("Explore")]
         public void WriteTheOursColumnOfTheParityTable()
         {
             string folder = Environment.GetEnvironmentVariable("ATMO_T04_CAPTURE");
-            if (string.IsNullOrEmpty(folder)) return;
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A capture run: it runs only when ATMO_T04_CAPTURE is set.");
             double asym = CloudShadowMath.Asymmetry(0.85, -0.3, 0.92);
 
             // R11-shadow-displacement and the profile of the reference's grid at 45 degrees.

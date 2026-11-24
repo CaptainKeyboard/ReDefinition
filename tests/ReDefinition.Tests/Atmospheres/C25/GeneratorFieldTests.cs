@@ -499,7 +499,8 @@ namespace ReDefinition.Tests.Atmospheres.C25
             Assert.IsTrue(field.Sample(Body, 120, 540, -50, 1000, out s), "latitude and longitude are brought into range");
         }
 
-        [TestMethod]
+        // Single-sample wall-clock gates: category Bench, run under the exclusive timing lock (tools/dotnet_test.py leaves Bench out by default).
+        [TestMethod, TestCategory("Bench")]
         public void TheCostRowsOfTheProofInManagedCode()
         {
             GeneratorField field = FieldFixture.Field();
@@ -561,8 +562,8 @@ namespace ReDefinition.Tests.Atmospheres.C25
 #endif
         }
 
-        [TestMethod]
-        public void TheSurfaceMapsRenderInTimeAndTheWeatherMapsMoveSmoothly()
+        [TestMethod, TestCategory("Bench")]
+        public void TheSurfaceMapsRenderInTime()
         {
             GeneratorField field = FieldFixture.Field();
             double ut = FieldFixture.HomeYear;
@@ -577,6 +578,12 @@ namespace ReDefinition.Tests.Atmospheres.C25
 #else
             Assert.IsTrue(coverMs <= 150.0, "cover " + coverMs);
 #endif
+        }
+
+        [TestMethod]
+        public void TheWeatherMapsMoveSmoothly()
+        {
+            GeneratorField field = FieldFixture.Field();
             // B10 criterion 9: the 99th percentile of the change of a texel per game second stays below 2e-3 (coverage and the level).
             var a = new GeneratorMaps.Weather2D();
             var b = new GeneratorMaps.Weather2D();

@@ -54,7 +54,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void DumpTheSkyClearTables()
         {
             string file = Environment.GetEnvironmentVariable("SKYMAPS_TABLES");
-            if (string.IsNullOrEmpty(file)) return;
+            if (string.IsNullOrEmpty(file)) Assert.Inconclusive("A measurement run: it runs only when SKYMAPS_TABLES is set.");
             Tuning.Instance.BeginFrame(9000001);
             using (var w = new StreamWriter(file))
             {
@@ -85,7 +85,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void DumpTheGameMapsOfKerbin()
         {
             string folder = Environment.GetEnvironmentVariable("SKYMAPS_OUT");
-            if (string.IsNullOrEmpty(folder)) return;
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A measurement run: it runs only when SKYMAPS_OUT is set.");
             Directory.CreateDirectory(folder);
             string utText = Environment.GetEnvironmentVariable("SKYMAPS_UTS") ?? "1881000,1686000";
             string seedText = Environment.GetEnvironmentVariable("SKYMAPS_SEED");

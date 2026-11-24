@@ -93,11 +93,11 @@ namespace ReDefinition.Tests
 
         // The numbers of the erosion detail at the Medium volume size: the spread of the detail value d (with and without the fine octave) and what the erosion takes off the share.
         // Runs only with PUFF_REPORT=<file> (a measurement for the package's result, not a check).
-        [TestMethod]
+        [TestMethod, TestCategory("Explore")]
         public void ErosionReport()
         {
             string path = Environment.GetEnvironmentVariable("PUFF_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when PUFF_REPORT is set.");
             var lines = new System.Collections.Generic.List<string>();
             foreach (double? weight in new double?[] { 0.0, 0.4, 0.8 })
             {

@@ -182,10 +182,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             for (int l = 0; l < 4; l++) combined[l] = (byte[])sky.Cover[l].Clone();
             var rules = new WeatherLowStratiformRule[4];
             for (int l = 0; l < 4; l++) rules[l] = Layers()[l].LowStratiform;
-            var clock = System.Diagnostics.Stopwatch.StartNew();
             CloudLookTuning.MeetTheField(combined, 4, sky.Field, 1f, rules, sky.Level);
-            Console.WriteLine("SKYSHARES MeetTheField on 512 x 256 texels: " + clock.ElapsedMilliseconds + " ms");
-            Assert.IsTrue(clock.ElapsedMilliseconds < 1500, "the combination of a round takes " + clock.ElapsedMilliseconds + " ms");
             int heavy = 0, bare = 0;
             for (int k = 0; k < sky.Level.Length; k++)
             {

@@ -127,7 +127,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void MeasureTheEnergyTerm()
         {
             string outPath = Environment.GetEnvironmentVariable("CELLS_OUT");
-            if (string.IsNullOrEmpty(outPath)) return;
+            if (string.IsNullOrEmpty(outPath)) Assert.Inconclusive("A measurement run: it runs only when CELLS_OUT is set.");
             double full;
             if (!double.TryParse(Environment.GetEnvironmentVariable("CELLS_FULL"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out full)) full = -1.0;
             double lift;

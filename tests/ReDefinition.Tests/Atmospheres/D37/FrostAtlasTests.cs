@@ -29,7 +29,9 @@ namespace ReDefinition.Tests.Atmospheres.D37
             Assert.AreEqual(4 * 1024 * 1024, FrostAtlas.Bytes);
         }
 
-        [TestMethod]
+        // A wall-clock bound: category Bench, run under the exclusive timing lock. The JIT of the build is already paid by ClassInitialize, so the
+        // "first call" below is not the cold one it was meant to be.
+        [TestMethod, TestCategory("Bench")]
         public void BuildTakesUnderSixtyMilliseconds()
         {
             // The first call pays for the JIT; the brief's figure is for the build, so the best of five is held to the limit and the

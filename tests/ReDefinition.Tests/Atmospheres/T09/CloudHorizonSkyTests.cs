@@ -293,7 +293,8 @@ Scatterer_atmosphere
             Assert.AreEqual(3, ev.Recomputed, "so does a rise of 4 percent of the scale height");
         }
 
-        [TestMethod]
+        // A wall-clock bound: category Bench, run under the exclusive timing lock.
+        [TestMethod, TestCategory("Bench")]
         public void TheCostIsAFractionOfAMillisecondPerFrame()
         {
             CloudBridgeAir.Air kerbin = Node("Kerbin");

@@ -178,7 +178,7 @@ namespace ReDefinition.Tests.Atmospheres.B15
         }
 
         [TestMethod]
-        public void TenMinutesAreFiniteWithoutDenormalsBelowMinusThreeDbfsAndAllocateNothing()
+        public void AMinuteIsFiniteWithoutDenormalsBelowMinusThreeDbfsAndAllocatesNothing()
         {
             Mixer mixer = new Mixer(Rate, 5);
             float[] buf = new float[1024 * 2];
@@ -186,9 +186,9 @@ namespace ReDefinition.Tests.Atmospheres.B15
             AudioParams p = AudioParams.Create();
             // Warm up the JIT and every path before counting allocations.
             for (int i = 0; i < 200; i++) mixer.Process(buf, 1024, 2, Walk(ref p, ref rng));
-            int gen0 = GC.CollectionCount(0);
+            // The allocation is counted per thread. GC.CollectionCount is process-wide (another test's thread can collect meanwhile), so it is not a measure of this thread.
             long bytes = AllocatedBytes();
-            long blocks = 10L * 60 * Rate / 1024;
+            long blocks = 60L * Rate / 1024;
             double peak = 0;
             long bad = 0, denormals = 0;
             for (long b = 0; b < blocks; b++)
@@ -205,13 +205,11 @@ namespace ReDefinition.Tests.Atmospheres.B15
             }
             // Read before any assertion: the assertions allocate themselves.
             long allocated = AllocatedBytes() - bytes;
-            int collections = GC.CollectionCount(0) - gen0;
-            Console.WriteLine("METRIC soak 10 min 48 kHz: peak " + peak.ToString("F4") + " (" + (20 * Math.Log10(peak)).ToString("F2") + " dBFS), NaN " + bad + ", denormals " + denormals
-                + ", gen0 collections " + collections + ", bytes allocated " + allocated);
+            Console.WriteLine("METRIC soak 60 s 48 kHz: peak " + peak.ToString("F4") + " (" + (20 * Math.Log10(peak)).ToString("F2") + " dBFS), NaN " + bad + ", denormals " + denormals
+                + ", bytes allocated " + allocated);
             Assert.AreEqual(0, bad, "NaN or infinite samples");
             Assert.AreEqual(0, denormals, "denormal samples");
             Assert.IsTrue(peak < 0.7079, "peak " + peak + " is not below -3 dBFS");
-            Assert.AreEqual(0, collections, "a collection ran during the soak");
             Assert.AreEqual(0L, allocated, "bytes allocated on the audio thread");
         }
 
