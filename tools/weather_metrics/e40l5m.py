@@ -1,13 +1,13 @@
-"""E40 L5 maps: the cumulus layer's scattered field edge and the rain deck that follows its systems, with the generator's real cover and type maps, before and after (player series e40-l5m).
+"""E40 L5 maps: the cumulus layer's scattered field edge and the low stratiform rain layer that follows its systems, with the generator's real cover and type maps, before and after (player series e40-l5m).
 
-    python tools/weather_metrics/e40l5m.py --prepare <before-dir> <after-dir> <seed> <time> <cumulus-lat> <cumulus-lon> <deck-lat> <deck-lon>
+    python tools/weather_metrics/e40l5m.py --prepare <before-dir> <after-dir> <seed> <time> <cumulus-lat> <cumulus-lon> <lowstratiform-lat> <lowstratiform-lon>
     python tools/build_weather_player.py --series e40-l5m
     python tools/build_weather_player.py --series e40-l5m --no-build
     python tools/weather_metrics/e40l5m.py --selftest
 
 <before-dir> and <after-dir> are dumps of tests/ReDefinition.Tests/Atmospheres/T09/TypeMixExplore.cs (the layers' cover and type bytes of one seed and time, 512 x 256, the whole body) made
-with the cfg before and after the change. The scene is the type-sheet scene of e40-ty (as e40-mix) with ONE layer per job: the shipped Clouds-Kerbin.cfg's cumulus layer and rain deck, the sun
-45.6 degrees up. Cumulus: from the ground along the horizon (4 degrees up) and from above (60 km, 45 degrees down; 200 km, straight down). Rain deck: from the ground (12 degrees up) and
+with the cfg before and after the change. The scene is the type-sheet scene of e40-ty (as e40-mix) with ONE layer per job: the shipped Clouds-Kerbin.cfg's cumulus layer and low stratiform rain layer, the sun
+45.6 degrees up. Cumulus: from the ground along the horizon (4 degrees up) and from above (60 km, 45 degrees down; 200 km, straight down). Low stratiform rain layer: from the ground (12 degrees up) and
 from 900 km straight down (about 1000 km across, the size of a system). The pictures go to .local/work/series-pictures/E40 as e40-l5m-<layer>-<variant>-<view>.png and the side-by-side sheet
 e40-l5m-sheet-<layer>.png.
 """
@@ -42,7 +42,7 @@ GROUND = 264.0
 # layer name, short name, [(view key, height above the ground (m), pitch (degrees, up positive))]
 LAYERS = [
     ("Kerbin-cumulus", "cumulus", [("ground4", GROUND, 4.0), ("above60", 60000.0, -45.0), ("above200", 200000.0, -90.0)]),
-    ("Kerbin-weather-rain", "deck", [("ground12", GROUND, 12.0), ("above900", 900000.0, -90.0)]),
+    ("Kerbin-weather-rain", "lowstratiform", [("ground12", GROUND, 12.0), ("above900", 900000.0, -90.0)]),
 ]
 VARIANTS = ("before", "after")
 
@@ -92,7 +92,7 @@ def prepare(before, after, seed, time, places):
                 src = os.path.join(folder, "s%d_t%d_%s_%s.u8" % (seed, time, name, kind))
                 shutil.copyfile(src, os.path.join(INPUT, "%s-%s-%s.r8" % (short, variant, kind)))
     with open(PLACE, "w", encoding="utf-8") as f:
-        json.dump(dict(seed=seed, time=time, cumulus=dict(lat=places[0], lon=places[1]), deck=dict(lat=places[2], lon=places[3])), f)
+        json.dump(dict(seed=seed, time=time, cumulus=dict(lat=places[0], lon=places[1]), lowstratiform=dict(lat=places[2], lon=places[3])), f)
     write_inputs()
 
 
@@ -150,7 +150,7 @@ def selftest():
     os.makedirs(INPUT, exist_ok=True)
     kept = open(PLACE, encoding="utf-8").read() if os.path.isfile(PLACE) else None
     with open(PLACE, "w", encoding="utf-8") as f:
-        json.dump(dict(seed=1, time=0, cumulus=dict(lat=8.0, lon=100.0), deck=dict(lat=20.0, lon=-60.0)), f)
+        json.dump(dict(seed=1, time=0, cumulus=dict(lat=8.0, lon=100.0), lowstratiform=dict(lat=20.0, lon=-60.0)), f)
     try:
         jobs = build_jobs()
     finally:
@@ -162,7 +162,7 @@ def selftest():
     ids = [j["id"] for j in jobs]
     assert len(ids) == len(set(ids)) == len(VARIANTS) * sum(len(v) for _, _, v in LAYERS)
     assert all(j["mapWidth"] == MAP_W and j["mapHeight"] == MAP_H for j in jobs)
-    nadir = [j for j in jobs if j["id"] == jid("deck", "after", "above900")][0]
+    nadir = [j for j in jobs if j["id"] == jid("lowstratiform", "after", "above900")][0]
     assert abs(math.sqrt(sum(x * x for x in nadir["position"])) - (R + 900000.0)) < 1.0
     print("selftest passed (%d jobs)" % len(jobs))
 

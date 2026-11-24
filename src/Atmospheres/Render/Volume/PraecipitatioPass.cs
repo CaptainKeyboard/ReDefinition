@@ -4,25 +4,25 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The precipitation curtain under the storm cores: the raymarched streak volume of ReDefinition/AtmospheresStormVolume (the shader
+    // The precipitation praecipitatio under the storm cores: the raymarched streak volume of ReDefinition/AtmospheresStormVolume (the shader
     // StormVolume draws), placed on the cores the volume pass found in the weather field's window instead of on hand-made storm cells,
     // and gated by the level the frame driver wrote into WeatherHooks.View: drawn only from level 0.45 up (with a hysteresis of 0.05, the
-    // same gate as the veil), none for light levels. The step count follows the gate share S: 4 below 0.3, 8 up to 0.7, 16 above
-    // (VolumeMath.CurtainSteps), separate from the slab's march quality. A fixed pool of cylinders is made once; nothing is allocated
-    // per frame. Cloud shapes are the volume pass's; the curtain is the falling precipitation below their bases.
-    internal sealed class CurtainPass
+    // same gate as the precipitation extinction), none for light levels. The step count follows the gate share S: 4 below 0.3, 8 up to 0.7, 16 above
+    // (VolumeMath.PraecipitatioSteps), separate from the slab's march quality. A fixed pool of cylinders is made once; nothing is allocated
+    // per frame. Cloud shapes are the volume pass's; the praecipitatio is the falling precipitation below their bases.
+    internal sealed class PraecipitatioPass
     {
         // Cores farther than this from the camera, measured from the edge, are not drawn, m. The most cores drawn at once.
         internal const double RangeM = 60000;
         internal const int PoolSize = 3;
-        // The share of a core's radius the curtain covers: the rain shaft is narrower than the tower above it.
+        // The share of a core's radius the praecipitatio covers: the rain shaft is narrower than the tower above it.
         internal const float RadiusShare = 0.7f;
-        // The darkest the base is made by a full-strength curtain.
+        // The darkest the base is made by a full-strength praecipitatio.
         internal const float BaseDark = 0.6f;
 
         // The property ids are read when the pass is made, not in a static initialiser: Shader.PropertyToID needs the engine, and the
         // module is also created where there is none (the assembly smoke test).
-        private static int IdCell, IdUp, IdRight, IdHeights, IdWind, IdLook, IdSun, IdSunColour, IdAmbient, IdNoise, IdSnowBoost, IdVeilTint;
+        private static int IdCell, IdUp, IdRight, IdHeights, IdWind, IdLook, IdSun, IdSunColour, IdAmbient, IdNoise, IdSnowBoost, IdPraecipitatioTint;
 
         private static void ReadIds()
         {
@@ -37,7 +37,7 @@ namespace ReDefinition.Atmospheres
             IdAmbient = Shader.PropertyToID("_AmbientColour");
             IdNoise = Shader.PropertyToID("_Noise");
             IdSnowBoost = Shader.PropertyToID("_SnowBoost");
-            IdVeilTint = Shader.PropertyToID("_VeilTint");
+            IdPraecipitatioTint = Shader.PropertyToID("_PraecipitatioTint");
         }
 
         private sealed class Piece
@@ -64,7 +64,7 @@ namespace ReDefinition.Atmospheres
         internal bool GateOn { get; private set; }
         internal string Problem { get; private set; }
 
-        // Makes the pool with the curtain shader; noise may be shared with the volume pass (null: made here).
+        // Makes the pool with the praecipitatio shader; noise may be shared with the volume pass (null: made here).
         internal bool Init(Shader shader, Texture3D noise, int layer)
         {
             if (shader == null)
@@ -83,11 +83,11 @@ namespace ReDefinition.Atmospheres
             }
             if (noise == null)
             {
-                int size = CurtainMath.NoiseSize;
-                byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
+                int size = PraecipitatioMath.NoiseSize;
+                byte[] voxels = StormNoise.Volume(size, PraecipitatioMath.NoisePeriod, PraecipitatioMath.NoiseOctaves, PraecipitatioMath.NoiseSeed);
                 noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
                 {
-                    name = "curtain noise",
+                    name = "praecipitatio noise",
                     wrapMode = TextureWrapMode.Repeat,
                     filterMode = FilterMode.Trilinear
                 };
@@ -98,23 +98,23 @@ namespace ReDefinition.Atmospheres
                 madeNoise = true;
             }
             ownNoise = noise;
-            float[] v = CurtainMath.CylinderVertices(CurtainMath.Segments);
+            float[] v = PraecipitatioMath.CylinderVertices(PraecipitatioMath.Segments);
             var vertices = new Vector3[v.Length / 3];
             for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
-            mesh = new Mesh { name = "curtain cylinder" };
+            mesh = new Mesh { name = "praecipitatio cylinder" };
             mesh.vertices = vertices;
-            mesh.triangles = CurtainMath.CylinderTriangles(CurtainMath.Segments);
+            mesh.triangles = PraecipitatioMath.CylinderTriangles(PraecipitatioMath.Segments);
             mesh.RecalculateBounds();
             pool = new Piece[PoolSize];
             for (int p = 0; p < PoolSize; p++)
             {
                 var piece = new Piece();
-                piece.Root = new GameObject("ReDefinition Atmospheres curtain " + p) { layer = layer };
+                piece.Root = new GameObject("ReDefinition Atmospheres praecipitatio " + p) { layer = layer };
                 piece.Transform = piece.Root.transform;
-                piece.Material = new Material(shader) { name = "ReDefinition Atmospheres curtain", renderQueue = 2995 };
+                piece.Material = new Material(shader) { name = "ReDefinition Atmospheres praecipitatio", renderQueue = 2995 };
                 piece.Material.SetTexture(IdNoise, ownNoise);
                 piece.Material.EnableKeyword("STORM_DEPTH");
-                piece.Material.SetVector(IdVeilTint, new Vector4(0f, 0f, 0f, 0f));
+                piece.Material.SetVector(IdPraecipitatioTint, new Vector4(0f, 0f, 0f, 0f));
                 piece.Material.SetFloat(IdSnowBoost, 1f);
                 piece.Root.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var r = piece.Root.AddComponent<MeshRenderer>();
@@ -159,13 +159,13 @@ namespace ReDefinition.Atmospheres
             pool = null;
         }
 
-        // Takes the gate share S of this frame (0 where the curtain is not drawn; VolumePass computes it from the level with the hysteresis
-        // of the veil's gate) and sets the step count from it.
+        // Takes the gate share S of this frame (0 where the praecipitatio is not drawn; VolumePass computes it from the level with the hysteresis
+        // of the praecipitatio's gate) and sets the step count from it.
         internal void SetShare(float gateShare, bool gateOn)
         {
             GateOn = gateOn;
             share = gateOn ? gateShare : 0f;
-            steps = VolumeMath.CurtainSteps(share);
+            steps = VolumeMath.PraecipitatioSteps(share);
         }
 
         // Puts a piece on a core. position is the world position of the ground under the core's centre, up the local vertical, right a
@@ -174,15 +174,15 @@ namespace ReDefinition.Atmospheres
         {
             if (pool == null || slot < 0 || slot >= pool.Length) return;
             Piece p = pool[slot];
-            float below = CurtainMath.BelowM(radius, planetRadius);
-            float top = CurtainMath.TopM(baseAgl);
+            float below = PraecipitatioMath.BelowM(radius, planetRadius);
+            float top = PraecipitatioMath.TopM(baseAgl);
             p.Position = position;
             p.BaseAgl = baseAgl;
             p.Radius = radius;
             p.BelowM = below;
             Quaternion rotation = Quaternion.LookRotation(Vector3.Cross(right, up), up);
             p.Transform.SetPositionAndRotation(position, rotation);
-            p.Transform.localScale = new Vector3(radius * CurtainMath.Widening, below + top, radius * CurtainMath.Widening);
+            p.Transform.localScale = new Vector3(radius * PraecipitatioMath.Widening, below + top, radius * PraecipitatioMath.Widening);
             // The cylinder's origin is its bottom: move it down by BelowM along the local vertical.
             p.Transform.position = position - up * below;
             Material m = p.Material;
@@ -200,7 +200,7 @@ namespace ReDefinition.Atmospheres
             if (pool == null) return;
             float fade = (float)Mathx.SmoothStep(0, 0.35, share);
             float offsetX, offsetZ, shearX, shearZ, fall;
-            CurtainMath.Wind(yawDegrees, seconds, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
+            PraecipitatioMath.Wind(yawDegrees, seconds, out offsetX, out offsetZ, out shearX, out shearZ, out fall);
             for (int p = 0; p < pool.Length; p++)
             {
                 Piece piece = pool[p];
@@ -225,7 +225,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Measurement path: the pieces' own renderers are switched off and the shown pieces are drawn by a command buffer instead, so that
-        // GPU timestamps recorded in the same buffer enclose exactly the curtain's draws, whichever event the camera draws transparents at.
+        // GPU timestamps recorded in the same buffer enclose exactly the praecipitatio's draws, whichever event the camera draws transparents at.
         internal void SetBufferDriven(bool on)
         {
             if (pool == null) return;

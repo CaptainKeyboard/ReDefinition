@@ -12,33 +12,33 @@ plain backdrop (a sky gradient and a sea colour read from the game's cloud-free 
 Groups (job id prefix):
   sh    the shape: the cumulus layer at map 0.665 with the noise scale 5000 (cfg) / 2000 / 1000 / 700 / 500 m and the noise amount 0.35 (cfg) / 0.7 / 1.0
   cv    the march against a converged march: the product's steps, 96 steps, a lower extinction (the entry refinement, the bisection and the step budget of the first run went with their keys)
-  mk    the layer mask and the light: rain deck and cumulonimbus, the deck alone by the mask, the deck alone as a stack
-  fg    the rain deck at no precipitation (type value 0: Fog) at the low pick, seen from 264 m; and at the type value of Stratus
+  mk    the layer mask and the light: low stratiform rain layer and cumulonimbus, the low stratiform layer alone by the mask, the low stratiform layer alone as a stack
+  fg    the low stratiform rain layer at no precipitation (type value 0: Fog) at the low pick, seen from 264 m; and at the type value of Stratus
 
 EXPECTED RESULTS, written before the first run (E40-fable-lead-result.md has what came out):
   X1  sh, above view, cfg numbers (5000 m, 0.35): one or two cloud bodies fill the picture; cloud/clear transitions per picture row under 3 (a sheet with a hole). At
       700 m and amount 1.0: more than 8 transitions per row (a field of cells), the cloud share within 0.15 of map + coverage - 0.5 = 0.515.
   X2  cv: the product's march (48 steps, 25 m, full jitter) of the cfg sheet is darker than the converged march in the above view (mean luma of the closed pixels under
       0.9 of the converged one) and its grain measure hf is at least 3 times the converged one's. The entry refinement brings both within 10 percent / a factor 1.5.
-  X3  mk: with the mask on layer 0 the deck shows dark areas (p5 / p50 of the deck's luma under 0.6) where the hidden cumulonimbus stands between it and the sun; the deck
+  X3  mk: with the mask on layer 0 the low stratiform layer shows dark areas (p5 / p50 of the low stratiform layer's luma under 0.6) where the hidden cumulonimbus stands between it and the sun; the low stratiform layer
       alone as a stack shows none (p5 / p50 over 0.8). The light march does not read the mask.
   X4  fg: at map 0.4056 and type 0 the fog lies between the camera and the ground over more than 0.3 of the picture below the horizon (tau >= 0.92); at the type value
       0.5 (Stratus, base at 210 m) under 0.05.
 What the first run gave (kept as rows, no longer judged): X1 held for the transitions (1.1 against 14.3; TVC's picture 21.6) and missed the share (0.80, the slant view through
 a 600 m layer closes more than the horizontal share); X2 missed: the product's march is NOT darker than the converged one (0.997), its grain is 15 to 33 times the converged one's and
-none of the refinements removes it; X3 and X4 gave nothing: the rain deck and the towers have a noise scale of 10 and 8 km, so one site is one draw (site 0 is clear of both).
+none of the refinements removes it; X3 and X4 gave nothing: the low stratiform rain layer and the towers have a noise scale of 10 and 8 km, so one site is one draw (site 0 is clear of both).
 
 SECOND RUN, expected results written before it (after the switch layers.profileShape was built; the key is gone since E40 L4 clean, the series keeps the cfg's LIFT as its one row):
   Y1  The cumulus layer at 500 m / 1.0 from above: with layers.profileShape 0 the tops are flat (standard deviation of the first hit's altitude over the closed pixels under
       40 m); with 0.8 at least three times that, and the cloud share falls by 0.05 to 0.30. Four sites.
   Y2  fg over eight sites: the mean share below the horizon with tau >= 0.92 is at least 0.15 at type 0 (Fog) and under 0.10 at type 0.5 (the camera at 264 m is in the
       first 54 m of the Stratus, whose profile starts at 0).
-  Y3  mk over six sites: at one site or more the deck's p5 / p50 with the mask is at least 0.10 lower than the deck alone as a stack (the hidden towers shade it).
+  Y3  mk over six sites: at one site or more the low stratiform layer's p5 / p50 with the mask is at least 0.10 lower than the low stratiform layer alone as a stack (the hidden towers shade it).
 What the second run gave (the missed rows are kept as rows, no longer judged): Y1 held for the share (0.79 to 0.67) and the transitions rise (19.5 to 25.2; TVC's picture
 21.6), but the relief measure does not show a flat top (136 m at 0, 96 m at 0.8: the slant view sees the clouds' sides, the measure is not one of the top); Y2 held for
-the fog (0.36 of the picture below the horizon closed, nothing above it: a deck on the ground under a clear sky) and missed for the Stratus (0.26 below: the camera stands in
-the Stratus base and looks along it; above the horizon 0.54, a deck overhead); Y3 missed: the towers of the six sites cover 0 to 4 percent of the picture and the masked deck
-differs from the deck alone by 0.004, so the player does not show the shading by hidden layers at these sites (the game's patches are not reproduced here).
+the fog (0.36 of the picture below the horizon closed, nothing above it: a low stratiform layer on the ground under a clear sky) and missed for the Stratus (0.26 below: the camera stands in
+the Stratus base and looks along it; above the horizon 0.54, a low stratiform layer overhead); Y3 missed: the towers of the six sites cover 0 to 4 percent of the picture and the masked low stratiform layer
+differs from the low stratiform layer alone by 0.004, so the player does not show the shading by hidden layers at these sites (the game's patches are not reproduced here).
 """
 import argparse
 import json
@@ -189,13 +189,13 @@ OLD_SHAPE = (5000.0, 0.35)
 
 
 def mask_jobs():
-    deck = e40o.job_layer(SPECS[RAIN], const_map(0.8595), const_map(0.229))
+    low_stratiform = e40o.job_layer(SPECS[RAIN], const_map(0.8595), const_map(0.229))
     tower = e40o.job_layer(SPECS[CB], const_map(0.6609), const_map(0.229))
     jobs = []
     for site in range(MASK_SITES):
-        jobs += pair("mk-both-s%d" % site, "above", [deck, tower], PRODUCT, site=site)
-        jobs += pair("mk-masked-s%d" % site, "above", [deck, tower], PRODUCT, site=site, layerMask=1)
-        jobs += pair("mk-alone-s%d" % site, "above", [deck], PRODUCT, site=site)
+        jobs += pair("mk-both-s%d" % site, "above", [low_stratiform, tower], PRODUCT, site=site)
+        jobs += pair("mk-masked-s%d" % site, "above", [low_stratiform, tower], PRODUCT, site=site, layerMask=1)
+        jobs += pair("mk-alone-s%d" % site, "above", [low_stratiform], PRODUCT, site=site)
     return jobs
 
 
@@ -508,17 +508,17 @@ def collect(ctx):
     results["march"] = conv
 
     # ---- the mask and the light ----
-    lines.append("MASK (rain deck 0.8595 / 0.229 and cumulonimbus 0.6609 / 0.229 from above): luma p5 / p50 of the deck's closed pixels")
+    lines.append("MASK (low stratiform rain layer 0.8595 / 0.229 and cumulonimbus 0.6609 / 0.229 from above): luma p5 / p50 of the low stratiform layer's closed pixels")
     mk = {}
     worst_gap = 0.0
     for site in range(MASK_SITES):
-        deck_alpha = plane(folder, "mk-alone-s%d-x" % site, "alpha")
+        low_stratiform_alpha = plane(folder, "mk-alone-s%d-x" % site, "alpha")
         row = {}
         for name in ("both", "masked", "alone"):
             jid = "mk-%s-s%d" % (name, site)
             nat = pictures(jid, "above", jid)
             m = rgba(folder, jid)
-            mask = (m[..., 3] > 0.97) & (deck_alpha > 0.97)
+            mask = (m[..., 3] > 0.97) & (low_stratiform_alpha > 0.97)
             if name == "both":
                 mask &= plane(folder, "mk-masked-s%d-x" % site, "alpha") > 0.97
             if mask.sum() < 200:
@@ -537,7 +537,7 @@ def collect(ctx):
     results["mask"] = {str(k): v for k, v in mk.items()}
 
     # ---- the fog at no precipitation ----
-    lines.append("FOG (rain deck at the low pick, map 0.4056, from 264 m, %d sites): share of the picture below the horizon with tau >= 0.92; the same above the horizon" % FOG_SITES)
+    lines.append("FOG (low stratiform rain layer at the low pick, map 0.4056, from 264 m, %d sites): share of the picture below the horizon with tau >= 0.92; the same above the horizon" % FOG_SITES)
     fg = {}
     elev = elevation("ground")
     below, above = elev < -0.5, elev > 0.5

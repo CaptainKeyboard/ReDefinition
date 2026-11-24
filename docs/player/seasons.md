@@ -60,11 +60,11 @@ value that is not a number is ignored.
 | `stormEveSnow` | `True` | `True`, `False` | Raises EVE's stock snow particle fields with a storm that no cell drives (a forced storm), and lets the own flakes step aside where EVE's snow field falls. |
 | `stormEveRainToSnow` | `True` | `True`, `False` | Where the ground is snow or ice, replaces EVE's rain (rain particles, droplets on the glass, wet ground, lightning, rain sound) by its snow. |
 | `stormCellRadiusKm` | `12` | 5 to 25 | The typical radius of a storm cell in kilometres. Each cell is 0.6 to 1.4 times this, always between 5 and 25 km. |
-| `stormVolume` | `True` | `True`, `False` | Draws the veil of falling snow under the cloud of a storm cell that you can see from afar. The cloud is EVE's. |
+| `stormVolume` | `True` | `True`, `False` | Draws the praecipitatio (the falling snow) under the cloud of a storm cell that you can see from afar. The cloud is EVE's. |
 | `stormClouds` | `Existing` | `Existing`, `Own` | Where the EVE cloud of a cell lives. `Existing` paints the cell into the coverage and cloud-type maps of the layers EVE already has on Kerbin, so the cell is part of EVE's weather, and into the picture of EVE's 2D layer from orbit. `Own` is a layer of its own that the mod's config adds. Where EVE's layers cannot carry the cell (a different EVE, other layers), the own layer is used and `KSP.log` says so. |
 | `stormOwnFlakes` | `False` | `True`, `False` | Draws the mod's own falling snow in a storm also where EVE's snow field is falling. By default the own flakes only fill in where EVE has no snow field. |
 | `stormCullDistance` | `False` | `True`, `False` | While a storm runs, does not draw the terrain farther away than the fog shows (5 times the visibility, at least 300 m), to save frame time. In the harness it saved 0.6 to 1.2 ms of about 24 inside a cell at intensities 0.35 to 1; outside a cell it does nothing. Off by default. |
-| `stormVolumeSteps` | `28` | 16 to 48 | How many steps a ray takes through the snow veil of a cell. More is smoother and costs more. |
+| `stormVolumeSteps` | `28` | 16 to 48 | How many steps a ray takes through the snow praecipitatio of a cell. More is smoother and costs more. |
 | `stormMaxCells` | `6` | 1 to 12 | How many cells are drawn at once, the nearest ones. |
 | `forceStormCell` | `off` | `off`, or `latitude,longitude,radiusKm` | A diagnostics setting for screenshots: one storm cell at that place at full strength, whatever the schedule, the season and the `storms` switch. Leave it at `off` to play. |
 | `orbitSnow` | `True` | `True`, `False` | Tints the planet in the orbit and map view with the season. |
@@ -120,24 +120,24 @@ What you see of a cell from outside, within 60 km of the camera and while `storm
 
 * A snow cloud: a thick, lobed, wind-stretched mass in EVE's own weather layers (`stormClouds =
   Existing`). It grows out of the clouds that are there while the storm builds, up to a dense
-  Cumulus mass in Kerbin-base-layer (from 1.75 km above sea level, taller than its Stratus deck)
+  Cumulus mass in Kerbin-base-layer (from 1.75 km above sea level, taller than its Stratus layer)
   and, where EVE's weather layers are active, a Polar-snow cloud below it. Because it is EVE's cloud, it has the noise, the
   lighting and the colours of the clouds around it. Without EVE's volumetric clouds there are no
   storm cells at all: `KSP.log` says `storms: needs EVE with Volumetric Clouds` once, and the
   snow on the ground and in the orbit view go on as before.
 * From 150 km up and in the map view the cell is a swirl on EVE's 2D cloud layer (below).
-* A broad, soft veil of falling snow from the cloud base down to the ground. It is leaned by
+* A broad, soft praecipitatio of falling snow from the cloud base down to the ground. It is leaned by
   the wind, thicker toward the middle, fades in from the cloud base and is lit grey-white.
-* Where the shader bundle is missing, the veil is not drawn; the cloud stays.
+* Where the shader bundle is missing, the praecipitatio is not drawn; the cloud stays.
 * The cell fades in and out with the storm and is darker at night. It stands on the ground,
   turns with the planet and moves with its drift. Fly toward it and into it.
 
 When you are inside a cell, the storm works on the whole picture. What a storm does on screen:
 
 * The view gets short. The strongest storm leaves about 60 m of sight (`stormVisibility`); a
-  half-strength storm about 250 m. This comes from Unity's fog and a veil in front of the
+  half-strength storm about 250 m. This comes from Unity's fog and a whiteout in front of the
   camera.
-* The sky turns grey and heavy. Toward the horizon and the ground the veil is light fog; toward
+* The sky turns grey and heavy. Toward the horizon and the ground the whiteout is light fog; toward
   the zenith it is a dark storm grey. The ambient light is lowered with it, by up to 60 % at
   full strength. `stormSkyDarkening` sets how much (0 leaves the sky and the light alone).
 * Snow falls around the camera. In a cell it is EVE's snow particle field (`ReDefinition-Seasons-snow`,
@@ -146,7 +146,7 @@ When you are inside a cell, the storm works on the whole picture. What a storm d
   rim to the middle and stops outside the cell. It has its own layer from the ground to the
   top of the cloud, because a volume gives no coverage below its base. The mod's own flakes
   (soft round discs in three depth layers) are the fallback where EVE has no snow field;
-  `stormOwnFlakes` draws them as well. The veil is a little heavier toward the horizon, so
+  `stormOwnFlakes` draws them as well. The whiteout is a little heavier toward the horizon, so
   that the distant ground is whited out.
 * Where a storm is forced without a cell (`forceStorm`), EVE's stock snow fields (`snow-Kerbin`)
   are raised with the storm instead, so that the snow is also thick in the distance.
@@ -166,7 +166,7 @@ with the upscalers or raytracing of ReDefinition (more below). The storm changes
 and the ambient light of the game for its length and puts them back when it ends or you
 leave the flight scene. `KSP.log` has a line `Seasons: storm N begins` with the way it is
 drawn and what EVE offered (`EVE snow field: found ... / not found / not controllable`),
-and `storm settled` lines with the visibility, the veil, the ambient light and the number
+and `storm settled` lines with the visibility, the whiteout, the ambient light and the number
 of flakes.
 
 The cloud in EVE's existing layers (`stormClouds = Existing`, the default): the mod reads the
@@ -178,7 +178,7 @@ each of those layers' coverage and cloud-type maps with the cell painted into it
 of the coverage, the type turned to Polar-snow, or to Cumulus in the base layer), puts the copies
 in the layers, and puts EVE's own maps back 30 seconds after the last cell has gone, when the
 setting goes off, or when the scene unloads. The cell is Cumulus in the base layer, EVE's dense
-type (eight times the density of the Stratus deck, taller), so that it is a darker, heavier mass
+type (eight times the density of the Stratus layer, taller), so that it is a darker, heavier mass
 than the overcast around it. Only the rectangle a cell covers is written, and only when a cell
 has moved by a texel or changed its strength. This costs memory while a cell is near: 128 MB
 for the 8192 x 4096 base layer (an earlier version took 256 MB and a brief extra 128 MB; `KSP.log`
@@ -235,26 +235,26 @@ the sun and the sky, not a simulation, and it does not light anything else. EVE'
 takes the cells' places from the mod, but EVE does not know the cells: its rain and its other
 layers are as EVE draws them. A cell makes no sound. Two cells that overlap on the screen sort
 by object, so they can show a seam. The shader reads the scene's depth to stop at the ground
-and at objects; if the game does not provide it, the veil shows through hills. The cloud base
+and at objects; if the game does not provide it, the praecipitatio shows through hills. The cloud base
 of the EVE layer is a height above sea level (500 m), so over high ground the cloud is closer to
 the ground than over low ground. The cells seen from outside, the
 raymarched shader, its depth test and the EVE layer have run in the game in the harness (forced
-cells, one place, Medium profile) but not in play. The veil is a translucent grey-white curtain
+cells, one place, Medium profile) but not in play. The praecipitatio is translucent and grey-white,
 with soft vertical streaks under the cloud base, at most 0.65 opaque, so that trees
 behind it show, with a thin mist between the streaks that veils the horizon. A dark band
 at the cloud base darkens the cloud's underside; it grows with the storm's strength and is
-absent in a weak one (harness picture at strength 0.3: a grey cell, a light curtain, sparse flakes
+absent in a weak one (harness picture at strength 0.3: a grey cell, a light praecipitatio, sparse flakes
 inside). The density (extinction 0.02 per metre) was chosen from pictures at 0.6, 1 and 1.5 times.
-Seen in the harness: at 8 km the curtain is a pale, streaked veil under a dark cloud; at 25 km,
+Seen in the harness: at 8 km the praecipitatio is pale and streaked under a dark cloud; at 25 km,
 against a cleared sky, a pale band under the cloud that veils the trees behind it, with a thin dark
 line at the cloud base that looks harder than it should. Against the overcast sky of the test
-place the 25 km cell is still mostly told by the cloud, not by the curtain. By night the veil is
+place the 25 km cell is still mostly told by the cloud, not by the praecipitatio. By night the praecipitatio is
 dark blue-grey and does not glow; at a low sun it is warm. The 35 degree sun that was asked for
 cannot be reached at 62 N (Kerbin has no axial tilt, the noon sun is at 28 degrees), so the high
 sun was 28 degrees.
 
 Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock
-terrain, the parts and Scatterer's sky do is not tested, which is why the veil is there: it
+terrain, the parts and Scatterer's sky do is not tested, which is why the whiteout is there: it
 lowers the contrast of the whole picture, near and far. The sun's own light is not dimmed,
 only the sky and the ambient light. KSP may rewrite the ambient light every frame; the storm
 writes its value just before the cameras render and takes a changed value as the new
@@ -303,7 +303,7 @@ The storm draws three kinds of things. Where each goes in ReDefinition's upscale
   the whole cylinder as one hard patch. It is soft and moves slowly, so the upscaler's own
   history handles it. The name of its shader contains `ReDefinition`, which the mask skips on
   purpose.
-* The screen-sized whiteout veil uses the game's particle shader (`KSP/Particles/Alpha
+* The screen-sized whiteout uses the game's particle shader (`KSP/Particles/Alpha
   Blended`, queue 3000), but the mask skips it by the name of its object (`ReDefinition Seasons
   storm veil`, the list `NotReactiveObjects` in `UpscalerMasks.cs`): marked, it would put the whole
   picture into the mask. The mod's own flakes use the same shader and the mask does see them.
@@ -313,7 +313,7 @@ The storm draws three kinds of things. Where each goes in ReDefinition's upscale
   EVE's code. A harness run with FSR 3 and the mask on (Medium profile, one place) logged, in
   front of a cell 8 and 25 km away, a mask that marks 0.02 % of the picture (51 draws from 154
   transparent renderers), so neither the cell, EVE's cloud nor EVE's snow is in it. Inside the
-  cell the whiteout veil marked the whole picture at a mean weight of 0.88 before it was skipped;
+  cell the whiteout marked the whole picture at a mean weight of 0.88 before it was skipped;
   with the skip, a run with FSR 3, *Renderers* and frame generation off marked 0.02 % inside the
   cell too (48 draws from 151 renderers). Whether the mask's scan picks up EVE's
   2D cloud meshes (`EVE/Cloud`) is not checked.
@@ -321,7 +321,7 @@ The storm draws three kinds of things. Where each goes in ReDefinition's upscale
 The reactive mask source *Renderers* is Off by default in ReDefinition and is only drawn when the
 upscaler is FSR (or the card is AMD's; `UpscalerRig.cs`). DLSS and XeSS take no reactive mask.
 So, honestly: with DLSS or XeSS there is nothing to switch on, and the falling snow has no motion
-vectors, so it can smear or ghost a little. The same goes for the veil and the cell's volume
+vectors, so it can smear or ghost a little. The same goes for the whiteout and the cell's volume
 under DLSS and XeSS: they have no mask there and are left to the upscaler's own history. How
 that looks in motion has not been judged. With FSR and a storm, switch *Reactive mask* to
 *Renderers* in the ReDefinition diagnostics window (page *Masks*) to give the
@@ -332,19 +332,19 @@ storm ghosts under FSR.
 ## Limits
 
 What has been seen in the game: the snow on the ground in winter and in summer, the tint of the
-planet in the orbit and map view, and a storm's fog, veil, falling snow, dark sky, lowered
+planet in the orbit and map view, and a storm's fog, whiteout, falling snow, dark sky, lowered
 ambient light and EVE's snow field. Seen in the game with the cell inside EVE's existing layers: the layers are
 found, EVE's `SampleCoverage` reads the painted cell (0.943 in the base layer), a cell 8 km away
 is a dense, convoluted EVE cloud with EVE's texture, and inside it the sky is dark and white with
 EVE's snow field. A cell 25 km away is not told from the overcast sky of that place, and the
-veil, which a probe showed is drawn, blends with the sky. Seen in the game with the own cell layers: the layers are found
+praecipitatio, which a probe showed is drawn, blends with the sky. Seen in the game with the own cell layers: the layers are found
 and bound, the calibration reads the painted coverage back (centre 0.735 against 0.817 painted),
 a forced cell 8 km away is a bright white EVE cloud on the horizon, and inside it EVE's snow
 particle field falls (small flakes and a few large ones, a moderate fall rather than a blizzard).
 In orbit the cell is in the right place with the right size, as a bright soft patch (a 25 km cell at 1000 km
 is about 60 pixels wide; its spiral is not resolved at that distance). What has not been seen
 in the game yet: a cell from 25 km away (the cloud is not told from the sky there), the snow
-veil and the raymarched shader next to EVE's cloud, the swirl from a lower orbit, the swirl
+praecipitatio and the raymarched shader next to EVE's cloud, the swirl from a lower orbit, the swirl
 in the map view, the replacement of EVE's rain by snow, the sound of the snow, and the `Rebuild` mode. The year length, the snow line, the noise, the
 schedule and the numbers of the storms are computed and tested outside the game. How the snow
 looks under the upscalers and raytracing, and whether the terrain refresh reaches Parallax's

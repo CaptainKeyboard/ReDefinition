@@ -58,8 +58,8 @@ namespace ReDefinition.Atmospheres
         internal int CellsUp { get { return ny; } }
         // The voxels, in the layout of a Texture3D of width nxz, height ny, depth nxz (RGBA32).
         internal byte[] Data { get { return data; } }
-        // The deck map: per column of the window (east fastest, then north) coverage and type, two bytes each.
-        internal byte[] DeckMap { get { return map; } }
+        // The layer slab map: per column of the window (east fastest, then north) coverage and type, two bytes each.
+        internal byte[] LayerSlabMap { get { return map; } }
         // True while a rebuild is in progress.
         internal bool Building { get { return building; } }
         // True once a rebuild has completed at least once.
@@ -68,7 +68,7 @@ namespace ReDefinition.Atmospheres
         internal int Builds { get { return builds; } }
         internal int CoreCount { get { return coreCount; } }
 
-        // The cores of the rebuild (for the curtain pass and the tests): centre east and north of the coarse window's centre, radius, base
+        // The cores of the rebuild (for the praecipitatio pass and the tests): centre east and north of the coarse window's centre, radius, base
         // altitude, depth, updraft.
         internal void GetCore(int i, out float east, out float north, out float radiusM, out float baseAlt, out float depthM, out float updraft)
         {
@@ -293,8 +293,8 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < data.Length; i++) data[i] = (byte)(data[i] + (((target[i] - data[i]) * s) >> 8));
         }
 
-        // Fills the deck map from the coverage and type maps of the body (lat, lon of the window's centre, the planet's radius).
-        internal void FillDeckMap(WeatherMap coverage, WeatherMap type, double centreLatDeg, double centreLonDeg, double planetRadiusM)
+        // Fills the layer slab map from the coverage and type maps of the body (lat, lon of the window's centre, the planet's radius).
+        internal void FillLayerSlabMap(WeatherMap coverage, WeatherMap type, double centreLatDeg, double centreLonDeg, double planetRadiusM)
         {
             float widthM = 2f * halfWidth, cell = widthM / nxz;
             double cosLat = Math.Max(0.05, Math.Cos(centreLatDeg * Math.PI / 180.0));
@@ -312,8 +312,8 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Fills the deck map with one coverage and one type (the weather player, and a body whose maps are not there).
-        internal void FillDeckMapUniform(float coverage01, float type01)
+        // Fills the layer slab map with one coverage and one type (the weather player, and a body whose maps are not there).
+        internal void FillLayerSlabMapUniform(float coverage01, float type01)
         {
             byte c = ToByte(coverage01), t = ToByte(type01);
             for (int i = 0; i < map.Length; i += 2)
@@ -341,7 +341,7 @@ namespace ReDefinition.Atmospheres
             return Lerp(a0, a1, tz) / 255f;
         }
 
-        // The deck coverage at a place of the window's frame, 0 to 1 (1 where no map was filled).
+        // The layer slab coverage at a place of the window's frame, 0 to 1 (1 where no map was filled).
         internal float SampleCoverage(float east, float north)
         {
             float cell = 2f * halfWidth / nxz;

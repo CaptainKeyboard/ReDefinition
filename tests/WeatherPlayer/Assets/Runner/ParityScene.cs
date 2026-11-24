@@ -42,7 +42,7 @@ namespace ReDefinition.WeatherPlayer
         private static List<View> Views()
         {
             var v = new List<View>();
-            v.Add(new View { Id = "uniform-deck", Flat = false, Position = new Vector3(0, 0, KerbinRadius + 2f), Pitch = 25f, Fov = 60f, SunAzimuth = 200f, SunElevation = 38f, L0 = new Vector4(1700f, 2500f, 0.01f, 0f) });
+            v.Add(new View { Id = "uniform-layer", Flat = false, Position = new Vector3(0, 0, KerbinRadius + 2f), Pitch = 25f, Fov = 60f, SunAzimuth = 200f, SunElevation = 38f, L0 = new Vector4(1700f, 2500f, 0.01f, 0f) });
             v.Add(new View { Id = "slab", Flat = true, Position = new Vector3(0, 0, 2f), Pitch = 40f, Fov = 60f, SunAzimuth = 200f, SunElevation = 45f, L0 = new Vector4(2000f, 3000f, 0.006f, 0f) });
             v.Add(new View { Id = "single-cloud", Flat = true, Position = new Vector3(0, -8000f, 2000f), Pitch = 0f, Fov = 16f, SunAzimuth = 90f, SunElevation = 50f, L0 = new Vector4(1412f, 2588f, 0.02f, 1f), Cell = new Vector4(2000f, 800f, 560f, 0f) });
             v.Add(new View { Id = "plane-terrain", Flat = true, Position = new Vector3(0, 0, 600f), Pitch = -45f, Fov = 50f, SunAzimuth = 90f, SunElevation = 40f, L0 = new Vector4(2000f, 2200f, 0.02f, 2f), Cell = new Vector4(2503f, 0f, 0f, 0f) });

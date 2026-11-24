@@ -50,7 +50,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudBridgeAir.Air earth = CloudBridgeAir.From(101325.0, 288.15, 0.0289644, 26436.0, 10000.0);
             CloudBridgeAir.Apply(far, earth);
             Assert.AreEqual(earth.RayleighHeightM, far.RayleighHeightM);
-            Assert.IsFalse(far.Haze, "the switch stays as the caller set it");
+            Assert.IsFalse(far.AerialPerspective, "the switch stays as the caller set it");
         }
 
         [TestMethod]
@@ -70,16 +70,16 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Vector3 air = CloudBridgeAir.EarthRayleighPerM;
             Color day = CloudBridgeAir.Inscatter(new Color(3.0f, 2.9f, 2.7f), Color.black, Color.black, air);
             Color sunset = CloudBridgeAir.Inscatter(new Color(2.6f, 1.0f, 0.35f), Color.black, Color.black, air);
-            Assert.IsTrue(sunset.r / sunset.b > 2f * day.r / day.b, "a reddened sun gives a reddened haze");
+            Assert.IsTrue(sunset.r / sunset.b > 2f * day.r / day.b, "a reddened sun gives a reddened in-scatter");
             Assert.IsTrue(sunset.b < day.b);
-            // Night: no sun, the scene's own light is the floor; with the moon added the haze is brighter than the floor alone.
+            // Night: no sun, the scene's own light is the floor; with the moon added the in-scatter is brighter than the floor alone.
             var ambient = new Color(0.01f, 0.012f, 0.02f);
             Color night = CloudBridgeAir.Inscatter(Color.black, Color.black, ambient, air);
             Assert.AreEqual(ambient.r, night.r, 1e-6f);
             Assert.AreEqual(ambient.b, night.b, 1e-6f);
             Color moonlit = CloudBridgeAir.Inscatter(Color.black, new Color(0.3f, 0.3f, 0.35f), ambient, air);
             Assert.IsTrue(moonlit.g > night.g);
-            Assert.IsTrue(night.b < 0.05f * day.b, "the night haze is not the day's colour");
+            Assert.IsTrue(night.b < 0.05f * day.b, "the night in-scatter is not the day's colour");
         }
 
         // --- The stack --------------------------------------------------------------------------------------------------------
@@ -235,7 +235,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 "ownClouds", "layerCap", "layerStepQuality", "layerStepGrowth", "cloudNoise", "cloudNoiseUntile", "cloudNoiseCurl", "cloudNoiseTier",
                 "cloudNoiseDistanceLod", "cloudFineDetail", "cloudLightQuality", "cloudLightOctaves", "cloudPowder",
                 "cloudSunTint", "cloudMoonLights", "cloudAmbientTaps", "cloudAmbientReuse", "cloudShadows", "cloudShadowQuality",
-                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudLayerCapDistance", "cloudShortSunMarch", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze",
+                "cloudShadowFloor", "cloudReconMode", "cloudResolution", "cloudSkipEmpty", "cloudLayerCapDistance", "cloudShortSunMarch", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudAerialPerspective",
                 "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy", "cloudFarMapFade", "cloudBaseVariation", "cloudBasePhysics", "cloudTopFromUpdraft",
                 "baseRagged"
             };
@@ -256,7 +256,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(EdgeSettings.ReconstructorDefault);
             Assert.IsFalse(LightningSwitches.EnabledDefault);
             Assert.IsFalse(LayerSwitches.OwnCloudsDefault);
-            Assert.IsFalse(new FarViewSettings().Haze);
+            Assert.IsFalse(new FarViewSettings().AerialPerspective);
             Assert.IsFalse(new FarViewSettings().Policy);
             Assert.AreEqual(LayerFrame.SunMarchShortM, new LayerFrame().SunMarchM);
         }

@@ -3,9 +3,9 @@ namespace ReDefinition.Atmospheres
     // Where the clouds of a body come from (key cloudSource; the table of what each value draws is in CONTRACT.md).
     internal enum CloudSourceKind
     {
-        // Our own volume pass draws the decks; EVE's weather layers on the body are off.
+        // Our own volume pass draws the cloud layers; EVE's weather layers on the body are off.
         Ours,
-        // EVE draws the decks from the maps our field paints.
+        // EVE draws the cloud layers from the maps our field paints.
         Eve,
         // As Eve, plus EVE's native weather on the layers we do not paint.
         Both,
@@ -28,7 +28,7 @@ namespace ReDefinition.Atmospheres
         MapsOnly = 2
     }
 
-    // Who composes the veil and the flakes (key weatherCompose).
+    // Who composes the precipitation extinction and the hydrometeors (key weatherCompose).
     internal enum WeatherCompose
     {
         // Host where the main mod's after-upscaling hook answers, else Scene.

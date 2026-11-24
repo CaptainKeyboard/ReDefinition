@@ -99,7 +99,7 @@ namespace ReDefinition.Atmospheres
         internal float BrightnessLagS, FadeS, RescoreHz;
         // The discovery limits: least intensity, least range in metres.
         internal float MinIntensity, MinRangeM;
-        // The depth of the flake glints (0 = smooth beam), and their size in metres.
+        // The depth of the hydrometeor glints (0 = smooth beam), and their size in metres.
         internal float GlintAmp, GlintSizeM;
         // The precipitation sigma at level 1 is the table of PrecipSigmaFull times this; the exponent of the level.
         internal float PrecipLevelExponent;
@@ -193,9 +193,9 @@ namespace ReDefinition.Atmospheres
             return expSquaredDensity > 0f ? FogSigmaFactor / expSquaredDensity : float.PositiveInfinity;
         }
 
-        // The extinction at level 1 of each precipitation type, in 1/m: flakes per cubic metre times the mean cross-section, as a
+        // The extinction at level 1 of each precipitation type, in 1/m: hydrometeors per cubic metre times the mean cross-section, as a
         // visibility of the type's heaviest fall (snow 50 m, sleet 80 m, rain 250 m, freezing rain 200 m, dust 70 m, sand 60 m, ash 55 m,
-        // methane 130 m). Starting values for T1 [VERIFY against the look of the flakes of C22].
+        // methane 130 m). Starting values for T1 [VERIFY against the look of the hydrometeors of C22].
         internal static float PrecipSigmaFull(PrecipType type)
         {
             switch (type)
@@ -212,7 +212,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The extinction of the precipitation at a level from 0 to 1: the table times level^exponent (the flake count of C22 rises with
+        // The extinction of the precipitation at a level from 0 to 1: the table times level^exponent (the hydrometeor count of C22 rises with
         // level^1.3 and the cross-section stays).
         internal static float PrecipSigma(PrecipType type, float level01, float exponent)
         {
@@ -308,7 +308,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The depth of the flake glints: the tuning depth times the precipitation level and times the share of the extinction that is the
+        // The depth of the hydrometeor glints: the tuning depth times the precipitation level and times the share of the extinction that is the
         // precipitation's, so that a static fog or a cloud keeps a smooth beam (the noise scales with the level only).
         internal static float GlintDepth(float glintAmp, float level01, float precipSigma, float totalSigma)
         {

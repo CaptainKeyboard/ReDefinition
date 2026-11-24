@@ -16,28 +16,28 @@ namespace ReDefinition.Tests.Atmospheres.E43
         [TestMethod]
         public void TheSteeringAndTheWindowUseTheSameRateAtEveryHeight()
         {
-            // review R2/R7: one definition. The rate the steering writes into EVE is the core's HeightWind.LayerRate, the function the window deck and the layer maps are looked up with.
+            // review R2/R7: one definition. The rate the steering writes into EVE is the core's HeightWind.LayerRate, the function the window low stratiform layer and the layer maps are looked up with.
             var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
             foreach (double h in new[] { 500.0, 1500.0, 2200.0, 3500.0, 5000.0, 9350.0, 14000.0 })
             {
                 double core = HeightWind.LayerRate(g.D, g.Body, h);
                 Assert.AreEqual(core, LayerWindSteering.SharedRate(g.D, g.Body, h, true), 1e-18, "height " + h);
                 Assert.AreEqual(0.0, LayerWindSteering.SharedRate(g.D, g.Body, h, false), "windShear off drifts nothing against the patterns");
-                // the window's deck is looked up at lon - rate x UT with the same function
+                // the window's low stratiform layer is looked up at lon - rate x UT with the same function
                 double lon = 1.0, ut = 1.0e6;
                 Assert.AreEqual(DMath.WrapPi(lon - core * ut), LayerCoupling.LayerLon(g, lon, ut, h, new LayerOptions()), 1e-12);
             }
         }
 
         [TestMethod]
-        public void TheLayersThatCarryRainFollowThePatternsAndTheHighDecksTheWind()
+        public void TheLayersThatCarryRainFollowThePatternsAndTheHighLayersTheWind()
         {
-            // decision R3: no drift against the patterns below the window's deck height, the full rate above 0.45 of the tropopause
+            // decision R3: no drift against the patterns below the window's low stratiform layer height, the full rate above 0.45 of the tropopause
             var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
             Assert.AreEqual(0.0, HeightWind.LayerRate(g.D, g.Body, 1500.0), 0.0);
             Assert.AreEqual(0.0, HeightWind.LayerRate(g.D, g.Body, 0.2 * g.Body.TropopauseM), 0.0);
             Assert.AreEqual(1.0, HeightWind.LayerDecoupleWeight(g.Body, 0.5 * g.Body.TropopauseM), 0.0);
-            Assert.IsTrue(Math.Abs(HeightWind.LayerRate(g.D, g.Body, 9350.0)) > 1.0e-5, "the jet-level deck turns against the patterns");
+            Assert.IsTrue(Math.Abs(HeightWind.LayerRate(g.D, g.Body, 9350.0)) > 1.0e-5, "the jet-level cloud layer turns against the patterns");
             Assert.IsTrue(HeightWind.LayerRate(g.D, g.Body, 9350.0) > 0.0, "eastward at the storm-track latitude");
         }
 

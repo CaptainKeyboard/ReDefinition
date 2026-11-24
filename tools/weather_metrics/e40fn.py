@@ -11,7 +11,7 @@ Groups (job id prefix):
        0.4 (cfg) and 1.0, both views, eight sites: cloud share and cloud/clear changes per row (e40fl.structure), the same through tools/weather_metrics/cloudstruct.py against
        the backdrop as the cloud-free partner (the measure the game's and the TVC pictures use), and the body width estimated from them (above view: the footprint of the view
        at the layer, about 22.9 km, times the share, over half the changes per row)
-  fg   the weather deck at the vessel of start 55 (264 m, 18 degrees up), eight sites, four cases of the new rule: 'fair' (the rule's coverage 0: nothing draws), 'fog' (map 0.4056,
+  fg   the low stratiform weather layer at the vessel of start 55 (264 m, 18 degrees up), eight sites, four cases of the new rule: 'fair' (the rule's coverage 0: nothing draws), 'fog' (map 0.4056,
        type 0: the old rule's fair-weather draw, now only where the air is near saturation), 'light' (map 0.4056, type 0.5: light precipitation, Stratus), 'rain' (map 0.8595,
        type 0.8: nimbostratus). Closed share (tau >= 0.92) below the horizon (the ground region) and above it (the sky).
 
@@ -21,11 +21,11 @@ EXPECTED RESULTS, written before the first run:
   N2  cb, amount 1.0 against 0.4 at the same scale: the cloud share rises (the share is map + coverage - 0.5 at amount 1), the changes per row within a factor 2.
   N3  nd (second run, after N1 showed that the 23 km view cannot hold a body of 10 to 30 km): the mean chord of the cloud along a row, straight down from 80 km (footprint 85 km),
       at the cfg's 8000 m / amount 0.4 and map 0.66 is over 35 km (the unit error of the cumulus layer: bodies of 4 to 8 times the scale); at 3000 m it lies between 10 and 30 km,
-      the size of a cumulonimbus cell. If the cfg's chord is already 10 to 30 km the scale stays. The rain deck at 10 km and the cirrus at 15 km: a chord over 35 km (stratiform
-      decks and cirrus fields of 40 to 120 km are not wrong); where one is under 15 km it is measured as too small and named.
+      the size of a cumulonimbus cell. If the cfg's chord is already 10 to 30 km the scale stays. The low stratiform rain layer at 10 km and the cirrus at 15 km: a chord over 35 km (stratiform
+      low stratiform layers and cirrus fields of 40 to 120 km are not wrong); where one is under 15 km it is measured as too small and named.
   F1  fg: 'fair' closes 0.000 of the ground region and 0.000 of the sky; 'fog' closes at least 0.15 of the ground region and under 0.02 of the sky (E40 fl: 0.36 / 0.002);
       'light' closes under 0.10 of the ground region (the camera is above the Stratus base, E40 fl: 0.26 at map 0.4056, so this may fail: kept as a row); 'rain' closes at least
-      0.5 of the sky (a deck overhead).
+      0.5 of the sky (a low stratiform layer overhead).
 """
 import argparse
 import json
@@ -123,7 +123,7 @@ def nadir_jobs():
                 for site in range(NADIR_SITES):
                     jid = "nd-cb-m%03d-n%04d-a%03d-s%d" % (int(round(cover * 100)), int(scale), int(round(amount * 100)), site)
                     jobs += nadir_pair(jid, e40o.job_layer(cb, const_map(cover), const_map(0.25)), fl.scale_keys(scale, amount, name=CB, spec=cb), site)
-    # The other layers at the cfg's numbers (the rain deck and the cirrus: their bodies are the question of the brief, not changed unless these rows say so).
+    # The other layers at the cfg's numbers (the low stratiform rain layer and the cirrus: their bodies are the question of the brief, not changed unless these rows say so).
     for name, typ in ((RAIN, 0.5), ("Kerbin-cirrus", 0.0)):
         spec = SPECS[name]
         for site in range(NADIR_SITES):
@@ -202,7 +202,7 @@ def collect(ctx):
                     metrics.append(Metric.info(key + ".body_width_km", width if math.isfinite(width) else 999.0))
     results["cb"] = cb
 
-    lines.append("WEATHER DECK at the vessel (264 m, 18 degrees up), mean over %d sites: closed share (tau >= %.2f) below the horizon (ground region) / above it (sky)" % (SITES, fl.CLOSED))
+    lines.append("LOW STRATIFORM WEATHER LAYER at the vessel (264 m, 18 degrees up), mean over %d sites: closed share (tau >= %.2f) below the horizon (ground region) / above it (sky)" % (SITES, fl.CLOSED))
     fg = {}
     elev = fl.elevation("ground")[:, SIZE[0] // 2]
     below, above = elev < -1.0, elev > 1.0

@@ -60,7 +60,7 @@ Shader "ReDefinition/AtmospheresLamp"
             float4 _LampColour;
             // x = glint depth, y = glint size in m, z = the temporal jitter offset, w = 1 where the depth is used.
             float4 _LampGlint;
-            // xyz = the flakes' drift since the start (world, m).
+            // xyz = the hydrometeors' drift since the start (world, m).
             float4 _LampDrift;
             // The camera: position, forward (unit); and the depth set-up: x = flip y, y = reversed z, zw = unused.
             float4 _LampCamPos;
@@ -285,9 +285,9 @@ Shader "ReDefinition/AtmospheresLamp"
                     float s = e * phase * exp(-tau);
                     if (_LampGlint.x > 0)
                     {
-                        // Single flakes catch the light: the noise is cubed and scaled to a mean of 1 (the mean of the cubed trilinear
+                        // Single hydrometeors catch the light: the noise is cubed and scaled to a mean of 1 (the mean of the cubed trilinear
                         // smoothstep value noise is 0.1762, so 1 / 0.1762 = 5.675), the depth is the level's.
-                        // The drift is how far the flakes have moved since the start: a feature sits where the flake went, so the
+                        // The drift is how far the hydrometeors have moved since the start: a feature sits where the hydrometeor went, so the
                         // lookup goes back by it.
                         float n = ValueNoise((x - _LampDrift.xyz) / max(_LampGlint.y, 0.05));
                         s *= lerp(1.0, 5.675 * n * n * n, _LampGlint.x);

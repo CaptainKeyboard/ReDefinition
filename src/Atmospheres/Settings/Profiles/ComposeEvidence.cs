@@ -4,7 +4,7 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
-    // The graphics vendor and upscaler pairs for which the composition of the veil and flakes after the upscaler (weatherCompose = Host)
+    // The graphics vendor and upscaler pairs for which the composition of the precipitation extinction and hydrometeors after the upscaler (weatherCompose = Host)
     // has recorded player metrics. weatherCompose = Auto resolves to Scene for every other pair, and the settings window says
     // "unverified" in that row's tooltip. A pair is added here by E40 when its series has measured it; none has yet.
     internal static class ComposeEvidence

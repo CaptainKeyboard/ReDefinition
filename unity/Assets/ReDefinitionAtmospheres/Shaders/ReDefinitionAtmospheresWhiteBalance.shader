@@ -1,6 +1,6 @@
 // The scene's white balance of ReDefinition Atmospheres (owner 2026-11-19, audit A2): the whole picture, sky, ground, sea and clouds alike, is divided by the sun's
 // tint (its colour over its luminance, CloudOutputStage.WhiteTint), as a camera balances its picture for the light of the scene. It replaces the white point that
-// balanced the clouds alone and the haze's counter-correction (SceneWhiteBalance.cs).
+// balanced the clouds alone and the aerial perspective's counter-correction (SceneWhiteBalance.cs).
 //
 // Draw order: after the upscaler and before TUFX's effects, on the upscaled HDR image (linear), through the host's after-upscaling hook. Motion vectors and depth:
 // none needed (a per-pixel scale of the colour).

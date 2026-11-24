@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // What a field's cloud-cover value does in the own cloud pass (K-T2d: a cover of 0.47 shows a closed deck over the whole sky). The CPU twin of the layer's
+    // What a field's cloud-cover value does in the own cloud pass (K-T2d: a cover of 0.47 shows a closed low stratiform layer over the whole sky). The CPU twin of the layer's
     // coverage shape (NoiseShareAt in ReDefinitionAtmospheresNoise.cginc) and of the pass's opacity rule (Layers.shader: alpha is 1 where the transmittance
     // falls under 0.01, i.e. tau > 4.6), so that a test can ask "which share of the sky is closed at a map value m" for a layer's numbers.
     //
@@ -74,12 +74,12 @@ namespace ReDefinition.Atmospheres
             return ClosedShare(map, noiseSamples, noiseAmount, CloudCoverShift.Apply(coverage, group, shiftAll, shiftRain), edge, sigmaPerM, equivalentThicknessM, slant);
         }
 
-        // The rain deck's Stratus as the Kerbin file has it (K-T2d, CloudOutputStageTests): sigma 0.045 per m, the type's 0.4 of the 2100 m deck times its profile's mean 0.74,
-        // the rain deck's coverage 0.5, edge 0.2, noise amount 0.3, the slant of a ray 18 degrees up (3.24), 25 degrees down (2.37) and straight up (1).
+        // The low stratiform rain layer's Stratus as the Kerbin file has it (K-T2d, CloudOutputStageTests): sigma 0.045 per m, the type's 0.4 of the 2100 m layer times its profile's mean 0.74,
+        // the low stratiform rain layer's coverage 0.5, edge 0.2, noise amount 0.3, the slant of a ray 18 degrees up (3.24), 25 degrees down (2.37) and straight up (1).
         internal const double StratusSigma = 0.045, StratusThicknessM = 0.4 * 2100.0 * 0.74, RainEdge = 0.2, RainNoiseAmount = 0.3;
         internal const float RainCoverage = 0.5f;
 
-        // The expected closed share of the sky under the rain deck's Stratus at a map value, for a shift of the threshold: the number the K-T2d rows T09d.<view>.<cover>.<tag>.model_closed
+        // The expected closed share of the sky under the low stratiform rain layer's Stratus at a map value, for a shift of the threshold: the number the K-T2d rows T09d.<view>.<cover>.<tag>.model_closed
         // are written beside, from uniform shape noise (samples).
         internal static double RainStratusClosed(double map, double shift, double slant, int samples = 401)
         {

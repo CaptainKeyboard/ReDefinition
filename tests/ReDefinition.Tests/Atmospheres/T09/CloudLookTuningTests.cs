@@ -66,8 +66,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(1f, CloudLookTuning.NoiseSizeScaleOf(l.Name));
             }
             Assert.AreEqual(CloudLookTuning.DefaultCoverCombine, CloudLookTuning.CoverCombine);
-            Assert.AreEqual(-1f, CloudLookTuning.FarHazeForce);
-            Assert.AreEqual(1f, CloudLookTuning.HazeStrengthScale);
+            Assert.AreEqual(-1f, CloudLookTuning.AerialPerspectiveForce);
+            Assert.AreEqual(1f, CloudLookTuning.AerialPerspectiveStrengthScale);
             float nearM, farM;
             Assert.IsFalse(CloudLookTuning.FadeFor(out nearM, out farM));
         }
@@ -335,7 +335,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(128, shown[3], "heavy rain hides the sheet");
             Assert.AreEqual(64, shown[4], "the type value runs to the sheet from wherever it was");
             Assert.AreEqual((byte)128, type[0], "the source is not changed");
-            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, mid, low, -1f, 0.05f, 0.3f, ref scratch), "no sheet type: the bytes themselves");
+            Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, mid, low, -1f, 0.05f, 0.3f, ref scratch), "no stratiform type: the bytes themselves");
             Assert.AreSame(type, CloudLookTuning.ApplyAlto(type, precip, null, low, 0.25f, 0.05f, 0.3f, ref scratch), "a missing map: the bytes themselves");
         }
 
@@ -382,25 +382,25 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheHazeKeysDefaultToTheSettings()
+        public void TheAerialPerspectiveKeysDefaultToTheSettings()
         {
             Clear();
             var far = new FarViewSettings();
             OwnCloudOptions.Apply(far, key => 0.0);
-            Assert.IsFalse(far.Haze);
-            Assert.AreEqual(1f, far.HazeStrength);
-            Set(CloudLookTuning.TuneFarHaze, 1f);
-            Set(CloudLookTuning.TuneHazeStrength, 0.5f);
+            Assert.IsFalse(far.AerialPerspective);
+            Assert.AreEqual(1f, far.AerialPerspectiveStrength);
+            Set(CloudLookTuning.TuneAerialPerspective, 1f);
+            Set(CloudLookTuning.TuneAerialPerspectiveStrength, 0.5f);
             OwnCloudOptions.Apply(far, key => 0.0);
-            Assert.IsTrue(far.Haze);
-            Assert.AreEqual(0.5f, far.HazeStrength);
+            Assert.IsTrue(far.AerialPerspective);
+            Assert.AreEqual(0.5f, far.AerialPerspectiveStrength);
             Clear();
             OwnCloudOptions.Apply(far, key => 1.0);
-            Assert.IsTrue(far.Haze, "the setting decides again");
-            Assert.AreEqual(1f, far.HazeStrength);
-            Set(CloudLookTuning.TuneFarHaze, 0f);
+            Assert.IsTrue(far.AerialPerspective, "the setting decides again");
+            Assert.AreEqual(1f, far.AerialPerspectiveStrength);
+            Set(CloudLookTuning.TuneAerialPerspective, 0f);
             OwnCloudOptions.Apply(far, key => 1.0);
-            Assert.IsFalse(far.Haze, "forced off");
+            Assert.IsFalse(far.AerialPerspective, "forced off");
         }
     }
 }

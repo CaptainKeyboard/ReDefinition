@@ -12,7 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
         // The direction of each curve's key values: +1 rises with the level, -1 falls.
         private static int Direction(string name)
         {
-            return name == "visibility" || name == "sun" || name == "ambient" || name == "shadow" || name == "flakeSize" || name == "fall" ? -1 : 1;
+            return name == "visibility" || name == "sun" || name == "ambient" || name == "shadow" || name == "hydrometeorSize" || name == "fall" ? -1 : 1;
         }
 
         [TestMethod]
@@ -66,12 +66,12 @@ namespace ReDefinition.Tests.Atmospheres.C20
             }
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(60f, top.VisibilityM, 1e-3f);
-            Assert.AreEqual(0.85f, top.VeilAlpha, 1e-4f);
-            Assert.AreEqual(2400f, top.FlakesPerS, 1e-2f);
+            Assert.AreEqual(0.85f, top.PrecipExtinctionAlpha, 1e-4f);
+            Assert.AreEqual(2400f, top.HydrometeorsPerS, 1e-2f);
             LookValues none = PrecipitationLook.Evaluate(0f);
             Assert.AreEqual(1f, none.SunDirect, 1e-5f);
             Assert.AreEqual(1f, none.AmbientFactor, 1e-5f);
-            Assert.AreEqual(0f, none.VeilAlpha, 1e-5f);
+            Assert.AreEqual(0f, none.PrecipExtinctionAlpha, 1e-5f);
         }
 
         [TestMethod]
@@ -88,17 +88,17 @@ namespace ReDefinition.Tests.Atmospheres.C20
         }
 
         [TestMethod]
-        public void TheCurtainGateHasHysteresisAndTheShareIsSmooth()
+        public void ThePraecipitatioGateHasHysteresisAndTheShareIsSmooth()
         {
-            var gate = new CurtainGate();
+            var gate = new PraecipitatioGate();
             Assert.IsFalse(gate.Update(0.44f));
             Assert.IsTrue(gate.Update(0.45f));
             Assert.IsTrue(gate.Update(0.41f), "stays on above 0.40");
             Assert.IsFalse(gate.Update(0.39f));
             Assert.IsFalse(gate.Update(0.44f), "needs 0.45 to come on again");
-            Assert.AreEqual(0f, PrecipitationLook.CurtainShare(0.45f), 1e-6f);
-            Assert.AreEqual(1f, PrecipitationLook.CurtainShare(0.9f), 1e-6f);
-            Assert.AreEqual(0.5f, PrecipitationLook.CurtainShare(0.675f), 1e-4f);
+            Assert.AreEqual(0f, PrecipitationLook.PraecipitatioShare(0.45f), 1e-6f);
+            Assert.AreEqual(1f, PrecipitationLook.PraecipitatioShare(0.9f), 1e-6f);
+            Assert.AreEqual(0.5f, PrecipitationLook.PraecipitatioShare(0.675f), 1e-4f);
         }
 
         [TestMethod]

@@ -9,16 +9,16 @@ namespace ReDefinition.Atmospheres
     {
         // The visibility along the ground in metres.
         public float VisibilityM;
-        // Flakes per second over all layers.
-        public float FlakesPerS;
-        // The factors on the flake size and the fall speed (1 is the size and speed of light snow).
-        public float FlakeSizeFactor;
+        // Hydrometeors per second over all layers.
+        public float HydrometeorsPerS;
+        // The factors on the hydrometeor size and the fall speed (1 is the size and speed of light snow).
+        public float HydrometeorSizeFactor;
         public float FallFactor;
         // The mean wind in m/s before the gusts.
         public float WindMs;
-        // The alpha of the veil toward the ground (the table value; DrawGate decides only whether our curtain is drawn).
-        public float VeilAlpha;
-        // How dark the base of the cloud is, 0 (grey deck) to 1 (darkest).
+        // The alpha of the extinction toward the ground (the table value; DrawGate decides only whether our praecipitatio is drawn).
+        public float PrecipExtinctionAlpha;
+        // How dark the base of the cloud is, 0 (grey low stratiform layer) to 1 (darkest).
         public float CloudBaseDarkness;
         // The factor on the sun's direct light, 1 in clear air.
         public float SunDirect;
@@ -36,25 +36,25 @@ namespace ReDefinition.Atmospheres
         public float ShadowStrength;
     }
 
-    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the veil, the flakes, the light and
-    // the sound, so every effect reads the same scale. The 1.0 column (60 m, veil 0.85, 2400 flakes per second) holds the values of the
+    // The look table of the precipitation scale: one set of curves over the level that drives the fog, the extinction, the hydrometeors, the light and
+    // the sound, so every effect reads the same scale. The 1.0 column (60 m, extinction 0.85, 2400 hydrometeors per second) holds the values of the
     // accepted storm; every key point is a tuning value (Tuning.Get "look.<curve>.<level>"), not a gate. Pure, no allocation per call.
     internal static class PrecipitationLook
     {
         // The visibility with no precipitation, in metres: where the fog fades out.
         internal const float ClearVisibilityM = 20000f;
 
-        // The curtain is drawn from this level up (our veil and volume), with a hysteresis of CurtainHysteresis below it.
-        internal const float CurtainOn = 0.45f, CurtainOff = 0.40f;
-        // The curtain gate S = smoothstep(CurtainS0, CurtainS1, level).
-        internal const float CurtainS0 = 0.45f, CurtainS1 = 0.9f;
+        // The praecipitatio is drawn from this level up (our extinction and volume), with a hysteresis of PraecipitatioHysteresis below it.
+        internal const float PraecipitatioOn = 0.45f, PraecipitatioOff = 0.40f;
+        // The praecipitatio gate S = smoothstep(PraecipitatioS0, PraecipitatioS1, level).
+        internal const float PraecipitatioS0 = 0.45f, PraecipitatioS1 = 0.9f;
         // The most the level may change per second of game time, outside diagnostics and teleports.
         internal const float MaxLevelPerGameSecond = 1f / 90f;
 
         // The names of the curves; the key of a key point is "look.<name>.<level>".
         internal static readonly string[] CurveNames =
         {
-            "visibility", "flakes", "flakeSize", "fall", "wind", "veil", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
+            "visibility", "hydrometeors", "hydrometeorSize", "fall", "wind", "extinction", "cloudDark", "sun", "ambient", "skyGrey", "sound", "accumulation",
             "lampSigma", "shadow"
         };
 
@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
         private static long builtFor = -1;
         private static readonly object Gate = new object();
 
-        private const int Visibility = 0, Flakes = 1, FlakeSize = 2, Fall = 3, Wind = 4, Veil = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
+        private const int Visibility = 0, Hydrometeors = 1, HydrometeorSize = 2, Fall = 3, Wind = 4, Extinction = 5, CloudDark = 6, Sun = 7, Ambient = 8, SkyGrey = 9,
             Sound = 10, Accumulation = 11, LampSigma = 12, Shadow = 13;
 
         // The look at a level (clamped to 0 to 1). The curves are rebuilt when the tuning table changed.
@@ -93,11 +93,11 @@ namespace ReDefinition.Atmospheres
             float p = Clamp01(level01);
             LookValues v;
             v.VisibilityM = c[Visibility].Evaluate(p);
-            v.FlakesPerS = c[Flakes].Evaluate(p);
-            v.FlakeSizeFactor = c[FlakeSize].Evaluate(p);
+            v.HydrometeorsPerS = c[Hydrometeors].Evaluate(p);
+            v.HydrometeorSizeFactor = c[HydrometeorSize].Evaluate(p);
             v.FallFactor = c[Fall].Evaluate(p);
             v.WindMs = c[Wind].Evaluate(p);
-            v.VeilAlpha = c[Veil].Evaluate(p);
+            v.PrecipExtinctionAlpha = c[Extinction].Evaluate(p);
             v.CloudBaseDarkness = c[CloudDark].Evaluate(p);
             v.SunDirect = c[Sun].Evaluate(p);
             v.AmbientFactor = c[Ambient].Evaluate(p);
@@ -122,15 +122,15 @@ namespace ReDefinition.Atmospheres
             return Start[Array.IndexOf(CurveNames, name)][keyIndex];
         }
 
-        // The curtain gate S: 0 below level 0.45, 1 from 0.9, smooth in between. Only the draw gate of our curtain and volume.
-        internal static float CurtainShare(float level01)
+        // The praecipitatio gate S: 0 below level 0.45, 1 from 0.9, smooth in between. Only the draw gate of our praecipitatio and volume.
+        internal static float PraecipitatioShare(float level01)
         {
-            float t = Clamp01((level01 - CurtainS0) / (CurtainS1 - CurtainS0));
+            float t = Clamp01((level01 - PraecipitatioS0) / (PraecipitatioS1 - PraecipitatioS0));
             return t * t * (3f - 2f * t);
         }
 
         // The fog density of Unity's ExponentialSquared fog that leaves 5 % of the contrast at that visibility: sqrt(3) / visibility.
-        internal static float FogDensity(float visibilityM)
+        internal static float VisibilityExtinctionDensity(float visibilityM)
         {
             return 1.7320508f / Math.Max(visibilityM, 1f);
         }
@@ -166,16 +166,16 @@ namespace ReDefinition.Atmospheres
         }
     }
 
-    // The hysteresis of the curtain gate: on from CurtainOn, off below CurtainOff.
-    internal struct CurtainGate
+    // The hysteresis of the praecipitatio gate: on from PraecipitatioOn, off below PraecipitatioOff.
+    internal struct PraecipitatioGate
     {
         private bool on;
 
-        // Whether our curtain and volume are drawn at that level.
+        // Whether our praecipitatio and volume are drawn at that level.
         internal bool Update(float level01)
         {
-            if (on) on = level01 >= PrecipitationLook.CurtainOff;
-            else on = level01 >= PrecipitationLook.CurtainOn;
+            if (on) on = level01 >= PrecipitationLook.PraecipitatioOff;
+            else on = level01 >= PrecipitationLook.PraecipitatioOn;
             return on;
         }
     }

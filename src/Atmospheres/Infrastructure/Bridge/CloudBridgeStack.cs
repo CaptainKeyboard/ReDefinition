@@ -32,7 +32,7 @@ namespace ReDefinition.Atmospheres
             return source;
         }
 
-        // The index of the group member to draw by the surface temperature: the second member (the snow deck) below freezing, the first above;
+        // The index of the group member to draw by the surface temperature: the second member (the low stratiform snow layer) below freezing, the first above;
         // a one-member group is index 0 whatever the temperature. The hysteresis keeps the choice where it was inside the band, so a temperature that
         // hovers at the freezing point does not rebuild the stack every frame.
         internal static int PickByTemperature(double surfaceK, bool wasCold, double bandK, out bool cold)

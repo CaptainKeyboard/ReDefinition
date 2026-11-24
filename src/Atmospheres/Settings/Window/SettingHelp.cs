@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
 
                 // Clouds
                 { "cloudSource", "Who draws the clouds. Ours uses the mod's own volume pass, Eve paints the weather into EVE's clouds, Both does both, None draws no clouds." },
-                { "weatherCompose", "Where the fog veil and the flakes are put on the picture. Scene is before the upscaler, Host is after it through the main mod. Auto picks Scene unless the pair of graphics card and upscaler is recorded." },
+                { "weatherCompose", "Where the precipitation extinction and the falling precipitation particles are put on the picture. Scene is before the upscaler, Host is after it through the main mod. Auto picks Scene unless the pair of graphics card and upscaler is recorded." },
                 { "useEveWeather", "Lets EVE's own weather layers stay on the bodies where this mod paints no map." },
                 { "eveLayerCap", "The most EVE cloud layers the mod paints on one body. Fewer layers cost less." },
                 { "lightWeatherFrequency", "How often light weather forms: 0 none, 1 the body's own rate, 2 twice as often." },
@@ -47,8 +47,8 @@ namespace ReDefinition.Atmospheres
                 { "layerStepQuality", "How finely the own clouds are marched: Low takes 32 steps per layer (scaled by Cloud Samples) and a shortest step of 24 m, Medium 48 and 12 m, High 64 and 6 m. The quality profile sets High from High up and Medium below. Finer steps show sharper near detail and cost more." },
                 { "layerStepGrowth", "How fast the march steps grow inside a cloud as the light dies out. 0 keeps the step fixed, 2 is the measured value, higher is cheaper and softer in thick cloud." },
                 { "cloudNoise", "Shapes the clouds with noise: ragged edges, cauliflower tops and holes. Off, the clouds are the smooth maps alone and cost less." },
-                { "cloudNoiseUntile", "Breaks the repetition of the noise, so that a wide deck shows no regular pattern." },
-                { "cloudNoiseCurl", "Swirls the edge of the clouds with a curl noise, for billowing shapes." },
+                { "cloudNoiseUntile", "Breaks the repetition of the noise, so that a wide cloud layer shows no regular pattern." },
+                { "cloudNoiseCurl", "Swirls the edge of the clouds with a curl noise, for bulging shapes." },
                 { "cloudNoiseTier", "The size of the noise volumes: Low 32 cells wide for the shape (35 KB), Medium 64 (0.4 MB), High 128 (2.4 MB). Larger volumes show finer detail and use more video memory." },
                 { "cloudNoiseDistanceLod", "Fades the finest detail out where it could only shimmer, with distance. Off, the detail is read at every step and costs more." },
                 { "cloudFineDetail", "Adds a second, finer octave of detail to the cloud edge. Off, the edge is smoother." },
@@ -76,7 +76,7 @@ namespace ReDefinition.Atmospheres
                 { "cloudShortSunMarch","How far the sunlight is followed through a cloud: off 12 km, on 4 km. The long march darkens the base and the shaded flank of a deep storm cloud; the short one leaves them as bright as the top, with the same number of steps. Off by default." },
                 { "cloudSunWhiteBalance", "On, the sun at the zenith above a cloud counts as the sun outside the air, so that only the air beyond the zenith reddens it (an older compensation, paler red). Off, the cloud gets the sun through the whole air above it." },
                 { "cloudDiffusionDecay", "How fast the soft glow inside a thick cloud fades with the thickness towards the light. 0 keeps the earlier saturating glow, higher darkens the deep parts of thick clouds." },
-                { "cloudFarHaze", "Lets the air between the camera and a far cloud tint it blue and lower its contrast, for clouds seen from high up or from far away. Already on by itself wherever the clouds are drawn behind Scatterer's scattering; this switch forces it in every order." },
+                { "cloudAerialPerspective", "Lets the air between the camera and a far cloud tint it blue and lower its contrast, for clouds seen from high up or from far away. Already on by itself wherever the clouds are drawn behind Scatterer's scattering; this switch forces it in every order." },
                 { "cloudFarShapeMean", "Where the march steps are wider than the noise features, replaces the noise by its average, which removes the grain of far clouds." },
                 { "cloudFarMinSamples", "The fewest samples taken through a cloud layer seen from far away. 0 leaves the march's own count; a thin layer then flickers from step to step. More costs more." },
                 { "cloudFarPolicy", "Takes fewer, longer steps from orbit height, where the detail cannot be seen. Saves frame time and softens clouds seen from high up." },
@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres
                 { "genSeed", "The number the weather grows from. The same number gives the same weather on the same day." },
 
                 // Volume
-                { "volumePass", "Draws the clouds and the curtains of precipitation as a volume. Off, only the flat parts are drawn." },
+                { "volumePass", "Draws the clouds and the praecipitatio of precipitation as a volume. Off, only the flat parts are drawn." },
                 { "volumeResolution", "The size of the volume against the picture. 1 is full size; 0.5 and 0.25 cost less and look softer." },
                 { "volumeSteps", "How finely the volume is sampled along each ray. More steps look smoother and cost more." },
                 { "volumeCompose", "Where the volume is put on the picture. Scene is before the upscaler, PostUpscale is after it and needs the main mod." },
@@ -134,8 +134,8 @@ namespace ReDefinition.Atmospheres
                 { "precipAsh", "Draws falling ash." },
                 { "precipMethane", "Draws methane precipitation." },
                 { "stormCullDistance", "Leaves out terrain beyond what the storm's fog shows. Saves frame time in a blizzard." },
-                { "fogBrightness", "How bright the fog of the weather is." },
-                { "veilStrength", "How much a heavy storm washes out the picture." },
+                { "visibilityExtinctionBrightness", "How bright the haze of lost visibility in rain, snow, dust and fog is." },
+                { "precipExtinctionStrength", "How much heavy precipitation washes out the picture (the light the falling drops and flakes scatter and block)." },
                 { "blizzardVisibilityM", "How far one can see in the worst blizzard, in metres." },
                 { "skyDimming", "How much a storm darkens the sky." },
 
@@ -224,7 +224,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.GreyReasons.NeedsEve, "EVE is not installed." },
             { AtmospheresSettings.GreyReasons.NeedsHost, "The main mod is not installed or does not answer." },
             { AtmospheresSettings.GreyReasons.NeedsSim, "Weather Simulation is off." },
-            { AtmospheresSettings.GreyReasons.NeedsVolume, "Volumetric Clouds And Curtains is off." },
+            { AtmospheresSettings.GreyReasons.NeedsVolume, "Volumetric Clouds And Praecipitatio is off." },
             { AtmospheresSettings.GreyReasons.NeedsAudio, "Weather Audio is off." },
             { AtmospheresSettings.GreyReasons.NeedsForecast, "Forecast is off." },
             { AtmospheresSettings.GreyReasons.NeedsAlerts, "Weather Alerts is off." },

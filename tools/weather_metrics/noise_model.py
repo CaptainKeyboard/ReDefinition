@@ -151,7 +151,7 @@ def gen_shape(n, seed=1):
 
 
 def gen_detail(n, seed=2, hurst=0.0):
-    """The detail volume; hurst above 0 (CLOUDR1, cloud.heap.detail): the octave weights are 2^(-H k) instead of DETAIL_WORLEY_W."""
+    """The detail volume; hurst above 0 (CLOUDR1, cloud.cumuliform.detail): the octave weights are 2^(-H k) instead of DETAIL_WORLEY_W."""
     weights = DETAIL_WORLEY_W if not hurst > 0.0 else tuple(2.0 ** (-hurst * k) for k in range(len(DETAIL_WORLEY)))
     return stretch(worley_fbm(grid_points(n), DETAIL_WORLEY, weights, seed)).reshape(n, n, n)
 
@@ -179,26 +179,26 @@ def gen_curl(n, seed=3):
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# The heap volume (package CLOUDR1 P2/P3): the macro shape of a cumulus as a cascade of heaps on heaps. C#: NoiseVolumes.Heap.
+# The cumuliform volume (package CLOUDR1 P2/P3): the macro shape of a cumulus as a cascade of mounds on mounds. C#: NoiseVolumes.Cumuliform.
 # --------------------------------------------------------------------------------------------------------------------------------
-# Octave k has HEAP_FIRST_CELLS * 2^k cells per period (lacunarity 2: self-similar, the largest lobe is 8 noise scales, the finest cell 4 voxels
+# Octave k has CUMULIFORM_FIRST_CELLS * 2^k cells per period (lacunarity 2: self-similar, the largest lobe is 8 noise scales, the finest cell 4 voxels
 # wide). Each octave is a field of rounded domes sqrt(1 - (f / R)^2) round jittered points (f the distance to the point in cell units), the
 # domes of the 27 neighbouring cells joined by a polynomial smooth maximum, so a crease forms where two lobes meet. The octaves are summed with
 # the weights 2^(-H k): H is the Hurst exponent of the cascade (the outline of a level set of such a field has the dimension 2 - H). The sum
 # is rank-equalised (a threshold of 0.5 covers half the volume, the cover meaning). Mip level m has the octaves whose cell is at least 4 voxels
 # wide at that level: an octave is dropped only where the level's voxel exceeds a quarter of its cell.
-HEAP_FIRST_CELLS = 2
-HEAP_RADIUS = 0.9
-HEAP_SMOOTH = 0.15
-HEAP_HURST = (0.65, 0.45)          # preset 1 (billow: outline dimension 1.35), preset 2 (rough: 1.55)
-HEAP_CAVITY_GAIN = 3.0
-HEAP_MIN_OCTAVE_VOXELS = 4
+CUMULIFORM_FIRST_CELLS = 2
+CUMULIFORM_RADIUS = 0.9
+CUMULIFORM_SMOOTH = 0.15
+CUMULIFORM_HURST = (0.65, 0.45)          # preset 1 (bulge: outline dimension 1.35), preset 2 (rough: 1.55)
+CUMULIFORM_CAVITY_GAIN = 3.0
+CUMULIFORM_MIN_OCTAVE_VOXELS = 4
 
 
-def heap_octaves(n):
+def cumuliform_octaves(n):
     """The cells per period of the octaves a volume of n voxels per side holds: 2, 4, ... up to n / 4 (at least one)."""
-    cells, out = HEAP_FIRST_CELLS, []
-    while cells * HEAP_MIN_OCTAVE_VOXELS <= n or not out:
+    cells, out = CUMULIFORM_FIRST_CELLS, []
+    while cells * CUMULIFORM_MIN_OCTAVE_VOXELS <= n or not out:
         out.append(cells)
         cells *= 2
     return out
@@ -209,7 +209,7 @@ def smooth_max(a, b, k):
     return np.maximum(a, b) + h * h * k * 0.25
 
 
-def heap_octave(u, cells, seed):
+def cumuliform_octave(u, cells, seed):
     """One octave of domes at points u (M, 3) in unit coordinates of the period: 0..~1."""
     p = u * cells
     i0 = np.floor(p).astype(np.int64)
@@ -220,9 +220,9 @@ def heap_octave(u, cells, seed):
                 cx, cy, cz = i0[:, 0] + dx, i0[:, 1] + dy, i0[:, 2] + dz
                 fx, fy, fz = hash_vec(hash3(cx % cells, cy % cells, cz % cells, seed))
                 ex, ey, ez = cx + fx - p[:, 0], cy + fy - p[:, 1], cz + fz - p[:, 2]
-                r = np.sqrt(ex * ex + ey * ey + ez * ez) / HEAP_RADIUS
+                r = np.sqrt(ex * ex + ey * ey + ez * ez) / CUMULIFORM_RADIUS
                 dome = np.sqrt(np.maximum(0.0, 1.0 - r * r))
-                acc = dome if acc is None else smooth_max(acc, dome, HEAP_SMOOTH)
+                acc = dome if acc is None else smooth_max(acc, dome, CUMULIFORM_SMOOTH)
     return acc
 
 
@@ -243,12 +243,12 @@ def equalize_tied(v):
     return ranks.reshape(np.shape(v))
 
 
-def heap_field(n, level_size, hurst, seed):
-    """The ranked heap field of a mip level of `level_size` voxels per side, the octaves a level of that size can hold (those of an n-voxel volume at level 0)."""
+def cumuliform_field(n, level_size, hurst, seed):
+    """The ranked cumuliform field of a mip level of `level_size` voxels per side, the octaves a level of that size can hold (those of an n-voxel volume at level 0)."""
     u = grid_points(level_size)
     total = 0.0
-    for k, cells in enumerate(heap_octaves(level_size)):
-        total = total + (2.0 ** (-hurst * k)) * heap_octave(u, cells, seed + 53 * k)
+    for k, cells in enumerate(cumuliform_octaves(level_size)):
+        total = total + (2.0 ** (-hurst * k)) * cumuliform_octave(u, cells, seed + 53 * k)
     return equalize_tied(total).reshape(level_size, level_size, level_size)
 
 
@@ -263,11 +263,11 @@ def box_blur(v, radius):
     return out
 
 
-def heap_cavity(field):
-    """Cavity channel of a level-0 heap field: 1 on tops and flat parts, lower in creases (the field's blur minus the field, times HEAP_CAVITY_GAIN)."""
+def cumuliform_cavity(field):
+    """Cavity channel of a level-0 cumuliform field: 1 on tops and flat parts, lower in creases (the field's blur minus the field, times CUMULIFORM_CAVITY_GAIN)."""
     n = field.shape[0]
     blur = box_blur(field, max(1, n // 32))
-    return np.clip(1.0 - HEAP_CAVITY_GAIN * np.maximum(blur - field, 0.0), 0.0, 1.0)
+    return np.clip(1.0 - CUMULIFORM_CAVITY_GAIN * np.maximum(blur - field, 0.0), 0.0, 1.0)
 
 
 def mean8(v):
@@ -276,10 +276,10 @@ def mean8(v):
     return v.reshape(n // 2, 2, n // 2, 2, n // 2, 2).mean(axis=(1, 3, 5))
 
 
-def gen_heap_levels(n, seed=1):
-    """The heap volume's mip chain as C# HeapVolumes.Generate makes it: a list of (size, size, size, 4) uint8 arrays (r heap 1, g heap 2, b cavity 1, a cavity 2)."""
-    fields = [heap_field(n, n, h, seed + 17 * i) for i, h in enumerate(HEAP_HURST)]
-    cavity = [heap_cavity(f) for f in fields]
+def gen_cumuliform_levels(n, seed=1):
+    """The cumuliform volume's mip chain as C# CumuliformVolumes.Generate makes it: a list of (size, size, size, 4) uint8 arrays (r cumuliform 1, g cumuliform 2, b cavity 1, a cavity 2)."""
+    fields = [cumuliform_field(n, n, h, seed + 17 * i) for i, h in enumerate(CUMULIFORM_HURST)]
+    cavity = [cumuliform_cavity(f) for f in fields]
     levels = []
     size = n
     while True:
@@ -288,8 +288,8 @@ def gen_heap_levels(n, seed=1):
             break
         half = size // 2
         nxt = []
-        for i, h in enumerate(HEAP_HURST):
-            nxt.append(heap_field(n, half, h, seed + 17 * i) if half >= 8 else equalize_tied(mean8(fields[i])))
+        for i, h in enumerate(CUMULIFORM_HURST):
+            nxt.append(cumuliform_field(n, half, h, seed + 17 * i) if half >= 8 else equalize_tied(mean8(fields[i])))
         cavity = [mean8(c) for c in cavity]
         fields = nxt
         size = half
@@ -304,17 +304,17 @@ def fnv1a(data):
     return h
 
 
-HEAP_PERIOD_SCALES = 8.0
-HEAP_MIN_LEVEL_VOXELS = 8
-HEAP_WARP_SHARE = 0.5
+CUMULIFORM_PERIOD_SCALES = 8.0
+CUMULIFORM_MIN_LEVEL_VOXELS = 8
+CUMULIFORM_WARP_SHARE = 0.5
 
 
-def heap_value(levels, p, scale, preset, lod=0.0):
-    """The heap field (0..1) of a preset at lookup points p (M, 3) in m for a layer of noise scale `scale`: the trilinear read of the byte volume at mip level lod (a float: two levels blended)."""
-    u = np.asarray(p, dtype=np.float64) / (HEAP_PERIOD_SCALES * scale)
+def cumuliform_value(levels, p, scale, preset, lod=0.0):
+    """The cumuliform field (0..1) of a preset at lookup points p (M, 3) in m for a layer of noise scale `scale`: the trilinear read of the byte volume at mip level lod (a float: two levels blended)."""
+    u = np.asarray(p, dtype=np.float64) / (CUMULIFORM_PERIOD_SCALES * scale)
     # beyond the last analytic level (8 voxels) the levels are box means, not rank-uniform: the far view's mean takes over there
     n = levels[0].shape[0]
-    lod = min(lod, math.log2(n / float(HEAP_MIN_LEVEL_VOXELS)))
+    lod = min(lod, math.log2(n / float(CUMULIFORM_MIN_LEVEL_VOXELS)))
     below = int(math.floor(lod))
     f = lod - below
     a = trilinear(levels[below][..., preset - 1] / 255.0, u)
@@ -323,10 +323,10 @@ def heap_value(levels, p, scale, preset, lod=0.0):
     return a
 
 
-def gen_heap(n, seed=1):
-    """The two presets of the heap volume at level 0: (heap fields, cavity fields), lists of (n, n, n)."""
-    heaps = [heap_field(n, n, h, seed + 17 * i) for i, h in enumerate(HEAP_HURST)]
-    return heaps, [heap_cavity(f) for f in heaps]
+def gen_cumuliform(n, seed=1):
+    """The two presets of the cumuliform volume at level 0: (cumuliform fields, cavity fields), lists of (n, n, n)."""
+    mounds = [cumuliform_field(n, n, h, seed + 17 * i) for i, h in enumerate(CUMULIFORM_HURST)]
+    return mounds, [cumuliform_cavity(f) for f in mounds]
 
 
 def to_bytes(v):
@@ -405,7 +405,7 @@ class Params(object):
 
     def __init__(self, scale=375.0, untile=True, warp_amp=6.5, warp_cell=14.0, curl=True, curl_amp=0.6, seed=1, offset=(0.0, 0.0, 0.0),
                  erosion=0.5, stretch=1.0, axis=(0.0, 0.0, 1.0)):
-        # stretch: how much longer the features are along the unit `axis` than across it (the layer's fibreStretch, E40 L2 D1; 1: isotropic).
+        # stretch: how much longer the features are along the unit `axis` than across it (the layer's filamentStretch, E40 L2 D1; 1: isotropic).
         self.stretch, self.axis = stretch, np.asarray(axis, dtype=np.float64)
         self.scale, self.untile, self.warp_amp, self.warp_cell, self.curl, self.curl_amp = scale, untile, warp_amp, warp_cell, curl, curl_amp
         self.seed, self.offset, self.erosion = seed, np.asarray(offset, dtype=np.float64), erosion
@@ -434,7 +434,7 @@ class Volumes(object):
 
 
 def lookup_point(p, prm):
-    """The point the volumes are read at: the layer offset, the fibre stretch (the lookup compressed along the axis by 1 / stretch), then the untiling displacement."""
+    """The point the volumes are read at: the layer offset, the filament stretch (the lookup compressed along the axis by 1 / stretch), then the untiling displacement."""
     q = p + prm.offset
     if prm.stretch != 1.0:
         q = q - np.asarray(q @ prm.axis)[..., None] * prm.axis * (1.0 - 1.0 / prm.stretch)
@@ -444,11 +444,11 @@ def lookup_point(p, prm):
     return q
 
 
-def shape_value(vols, p, prm, heap_preset=0, heap_lod=0.0):
-    """The base shape noise at points p (M, 3) in m: 0..1. heap_preset 1 or 2 (CLOUDR1 P2): the macro shape of the heap volume vols.heap (gen_heap_levels) at the mip level heap_lod instead."""
+def shape_value(vols, p, prm, cumuliform_preset=0, cumuliform_lod=0.0):
+    """The base shape noise at points p (M, 3) in m: 0..1. cumuliform_preset 1 or 2 (CLOUDR1 P2): the macro shape of the cumuliform volume vols.cumuliform (gen_cumuliform_levels) at the mip level cumuliform_lod instead."""
     q = lookup_point(p, prm)
-    if heap_preset > 0 and getattr(vols, "heap", None) is not None:
-        return heap_value(vols.heap, q, prm.scale, heap_preset, heap_lod)
+    if cumuliform_preset > 0 and getattr(vols, "cumuliform", None) is not None:
+        return cumuliform_value(vols.cumuliform, q, prm.scale, cumuliform_preset, cumuliform_lod)
     return trilinear(vols.shape, q / prm.shape_period)
 
 
@@ -514,7 +514,7 @@ def clear_sky(map_value, clear_k):
 
 
 def column_tau(vols, xs, ys, prm, sigma_h, base=2200.0, top=2500.0, coverage=0.0, amount=1.0, edge=0.15, steps=12, power=1.0):
-    """Vertical optical depth through the deck at ground positions (xs, ys), flat: the harness's own geometry. power: the layer's water exponent of the share (1: none)."""
+    """Vertical optical depth through the cloud layer at ground positions (xs, ys), flat: the harness's own geometry. power: the layer's water exponent of the share (1: none)."""
     m = len(xs)
     tau = np.zeros(m)
     hs = base + (top - base) * (np.arange(steps) + 0.5) / steps

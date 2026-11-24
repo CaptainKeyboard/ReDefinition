@@ -1,11 +1,11 @@
-// The precipitation renderer's shader: the veil, the flakes, the splashes and the two small passes that read the image's luminance.
+// The precipitation renderer's shader: the extinction, the hydrometeors, the splashes and the two small passes that read the image's luminance.
 // One look implementation for both ways of composing: Scene draws it in the scene before the upscaler (hardware depth test,
 // _PrecipDepthTexel.w = 0), Host draws it after the upscaler (depth from the host's render-size copy, nearest of 3x3 taps). Only the
-// depth test and the colour mode of the veil differ.
+// depth test and the colour mode of the extinction differ.
 //
-// Flakes are procedural instanced billboards: a flake needs no buffer, its place comes from a hash of its instance number and the
+// Hydrometeors are procedural instanced billboards: a hydrometeor needs no buffer, its place comes from a hash of its instance number and the
 // seed (the same hash as PrecipMath.Hash in the mod), in a box centred on the camera that wraps. Nothing is random per frame.
-// No motion vectors are written for the flakes: the upscaler must not track them.
+// No motion vectors are written for the hydrometeors: the upscaler must not track them.
 Shader "ReDefinition/AtmospheresPrecip"
 {
     Properties
@@ -49,16 +49,16 @@ Shader "ReDefinition/AtmospheresPrecip"
     float4 _PrecipVel;
     // rgb = colour times light; a = the weight of this composite (cross-fade) times the type's opacity.
     float4 _PrecipColour;
-    // x = streak length per m/s, y = floor in pixels at 1080 lines, z = lowest contrast of a floored flake, w = sheet cell.
+    // x = streak length per m/s, y = floor in pixels at 1080 lines, z = lowest contrast of a floored hydrometeor, w = sheet cell.
     float4 _PrecipLook;
 
     // x = ground alpha, y = sky alpha, z = sin(sky grey start), w = sin(sky grey full).
-    float4 _PrecipVeilA;
-    float4 _PrecipVeilGround;
-    float4 _PrecipVeilSky;
-    // x = storm grade share, y = lowest luminance of a luminance relative veil, z = 1 where the veil colour is relative to the image,
+    float4 _PrecipExtinctionA;
+    float4 _PrecipExtinctionGround;
+    float4 _PrecipExtinctionSky;
+    // x = storm grade share, y = lowest luminance of a luminance relative extinction, z = 1 where the extinction colour is relative to the image,
     // w = gain on the image luminance.
-    float4 _PrecipVeilGrade;
+    float4 _PrecipExtinctionGrade;
 
     // x = ground distance below the camera, y = range (half width) of the splash field, z = ring size, w = rings per second.
     float4 _PrecipSplash;
@@ -94,7 +94,7 @@ Shader "ReDefinition/AtmospheresPrecip"
     float Luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 
     // The nearest of 3x3 taps of the host's render-size depth: the closest surface around the pixel, so that a silhouette edge hides
-    // a flake rather than lets it through. Raw hardware depth, so reversed on this platform where UNITY_REVERSED_Z is set.
+    // a hydrometeor rather than lets it through. Raw hardware depth, so reversed on this platform where UNITY_REVERSED_Z is set.
     float NearestDepth(float2 uv)
     {
         float2 t = _PrecipDepthTexel.xy;
@@ -114,7 +114,7 @@ Shader "ReDefinition/AtmospheresPrecip"
         return d;
     }
 
-    // 1 where the flake at this pixel and depth is in front of the scene (or the scene's depth is not used), 0 where it is hidden.
+    // 1 where the hydrometeor at this pixel and depth is in front of the scene (or the scene's depth is not used), 0 where it is hidden.
     float Visible(float4 pos)
     {
         if (_PrecipTarget.w < 0.5) return 1;
@@ -155,12 +155,12 @@ Shader "ReDefinition/AtmospheresPrecip"
         Cull Off
         ZWrite Off
 
-        // 0: the veil. A full-screen triangle, alpha by the elevation of the ray: the ground alpha toward the horizon and below, the
+        // 0: the extinction. A full-screen triangle, alpha by the elevation of the ray: the ground alpha toward the horizon and below, the
         // sky alpha toward the zenith. No depth. The storm grade (grey, cool, flat) is the blend itself plus a desaturation of the colour
-        // by the veil's alpha, so no volume of the post-processing is edited.
+        // by the extinction's alpha, so no volume of the post-processing is edited.
         Pass
         {
-            Name "Veil"
+            Name "Extinction"
             ZTest Always
             Blend SrcAlpha OneMinusSrcAlpha
 
@@ -191,17 +191,17 @@ Shader "ReDefinition/AtmospheresPrecip"
                 float3 dirView = float3(i.ndc.x / P[0][0], i.ndc.y / P[1][1], -1);
                 float3 dirWorld = mul(transpose((float3x3)V), dirView);
                 float sinEl = dot(normalize(dirWorld), _PrecipAxisU.xyz);
-                float share = smoothstep(_PrecipVeilA.z, _PrecipVeilA.w, sinEl);
-                float alpha = lerp(_PrecipVeilA.x, _PrecipVeilA.y, share) * _PrecipColour.a;
-                float3 colour = lerp(_PrecipVeilGround.rgb, _PrecipVeilSky.rgb, share);
-                if (_PrecipVeilGrade.z > 0.5)
+                float share = smoothstep(_PrecipExtinctionA.z, _PrecipExtinctionA.w, sinEl);
+                float alpha = lerp(_PrecipExtinctionA.x, _PrecipExtinctionA.y, share) * _PrecipColour.a;
+                float3 colour = lerp(_PrecipExtinctionGround.rgb, _PrecipExtinctionSky.rgb, share);
+                if (_PrecipExtinctionGrade.z > 0.5)
                 {
-                    // Relative to the image: the hue of the veil colour at the luminance of the picture (smoothed on the CPU side of
+                    // Relative to the image: the hue of the extinction colour at the luminance of the picture (smoothed on the CPU side of
                     // the capture), because the exposure was applied before the upscaler and a colour in scene units would be wrong.
-                    float luma = tex2Dlod(_PrecipLuma, float4(0.5, 0.5, 0, 0)).r * _PrecipVeilGrade.w;
-                    colour = colour / max(Luma(colour), 1e-3) * max(luma, _PrecipVeilGrade.y);
+                    float luma = tex2Dlod(_PrecipLuma, float4(0.5, 0.5, 0, 0)).r * _PrecipExtinctionGrade.w;
+                    colour = colour / max(Luma(colour), 1e-3) * max(luma, _PrecipExtinctionGrade.y);
                 }
-                float grade = _PrecipVeilGrade.x * saturate(alpha);
+                float grade = _PrecipExtinctionGrade.x * saturate(alpha);
                 float l = Luma(colour);
                 colour = lerp(colour, float3(l, l, l), grade) * lerp(float3(1, 1, 1), float3(0.93, 0.98, 1.05), grade);
                 return float4(colour, saturate(alpha));
@@ -209,7 +209,7 @@ Shader "ReDefinition/AtmospheresPrecip"
             ENDCG
         }
 
-        // 1: the flakes. One quad per instance, placed by the hash in the wrapped box, stretched along its velocity, at least the floor
+        // 1: the hydrometeors. One quad per instance, placed by the hash in the wrapped box, stretched along its velocity, at least the floor
         // size on screen.
         Pass
         {
@@ -237,7 +237,7 @@ Shader "ReDefinition/AtmospheresPrecip"
                 float3 rel = (wrapped - 0.5) * float3(_PrecipLayerBox.x, _PrecipLayerBox.y, _PrecipLayerBox.x);
                 float fade = EdgeFade(wrapped.x, _PrecipLayerBox.z) * EdgeFade(wrapped.y, _PrecipLayerBox.z) * EdgeFade(wrapped.z, _PrecipLayerBox.z);
 
-                // The sway across the fall: a slow wander with a period of 3 s, 1.5 s or 1 s per flake, whole periods in 60 s.
+                // The sway across the fall: a slow wander with a period of 3 s, 1.5 s or 1 s per hydrometeor, whole periods in 60 s.
                 float swayRate = 6.2831853 / 3.0 * (1.0 + floor(h4 * 3.0));
                 float ph = h5 * 6.2831853;
                 rel.x += sin(_PrecipCamBox.w * swayRate + ph) * _PrecipVel.w;

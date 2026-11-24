@@ -6,7 +6,7 @@ namespace ReDefinition.Atmospheres
 {
     // The numeric readout of series K-T2d: what the camera target holds in three regions of one frame, as raw values (the numbers the pass and everything after it left
     // in the target, no gamma step: ReconHost keeps them in ReconFrame.Raw). Pure arithmetic on arrays, so that a unit test runs it on a known picture.
-    // The regions: the sky above the horizon, the sea or ground below it, and the deck, the pixels where the frame with the own pass differs from the frame of the same
+    // The regions: the sky above the horizon, the sea or ground below it, and the cloud region, the pixels where the frame with the own pass differs from the frame of the same
     // pose without it (the "off" baseline). The vessel at the centre of the picture is left out of all three. Rows are numbered from the bottom, as Unity reads them.
     internal static class T09Readout
     {
@@ -16,8 +16,8 @@ namespace ReDefinition.Atmospheres
         internal const double EdgeLow = 0.03, EdgeHigh = 0.97;
         // The box around the vessel (fractions of the width and height) left out of every region.
         internal const double VesselHalfWidth = 0.12, VesselHalfHeight = 0.20;
-        // A pixel belongs to the deck when the own pass changed its luminance by more than this share of the baseline (and by more than DeckMinChange).
-        internal const double DeckRelativeChange = 0.15, DeckMinChange = 0.005;
+        // A pixel belongs to the cloud region when the own pass changed its luminance by more than this share of the baseline (and by more than CloudMinChange).
+        internal const double CloudRelativeChange = 0.15, CloudMinChange = 0.005;
         // Every Stride-th pixel in x and y is read (the statistics need a few hundred thousand samples at most).
         internal const int Stride = 2;
         // A channel at or above this value counts as clipped.
@@ -35,20 +35,20 @@ namespace ReDefinition.Atmospheres
         {
             internal int Width, Height;
             internal double HorizonV;
-            internal Stat Sky, Ground, Deck;
-            // The share of the picture's samples that belong to the deck.
-            internal double DeckFraction;
+            internal Stat Sky, Ground, Cloud;
+            // The share of the picture's samples that belong to the cloud region.
+            internal double CloudFraction;
             // The largest channel of the picture.
             internal float Peak;
-            // Luminance per pixel (kept for the deck of the next reading), and the deck mask of this reading (null for the baseline).
+            // Luminance per pixel (kept for the cloud region of the next reading), and the cloud mask of this reading (null for the baseline).
             internal float[] Luma;
-            internal bool[] DeckMask;
+            internal bool[] CloudMask;
             // The raw picture, kept for the baseline reading only (the closed share of the next readings is measured against its colours).
             internal Color[] Raw;
-            // The share of the region's samples that belong to the deck, and the share that count as closed (ClosedShare). Zero where the frame has no baseline.
-            internal double SkyDeckShare, GroundDeckShare, SkyClosedShare, GroundClosedShare;
+            // The share of the region's samples that belong to the cloud region, and the share that count as closed (ClosedShare). Zero where the frame has no baseline.
+            internal double SkyCloudShare, GroundCloudShare, SkyClosedShare, GroundClosedShare;
             // E40 look B (the horizon): the band just above the horizon (HorizonMargin of the picture's height) that SkyClosedShare leaves out. The samples in it, the share that
-            // changed by ClosedChange or more against the baseline (a hard edge of the deck at the horizon reads near 1, a deck that has faded into the sky near 0), and the median
+            // changed by ClosedChange or more against the baseline (a hard edge of the cloud layer at the horizon reads near 1, a cloud layer that has faded into the sky near 0), and the median
             // change of a channel there. Zero where the frame has no baseline.
             internal int HorizonBandSamples;
             internal double HorizonBandClosed, HorizonBandChange;
@@ -60,13 +60,13 @@ namespace ReDefinition.Atmospheres
 
         // CLOSED, as far as a picture can say it (the target's alpha is not read): a region sample is closed where the largest change of a channel against the baseline pixel is
         // at least ClosedChange (display units, the product's stage), over ALL the region's samples. A cloud of opacity a over a background it differs from by d in some channel
-        // changes the pixel by a * d; the sky, the sea and a deck's colour differ by 0.25 or more in the channel that matters (blue sky 0.7 against a beige or white deck 0.45 to 0.6),
-        // so 0.15 reads a >= 0.6, which is a closed deck within the model's own ramp (CloudCoverModel: the share at optical depth 0.92 and at 4.6 differ by 0.03 or less).
+        // changes the pixel by a * d; the sky, the sea and a cloud layer's colour differ by 0.25 or more in the channel that matters (blue sky 0.7 against a beige or white cloud layer 0.45 to 0.6),
+        // so 0.15 reads a >= 0.6, which is a closed cloud layer within the model's own ramp (CloudCoverModel: the share at optical depth 0.92 and at 4.6 differ by 0.03 or less).
         // The one threshold was set from the arithmetic above and then looked at over the saved pictures of K-T2d start 48 (2026-11-13, the p1/c42/c35 frames of the four
         // view/cover pairs against their baselines): on the ground-view sheet and the cumulus towers the share moves by 0.02 or less for any threshold from 0.10 to 0.20 (the
-        // plateau of a closed deck is far from both), on the thin sheets seen from above by 0.14 (0.88 to 0.74 at the low cover). It was not fitted to them.
-        // The old measure (deck samples at 0.9 of the region's 90th percentile of change) took the spread of a sheet's own brightness for its edge and read 0.25 for a sheet
-        // that the pictures show closed; the luminance rule of the deck missed a beige sheet over a sky of the same luminance.
+        // plateau of a closed cloud layer is far from both), on the thin sheets seen from above by 0.14 (0.88 to 0.74 at the low cover). It was not fitted to them.
+        // The old measure (cloud region samples at 0.9 of the region's 90th percentile of change) took the spread of a sheet's own brightness for its edge and read 0.25 for a sheet
+        // that the pictures show closed; the luminance rule of the cloud region missed a beige sheet over a sky of the same luminance.
         internal const double ClosedChange = 0.15;
 
         internal static float ChannelChange(Color a, Color b)
@@ -95,20 +95,20 @@ namespace ReDefinition.Atmospheres
             return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
         }
 
-        // Reads one frame. baseline is the reading of the frame without the own pass at the same pose (null while reading the baseline itself); the deck is then empty.
-        // mask, where given, replaces the deck test (the aid pictures take the deck of the natural frame next to them).
+        // Reads one frame. baseline is the reading of the frame without the own pass at the same pose (null while reading the baseline itself); the cloud region is then empty.
+        // mask, where given, replaces the cloud region test (the aid pictures take the cloud region of the natural frame next to them).
         internal static Reading Measure(Color[] raw, int width, int height, double horizonV, Reading baseline, bool[] mask = null)
         {
             if (raw == null || raw.Length != width * height || width < 4 || height < 4) throw new ArgumentException("the raw picture does not match its size");
             var reading = new Reading { Width = width, Height = height, HorizonV = horizonV, Luma = new float[raw.Length] };
             bool compare = baseline != null && baseline.Width == width && baseline.Height == height;
-            if (compare && mask == null) reading.DeckMask = new bool[raw.Length];
-            else if (mask != null && mask.Length == raw.Length) reading.DeckMask = mask;
-            var sky = new Region(); var ground = new Region(); var deck = new Region();
+            if (compare && mask == null) reading.CloudMask = new bool[raw.Length];
+            else if (mask != null && mask.Length == raw.Length) reading.CloudMask = mask;
+            var sky = new Region(); var ground = new Region(); var cloud = new Region();
             if (baseline == null) reading.Raw = raw;
             bool changes = compare && baseline.Raw != null && baseline.Raw.Length == raw.Length;
             var skyChange = new List<float>(); var groundChange = new List<float>(); var bandChange = new List<float>();
-            int samples = 0, deckSamples = 0, skyClosed = 0, groundClosed = 0, bandClosed = 0;
+            int samples = 0, cloudSamples = 0, skyClosed = 0, groundClosed = 0, bandClosed = 0;
             for (int y = 0; y < height; y++)
             {
                 double v = (y + 0.5) / height;
@@ -125,18 +125,18 @@ namespace ReDefinition.Atmospheres
                     samples++;
                     if (v > horizonV + HorizonMargin) sky.Add(c, l);
                     else if (v < horizonV - HorizonMargin) ground.Add(c, l);
-                    bool inDeck;
-                    if (mask != null && mask.Length == raw.Length) inDeck = mask[i];
+                    bool inCloud;
+                    if (mask != null && mask.Length == raw.Length) inCloud = mask[i];
                     else if (compare)
                     {
                         float o = baseline.Luma[i];
-                        inDeck = Math.Abs(l - o) > Math.Max(DeckMinChange, DeckRelativeChange * o);
-                        reading.DeckMask[i] = inDeck;
+                        inCloud = Math.Abs(l - o) > Math.Max(CloudMinChange, CloudRelativeChange * o);
+                        reading.CloudMask[i] = inCloud;
                     }
-                    else inDeck = false;
+                    else inCloud = false;
                     if (changes)
                     {
-                        // Closed by the colour change, over every sample of the region (a deck whose luminance equals the sky's is still closed).
+                        // Closed by the colour change, over every sample of the region (a cloud layer whose luminance equals the sky's is still closed).
                         bool closed = ChannelChange(c, baseline.Raw[i]) >= ClosedChange;
                         if (closed && v > horizonV + HorizonMargin) skyClosed++;
                         else if (closed && v < horizonV - HorizonMargin) groundClosed++;
@@ -146,10 +146,10 @@ namespace ReDefinition.Atmospheres
                             if (closed) bandClosed++;
                         }
                     }
-                    if (inDeck)
+                    if (inCloud)
                     {
-                        deck.Add(c, l);
-                        deckSamples++;
+                        cloud.Add(c, l);
+                        cloudSamples++;
                         if (changes)
                         {
                             if (v > horizonV + HorizonMargin) skyChange.Add(ChannelChange(c, baseline.Raw[i]));
@@ -160,12 +160,12 @@ namespace ReDefinition.Atmospheres
             }
             reading.Sky = sky.Finish();
             reading.Ground = ground.Finish();
-            reading.Deck = deck.Finish();
-            reading.DeckFraction = samples == 0 ? 0.0 : deckSamples / (double)samples;
+            reading.Cloud = cloud.Finish();
+            reading.CloudFraction = samples == 0 ? 0.0 : cloudSamples / (double)samples;
             if (changes)
             {
-                reading.SkyDeckShare = reading.Sky.Count == 0 ? 0.0 : skyChange.Count / (double)reading.Sky.Count;
-                reading.GroundDeckShare = reading.Ground.Count == 0 ? 0.0 : groundChange.Count / (double)reading.Ground.Count;
+                reading.SkyCloudShare = reading.Sky.Count == 0 ? 0.0 : skyChange.Count / (double)reading.Sky.Count;
+                reading.GroundCloudShare = reading.Ground.Count == 0 ? 0.0 : groundChange.Count / (double)reading.Ground.Count;
                 reading.SkyClosedShare = reading.Sky.Count == 0 ? 0.0 : skyClosed / (double)reading.Sky.Count;
                 reading.GroundClosedShare = reading.Ground.Count == 0 ? 0.0 : groundClosed / (double)reading.Ground.Count;
                 reading.HorizonBandSamples = bandChange.Count;
@@ -196,7 +196,7 @@ namespace ReDefinition.Atmospheres
             // The largest channel of |DeltaAbove - DeltaBelow|: the step the cloud's own colour makes across the horizon row (0: none).
             internal float Step;
             // The largest channel of |Above - Below|: the step of the frame's own colour across the row. Where a cloud covers both sides it is near 0 (the baseline's own step is what sky
-            // and sea differ by); a cloud that takes the sea's haze below the row and none above it reads far above the baseline's.
+            // and sea differ by); a cloud that takes the sea's aerial perspective below the row and none above it reads far above the baseline's.
             internal float StepColour;
         }
 
@@ -263,11 +263,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // --- The vertical row profile at the horizon (E40 start 52 follow-up) --------------------------------------------------------------------------------
-        // MeasureHorizonLine reads six narrow columns in two thin bands, which hit the ridge and the mound rims of a deck and are as wide as the effect they look for (the noise floor
-        // of its step was about 0.03 against a haze effect of 0.055). The profile reads every column of a band instead and drops the samples that are not the deck's body: of the
+        // MeasureHorizonLine reads six narrow columns in two thin bands, which hit the ridge and the mound rims of a cloud layer and are as wide as the effect they look for (the noise floor
+        // of its step was about 0.03 against an aerial perspective effect of 0.055). The profile reads every column of a band instead and drops the samples that are not the cloud layer's body: of the
         // samples that changed against the baseline by ClosedChange or more, those whose luminance is more than MoundTolerance away from the band's median (a mound's lit side, a ridge's dark
         // rim, a hole onto the sea) are counted as rejected and left out of the colour. The bands lie below the horizon row (index 0 nearest the row) and above it, each ProfileBandHeight of
-        // the picture's height, starting ProfileGap from the row. The colour of the baseline over the same samples is read beside it: a deck that fades into the haze approaches it
+        // the picture's height, starting ProfileGap from the row. The colour of the baseline over the same samples is read beside it: a cloud layer that fades into the aerial perspective approaches it
         // towards the horizon.
         internal const int ProfileBands = 5;
         internal const double ProfileBandHeight = 0.02, ProfileGap = 0.004, MoundTolerance = 0.08;
@@ -440,7 +440,7 @@ namespace ReDefinition.Atmospheres
 
         // The optical depth over the sky samples of an aid frame (the same region as Measure's sky: above the horizon line plus the margin, the vessel box and the edges left out), read
         // against the baseline frame's colours as the scene.
-        // below: read the sea or ground region (under the horizon line minus the margin) instead, for the views that look down on a deck (the 4.6 km, 2.3 km and above-the-deck frames);
+        // below: read the sea or ground region (under the horizon line minus the margin) instead, for the views that look down on a cloud layer (the 4.6 km, 2.3 km and above-the-layer frames);
         // the "top" rows are then the bottom ones (v under 0.15).
         internal static AidTauReading MeasureAidTau(Color[] aid, Color[] scene, int width, int height, double horizonV, int stride = 4, bool below = false)
         {
@@ -487,7 +487,7 @@ namespace ReDefinition.Atmospheres
 
         // --- Noise: two frames of one pose a frame apart -------------------------------------------------------------------------------------
 
-        // A pixel is in the noise region when the frame with the pass (a) differs from the baseline of the same pose by the deck's rule (DeckRelativeChange, DeckMinChange); the vessel
+        // A pixel is in the noise region when the frame with the pass (a) differs from the baseline of the same pose by the cloud region's rule (CloudRelativeChange, CloudMinChange); the vessel
         // box and the picture's top and bottom edge are left out. Every pixel is read (no stride): the high-pass needs the neighbours.
         internal struct NoiseReading
         {
@@ -515,7 +515,7 @@ namespace ReDefinition.Atmospheres
         internal const int NoiseMinPixels = 500;
 
         // fixedRegion (may be null): the pixels to read over instead of the ones the frame a changed against its baseline, so that the levels of one view are all read over the
-        // same pixels (the plain pass's region): with a region of its own each level averages over a different mix of flat deck, cloud edges and rain streaks.
+        // same pixels (the plain pass's region): with a region of its own each level averages over a different mix of flat cloud layer, cloud edges and rain streaks.
         internal static NoiseReading Noise(Color[] baseline, Color[] baseline2, Color[] a, Color[] b, int width, int height, bool[] fixedRegion = null)
         {
             int n = width * height;
@@ -547,7 +547,7 @@ namespace ReDefinition.Atmospheres
                     {
                         if (!fixedRegion[i]) continue;
                     }
-                    else if (Math.Abs(la[i] - o) <= Math.Max(DeckMinChange, DeckRelativeChange * o)) continue;
+                    else if (Math.Abs(la[i] - o) <= Math.Max(CloudMinChange, CloudRelativeChange * o)) continue;
                     region[i] = true;
                     reading.Count++;
                     lumaSum += la[i];

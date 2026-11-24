@@ -1,7 +1,7 @@
 // The cloud's place in the previous frame, layer by layer (E40 MVCLOUD). Included by the reconstruction shaders after they declare the camera (_CamPos) and the previous
 // camera (_PrevPos, _PrevF, _PrevR, _PrevU).
 //
-// A pixel's cloud is not on the first layer's middle sphere: a cirrus deck at 8 km and cumulus at 2 km move differently when the camera translates. Every layer is met by the ray
+// A pixel's cloud is not on the first layer's middle sphere: a cirrus layer at 8 km and cumulus at 2 km move differently when the camera translates. Every layer is met by the ray
 // at its middle sphere and seen from the previous camera; the places are blended by the share of the pixel's cloud each layer holds (LayerMotionModel.cs is the CPU twin):
 //   presence  the coverage map's value at the hit as a share (the density's coverage threshold with its soft edge, without noise, the type's lift and the height variation),
 //   opacity   1 - exp(-vertical optical depth / cosine of the ray to the radial direction) of the layer's column,

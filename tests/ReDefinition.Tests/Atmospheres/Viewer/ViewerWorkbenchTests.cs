@@ -23,10 +23,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             [CloudKeySource]
             internal static void Register(CloudKeyRegistrations r)
             {
-                r.Key("cloud.heap.edgePower", 2f, KeySection.Edge, "edge power of the heaps", min: 0.5f, max: 6f);
-                r.Flag("cloud.heap.cavity", true, KeySection.Shape, "cavity channel", marker: KeyMarker.AfterSceneChange);
-                r.LayerKey("cloud.heap.layer.", ".edgePower", 1.5f, KeySection.Edge, "edge power of a layer");
-                r.Preset(ViewerBuiltIns.NewModelSlot, "filled", new Dictionary<string, float> { { "cloud.heap.edgePower", 3f } });
+                r.Key("cloud.cumuliform.edgePower", 2f, KeySection.Edge, "edge power of the mounds", min: 0.5f, max: 6f);
+                r.Flag("cloud.cumuliform.cavity", true, KeySection.Shape, "cavity channel", marker: KeyMarker.AfterSceneChange);
+                r.LayerKey("cloud.cumuliform.layer.", ".edgePower", 1.5f, KeySection.Edge, "edge power of a layer");
+                r.Preset(ViewerBuiltIns.NewModelSlot, "filled", new Dictionary<string, float> { { "cloud.cumuliform.edgePower", 3f } });
             }
         }
 
@@ -60,7 +60,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(0f, flag.Min);
             Assert.AreEqual(1f, flag.Max);
             Assert.IsFalse(flag.RangeEstimated);
-            CloudKey sentinel = CloudKeyRegistry.Find(CloudLookTuning.TuneBillowFine);
+            CloudKey sentinel = CloudKeyRegistry.Find(CloudLookTuning.TuneBulgeFine);
             Assert.AreEqual(-1f, sentinel.Default);
             Assert.AreEqual(-1f, sentinel.Min, "a sentinel default starts the range");
             Assert.IsTrue(sentinel.RangeEstimated);
@@ -98,22 +98,22 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             CloudKeyRegistrations r = CloudKeyRegistry.CollectFrom(new[] { typeof(FakePackage) });
             Assert.AreEqual(2, r.Keys.Count);
             Assert.AreEqual(1, r.LayerKeys.Count);
-            CloudKey edge = r.Keys.First(k => k.Key == "cloud.heap.edgePower");
+            CloudKey edge = r.Keys.First(k => k.Key == "cloud.cumuliform.edgePower");
             Assert.AreEqual(KeySection.Edge, edge.Section);
             Assert.IsFalse(edge.RangeEstimated);
             Assert.AreEqual(6f, edge.Max);
-            CloudKey cavity = r.Keys.First(k => k.Key == "cloud.heap.cavity");
+            CloudKey cavity = r.Keys.First(k => k.Key == "cloud.cumuliform.cavity");
             Assert.IsTrue(cavity.Flag);
             Assert.AreEqual(KeyMarker.AfterSceneChange, cavity.Marker);
             Assert.AreEqual("After Scene Change", CloudKeyRegistry.MarkerText(cavity.Marker));
             // A per-layer key with the layer's name between prefix and suffix is matched and expanded.
             CloudLayerKey layer = r.LayerKeys[0];
-            Assert.IsTrue(layer.Matches("cloud.heap.layer.Kerbin-cumulus.edgePower"));
-            Assert.IsFalse(layer.Matches("cloud.heap.layer..edgePower"));
-            Assert.IsFalse(layer.Matches("cloud.heap.layer.a.b.edgePower"), "a layer name has no dot");
-            Assert.IsFalse(layer.Matches("cloud.heap.layer.Kerbin-cumulus.cavity"));
+            Assert.IsTrue(layer.Matches("cloud.cumuliform.layer.Kerbin-cumulus.edgePower"));
+            Assert.IsFalse(layer.Matches("cloud.cumuliform.layer..edgePower"));
+            Assert.IsFalse(layer.Matches("cloud.cumuliform.layer.a.b.edgePower"), "a layer name has no dot");
+            Assert.IsFalse(layer.Matches("cloud.cumuliform.layer.Kerbin-cumulus.cavity"));
             CloudKey made = layer.For("Kerbin-cumulus");
-            Assert.AreEqual("cloud.heap.layer.Kerbin-cumulus.edgePower", made.Key);
+            Assert.AreEqual("cloud.cumuliform.layer.Kerbin-cumulus.edgePower", made.Key);
             Assert.AreEqual(KeySection.Edge, made.Section);
             Assert.AreEqual(1.5f, made.Default);
         }
@@ -122,12 +122,12 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public void TheKeysAPackageRegistersAreFoundAndAConflictIsReported()
         {
             CloudKeyRegistrations r = CloudKeyRegistry.CollectFrom(new[] { typeof(FakePackage) });
-            var core = new List<CloudKey> { new CloudKey("cloud.heap.edgePower", 1f, KeyLiveness.Frame, false, "core") };
+            var core = new List<CloudKey> { new CloudKey("cloud.cumuliform.edgePower", 1f, KeyLiveness.Frame, false, "core") };
             var conflicts = new List<string>();
             List<CloudKey> placed = CloudKeyRegistry.Place(core, r, conflicts);
             Assert.AreEqual(2, placed.Count, "the core key and the one new key");
             Assert.AreEqual(1, conflicts.Count);
-            StringAssert.Contains(conflicts[0], "cloud.heap.edgePower");
+            StringAssert.Contains(conflicts[0], "cloud.cumuliform.edgePower");
             var layerConflicts = new List<string>();
             List<CloudLayerKey> joined = CloudKeyRegistry.JoinLayers(r.LayerKeys, r, layerConflicts);
             Assert.AreEqual(1, joined.Count);

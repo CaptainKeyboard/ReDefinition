@@ -28,7 +28,7 @@ namespace ReDefinition.Core
         // The cloud cover above the place, 0 to 1.
         public float CloudCover01;
         // The vertical optical depth of the cloud above the place, dimensionless; from the field or from the host's
-        // WeatherHooks.CloudOpticalDepth where EVE's decks are present. SunTransmission.From turns it into a transmission.
+        // WeatherHooks.CloudOpticalDepth where EVE's cloud layers are present. SunTransmission.From turns it into a transmission.
         public float OpticalDepthVertical;
         // The index of the body in FlightGlobals.Bodies.
         public int BodyIndex;

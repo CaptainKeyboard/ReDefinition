@@ -37,8 +37,8 @@ namespace ReDefinition.Atmospheres
             while (n > 1) { n >>= 1; levels++; }
             return levels;
         }
-        // The heap volume (CLOUDR1 P2): null where no type asks for a heap preset or it is not built yet.
-        internal HeapVolumeSet Heap;
+        // The cumuliform volume (CLOUDR1 P2): null where no type asks for a cumuliform preset or it is not built yet.
+        internal CumuliformVolumeSet Cumuliform;
         // The milliseconds the generation took.
         internal double GenerationMs;
         // The mean of the detail volume (0 to 1): what the erosion reads where the distance LOD has dropped the detail.
@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres
                 DetailN = sizes.Detail,
                 CurlN = sizes.Curl,
                 Shape = NoiseVolumes.Shape(sizes.Shape, seed + NoiseVolumes.ShapeSeedOffset),
-                Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset, CloudLookTuning.HeapDetailHurst),
+                Detail = NoiseVolumes.Detail(sizes.Detail, seed + NoiseVolumes.DetailSeedOffset, CloudLookTuning.CumuliformDetailHurst),
                 Curl = NoiseVolumes.Curl(sizes.Curl, seed + NoiseVolumes.CurlSeedOffset)
             };
             set.ShapeMips = NoiseVolumes.ShapeMips(set.Shape, set.ShapeN);
@@ -76,7 +76,7 @@ namespace ReDefinition.Atmospheres
         internal double SphereScale, ReferenceRadiusM;
         // E40 L6 shape: the mip level of the shape volume the layer reads (LayerNoise.SmoothingLod from the cfg key shapeSmoothing; 0: the volume itself, between two levels the two are blended).
         internal double ShapeLod;
-        // The type's smoothing in noise scales (CloudTypeDef.ShapeSmoothing, else the layer's) as the heap read takes it: the heap volume has its own voxels per noise scale, so the shape's mip level
+        // The type's smoothing in noise scales (CloudTypeDef.ShapeSmoothing, else the layer's) as the cumuliform read takes it: the cumuliform volume has its own voxels per noise scale, so the shape's mip level
         // (ShapeLod) does not carry over. 0: none.
         internal double SmoothingScales;
         // P18: the distance the detail has risen along the local up (m).
@@ -89,21 +89,21 @@ namespace ReDefinition.Atmospheres
         internal bool NoDistanceLod;
         // True: no fine octave of the erosion detail.
         internal bool NoFineDetail;
-        // E40 L2 D1 (cfg key fibreStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
+        // E40 L2 D1 (cfg key filamentStretch): the lookup is compressed along the unit axis (AxisX, AxisY, AxisZ) by 1 - Stretch, i.e. the features are 1 / (1 - Stretch) times longer along it;
         // 0: isotropic. The shader's axis is the body's pole (the third row of the world-to-map matrix), (0, 0, 1) in the planet frame of the tests.
         internal double Stretch, AxisX, AxisY, AxisZ;
-        // PUFF (cloud.billow.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
+        // PUFF (cloud.bulge.*): the detail's contrast about its mean minus 1 (0: as it was), the weight of the fine octave (null: NoiseModel.FineDetailWeight) and its frequency
         // (0 or less: NoiseModel.FineDetailFrequency). The gain toward the top and the light tap belong to the shader's density and light march and have no twin here.
-        internal double BillowContrastDelta, FineFrequency;
+        internal double BulgeContrastDelta, FineFrequency;
         internal double? FineWeight;
-        // CLOUDR1 P2: the heap preset the point's type reads (0: the shape volume; HeapModel.PresetOf) and whether the march's spacing adds to the mip level of the heap read (the octaves
-        // below the footprint are dropped, never the ones above it). The twin of the shader's gHeapPreset and _HeapP.y.
-        internal int HeapPreset;
-        internal bool HeapFootLod, HeapIso;
-        // The share of the untiling displacement's horizontal part the heap lookup keeps (0 from a default-constructed set: HeapModel.WarpShare is used only through
+        // CLOUDR1 P2: the cumuliform preset the point's type reads (0: the shape volume; CumuliformModel.PresetOf) and whether the march's spacing adds to the mip level of the cumuliform read (the octaves
+        // below the footprint are dropped, never the ones above it). The twin of the shader's gCumuliformPreset and _CumuliformP.y.
+        internal int CumuliformPreset;
+        internal bool CumuliformFootLod, CumuliformIso;
+        // The share of the untiling displacement's horizontal part the cumuliform lookup keeps (0 from a default-constructed set: CumuliformModel.WarpShare is used only through
         // LayerNoise, so a hand-made set keeps 0 = no displacement unless it sets this).
-        internal double HeapWarpShare;
-        // cloud.noise.blend (CLOUDR1): the shape and heap volumes hide their tiling by BlendedMacro instead of the untiling displacement; the exponent of the blend weights and the lattice cell in periods
+        internal double CumuliformWarpShare;
+        // cloud.noise.blend (CLOUDR1): the shape and cumuliform volumes hide their tiling by BlendedMacro instead of the untiling displacement; the exponent of the blend weights and the lattice cell in periods
         // (0 or less: 8 and 1).
         internal bool Blend;
         internal double BlendExponent, BlendCell;
@@ -148,7 +148,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The point the volumes are read at: the planet-centred point (optionally on the spherical lattice), the layer's offset, minus the
-        // distance the flow has carried the pattern, the fibre stretch along the axis, then the untiling displacement.
+        // distance the flow has carried the pattern, the filament stretch along the axis, then the untiling displacement.
         internal static void LookupPoint(ref NoiseLayerParams prm, double px, double py, double pz, out double qx, out double qy, out double qz)
         {
             double dx, dy, dz;
@@ -207,13 +207,13 @@ namespace ReDefinition.Atmospheres
             return x > 0.0 ? 1.0 - p : p;
         }
 
-        // The macro shape at the UNDISPLACED lookup point (qx, qy, qz) with its tiling hidden (the shader's NoiseBlend): preset 0 the shape volume, 1 and 2 the heap presets. A cubic lattice of
+        // The macro shape at the UNDISPLACED lookup point (qx, qy, qz) with its tiling hidden (the shader's NoiseBlend): preset 0 the shape volume, 1 and 2 the cumuliform presets. A cubic lattice of
         // cells of prm.BlendCell periods; each lattice point has a random offset of the volume (a translation: the strain is exactly 1); the four corners of the Kuhn tetrahedron around the point are
         // read at their offsets, turned into Gaussians, blended with the weights w^e normalised to keep the variance and turned back into a rank (Heitz and Neyret 2018, in 3D). cavity: the cavity
         // channel blended with the plain weights (1 where the preset has none).
         internal static double BlendedMacro(NoiseVolumeSet set, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
         {
-            double periodM = (preset == 0 ? NoiseModel.ShapePeriodScales : HeapModel.PeriodScales) * prm.ScaleM;
+            double periodM = (preset == 0 ? NoiseModel.ShapePeriodScales : CumuliformModel.PeriodScales) * prm.ScaleM;
             double cellP = prm.BlendCell > 0.0 ? prm.BlendCell : 1.0, exponent = prm.BlendExponent > 0.0 ? prm.BlendExponent : 8.0;
             double ux = qx / (periodM * cellP), uy = qy / (periodM * cellP), uz = qz / (periodM * cellP);
             double fx0 = Math.Floor(ux), fy0 = Math.Floor(uy), fz0 = Math.Floor(uz);
@@ -268,7 +268,7 @@ namespace ReDefinition.Atmospheres
                 if ((sb & 4u) != 0u) rz = -rz;
                 double tx = rx + a * periodM, ty = ry + b * periodM, tz = rz + c * periodM, v, cv = 1.0;
                 if (preset == 0) v = ShapeAt(set, ref prm, tx, ty, tz);
-                else v = HeapAt(set.Heap, ref prm, preset, tx, ty, tz, footM, out cv);
+                else v = CumuliformAt(set.Cumuliform, ref prm, preset, tx, ty, tz, footM, out cv);
                 g += w[k] * Probit(v);
                 cav += w[k] * (preset == 1 ? cv : 1.0);
             }
@@ -276,12 +276,12 @@ namespace ReDefinition.Atmospheres
             return Cdf(g * norm);
         }
 
-        // The point the heap volume is read at: the lookup point with the untiling displacement's radial part taken out and HeapModel.WarpShare of its horizontal part kept, and with
-        // prm.HeapIso the lattice's vertical compression (SphereScale) taken back. p is the planet-centred point, q the lookup point and d the displacement LookupPoint returned.
-        internal static void HeapLookup(ref NoiseLayerParams prm, double px, double py, double pz, double qx, double qy, double qz, double dx, double dy, double dz,
+        // The point the cumuliform volume is read at: the lookup point with the untiling displacement's radial part taken out and CumuliformModel.WarpShare of its horizontal part kept, and with
+        // prm.CumuliformIso the lattice's vertical compression (SphereScale) taken back. p is the planet-centred point, q the lookup point and d the displacement LookupPoint returned.
+        internal static void CumuliformLookup(ref NoiseLayerParams prm, double px, double py, double pz, double qx, double qy, double qz, double dx, double dy, double dz,
                                         out double hx, out double hy, out double hz)
         {
-            double r = Math.Sqrt(px * px + py * py + pz * pz), share = prm.HeapWarpShare;
+            double r = Math.Sqrt(px * px + py * py + pz * pz), share = prm.CumuliformWarpShare;
             hx = qx - dx;
             hy = qy - dy;
             hz = qz - dz;
@@ -298,8 +298,8 @@ namespace ReDefinition.Atmospheres
                 hy += share * dy;
                 hz += share * dz;
             }
-            // The lattice's vertical compression taken back (cloud.heap.iso), as the erosion detail reads it.
-            if (prm.HeapIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)
+            // The lattice's vertical compression taken back (cloud.cumuliform.iso), as the erosion detail reads it.
+            if (prm.CumuliformIso && prm.SphereScale != 1.0 && prm.SphereScale > 0.0 && r > 0.0)
             {
                 double back = (1.0 - prm.SphereScale) * (r - prm.ReferenceRadiusM) / r;
                 hx += px * back;
@@ -350,37 +350,37 @@ namespace ReDefinition.Atmospheres
             return a + (Trilinear(set.ShapeMips[below], set.ShapeN >> (below + 1), 1, 0, ux, uy, uz) - a) * f;
         }
 
-        // The macro shape of a heap preset (1 or 2) at a lookup point (0 to 1): the heap volume read trilinear at the mip level of the smoothing (prm.ShapeLod) and, with prm.HeapFootLod,
+        // The macro shape of a cumuliform preset (1 or 2) at a lookup point (0 to 1): the cumuliform volume read trilinear at the mip level of the smoothing (prm.ShapeLod) and, with prm.CumuliformFootLod,
         // of the march's spacing footM (m): the level where the volume's voxel equals the spacing. cavity: the cavity channel there (1: none).
-        internal static double HeapAt(HeapVolumeSet heap, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
+        internal static double CumuliformAt(CumuliformVolumeSet cumuliform, ref NoiseLayerParams prm, int preset, double qx, double qy, double qz, double footM, out double cavity)
         {
-            double period = HeapModel.PeriodScales * prm.ScaleM;
+            double period = CumuliformModel.PeriodScales * prm.ScaleM;
             double ux = qx / period, uy = qy / period, uz = qz / period;
-            // The mip level of the type's smoothing (in noise scales) and, with HeapFootLod, of the march's spacing, in this volume's voxels (N over PeriodScales per noise scale).
+            // The mip level of the type's smoothing (in noise scales) and, with CumuliformFootLod, of the march's spacing, in this volume's voxels (N over PeriodScales per noise scale).
             double lod = 0.0;
-            double voxelsPerScale = heap.N / HeapModel.PeriodScales;
+            double voxelsPerScale = cumuliform.N / CumuliformModel.PeriodScales;
             if (prm.SmoothingScales > 0.0)
             {
                 double v = prm.SmoothingScales * voxelsPerScale;
                 if (v > 1.0) lod = Math.Log(v, 2.0);
             }
-            if (prm.HeapFootLod && footM > 0.0 && prm.ScaleM > 0.0)
+            if (prm.CumuliformFootLod && footM > 0.0 && prm.ScaleM > 0.0)
             {
                 double voxels = footM / prm.ScaleM * voxelsPerScale;
                 if (voxels > 1.0) lod = Math.Max(lod, Math.Log(voxels, 2.0));
             }
-            // The levels below HeapModel.AnalyticLevelMin voxels are box means that are not rank-uniform (the last one is a constant 0.5): the far view's mean takes over beyond the last analytic level.
-            lod = Math.Min(lod, Math.Log(heap.N / (double)HeapModel.AnalyticLevelMin, 2.0));
-            lod = Math.Min(lod, heap.Levels.Length - 1);
+            // The levels below CumuliformModel.AnalyticLevelMin voxels are box means that are not rank-uniform (the last one is a constant 0.5): the far view's mean takes over beyond the last analytic level.
+            lod = Math.Min(lod, Math.Log(cumuliform.N / (double)CumuliformModel.AnalyticLevelMin, 2.0));
+            lod = Math.Min(lod, cumuliform.Levels.Length - 1);
             int below = (int)Math.Floor(lod);
             double f = lod - below;
             int channel = preset - 1, cavChannel = 2 + channel;
-            double a = Trilinear(heap.Levels[below], heap.N >> below, 4, channel, ux, uy, uz);
-            double ca = Trilinear(heap.Levels[below], heap.N >> below, 4, cavChannel, ux, uy, uz);
-            if (f > 0.0 && below + 1 < heap.Levels.Length)
+            double a = Trilinear(cumuliform.Levels[below], cumuliform.N >> below, 4, channel, ux, uy, uz);
+            double ca = Trilinear(cumuliform.Levels[below], cumuliform.N >> below, 4, cavChannel, ux, uy, uz);
+            if (f > 0.0 && below + 1 < cumuliform.Levels.Length)
             {
-                a += (Trilinear(heap.Levels[below + 1], heap.N >> (below + 1), 4, channel, ux, uy, uz) - a) * f;
-                ca += (Trilinear(heap.Levels[below + 1], heap.N >> (below + 1), 4, cavChannel, ux, uy, uz) - ca) * f;
+                a += (Trilinear(cumuliform.Levels[below + 1], cumuliform.N >> (below + 1), 4, channel, ux, uy, uz) - a) * f;
+                ca += (Trilinear(cumuliform.Levels[below + 1], cumuliform.N >> (below + 1), 4, cavChannel, ux, uy, uz) - ca) * f;
             }
             cavity = ca;
             return a;
@@ -467,7 +467,7 @@ namespace ReDefinition.Atmospheres
             double wdx, wdy, wdz;
             LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz, out wdx, out wdy, out wdz);
             double n;
-            if (prm.HeapPreset > 0 && set.Heap != null)
+            if (prm.CumuliformPreset > 0 && set.Cumuliform != null)
             {
                 double cavity;
                 double hx, hy, hz;
@@ -475,14 +475,14 @@ namespace ReDefinition.Atmospheres
                 {
                     // The undisplaced point (the radial part of the displacement is out too), the vertical scale taken back.
                     NoiseLayerParams plain = prm;
-                    plain.HeapWarpShare = 0.0;
-                    HeapLookup(ref plain, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
-                    n = BlendedMacro(set, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
+                    plain.CumuliformWarpShare = 0.0;
+                    CumuliformLookup(ref plain, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
+                    n = BlendedMacro(set, ref prm, prm.CumuliformPreset, hx, hy, hz, footM, out cavity);
                 }
                 else
                 {
-                    HeapLookup(ref prm, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
-                    n = HeapAt(set.Heap, ref prm, prm.HeapPreset, hx, hy, hz, footM, out cavity);
+                    CumuliformLookup(ref prm, px, py, pz, qx, qy, qz, wdx, wdy, wdz, out hx, out hy, out hz);
+                    n = CumuliformAt(set.Cumuliform, ref prm, prm.CumuliformPreset, hx, hy, hz, footM, out cavity);
                 }
             }
             else if (prm.Blend)
@@ -494,7 +494,7 @@ namespace ReDefinition.Atmospheres
             double x = (cov + (n - 0.5) * noiseAmount + coverage - 1.0) / edge + 0.5;
             double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
             if (s <= 0.0 || erosion <= 0.0 || !fine) return s;
-            // The erosion is read only in the soft edge, a closed deck (s = 1) keeps the share 1.
+            // The erosion is read only in the soft edge, a closed cloud layer (s = 1) keeps the share 1.
             if (s >= 1.0) return s;
             double lod = DetailLod(ref prm, footM);
             double d = set.DetailMean;
@@ -526,7 +526,7 @@ namespace ReDefinition.Atmospheres
                 d += (d2 - d) * prm.FineWeightValue;
             }
             // PUFF: the detail's contrast about its mean (0: as it was).
-            if (prm.BillowContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BillowContrastDelta)));
+            if (prm.BulgeContrastDelta != 0.0) d = Math.Min(1.0, Math.Max(0.0, set.DetailMean + (d - set.DetailMean) * (1.0 + prm.BulgeContrastDelta)));
             return Erode(s, d, erosion);
         }
     }

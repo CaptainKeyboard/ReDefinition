@@ -312,7 +312,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0, r.Log.Count(l => l.StartsWith("T09 view begin")), "no timing window");
         }
 
-        // M2c: a pinned view of its own (below the low deck's base, which the series views are inside of).
+        // M2c: a pinned view of its own (below the low stratiform layer's base, which the series views are inside of).
         [TestMethod]
         public void APinnedViewOfItsOwnIsReadFromItsNumbers()
         {

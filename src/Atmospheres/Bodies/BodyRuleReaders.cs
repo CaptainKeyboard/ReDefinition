@@ -153,8 +153,8 @@ namespace ReDefinition.Atmospheres
             return new CloudRules(source, r.Enum("discover", CloudDiscovery.Auto), r.String("baseLayer", ""), r.List("weatherLayers"),
                 r.Has("snowTypeNames") ? r.List("snowTypeNames") : null, r.Has("stratusTypeNames") ? r.List("stratusTypeNames") : null,
                 r.List("dustTypeNames"), r.Int("eveLayerCap", 0, 0, 64), layers, r.Float("sphereScale", 1f, 0.25f, 1f),
-                r.Float("hazeBlue", CloudRules.DefaultHazeBlue, 0f, 1f), r.Float("hazeNearBlue", CloudRules.DefaultHazeNearBlue, 0f, 1f),
-                new Vector3(r.Float("hazeTintR", 1f, 0.1f, 4f), r.Float("hazeTintG", 1f, 0.1f, 4f), r.Float("hazeTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r, (float)metreScale, (float)horizontalScale), scaledDepthM);
+                r.Float("aerialPerspectiveBlue", CloudRules.DefaultAerialPerspectiveBlue, 0f, 1f), r.Float("aerialPerspectiveNearBlue", CloudRules.DefaultAerialPerspectiveNearBlue, 0f, 1f),
+                new Vector3(r.Float("aerialPerspectiveTintR", 1f, 0.1f, 4f), r.Float("aerialPerspectiveTintG", 1f, 0.1f, 4f), r.Float("aerialPerspectiveTintB", 1f, 0.1f, 4f)), layerSet, HeightRules(r, (float)metreScale, (float)horizontalScale), scaledDepthM);
         }
 
         // The keys height* of the CLOUDS node (E40 HKEYS): the numbers of the height variation of the layers (CloudHeightRules). A key that is not a number keeps its default, one outside its range
@@ -261,19 +261,19 @@ namespace ReDefinition.Atmospheres
                 layers.Add(new CloudLayerSpec(name, (float)inner, (float)outer, r.Float("sigmaPerM", 0.03f, 1.0e-6f, 10f), r.Enum("kind", LayerKind.Weather),
                     r.String("group", ""), r.Float("coverage", 1f, 0f, 1f), r.Float("edgeSoftness", 0.15f, 0f, 1f), r.Float("fadeNearM", 0f, 0f, 1.0e9f),
                     r.Float("fadeFarM", float.PositiveInfinity, 0f, float.PositiveInfinity), r.Float("shadowStrength", 1f, 0f, 1f),
-                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", horizontalDepthM, 8000.0, 1.0, 1.0e7, horizontalScale), types) { FairType = r.Float("fairType", -1f, -1f, 1f), Deck = DeckRule(r),
+                    r.Float("noiseAmount", 0.3f, 0f, 1f), (float)Length(r, "noiseScaleM", "noiseScaleDepths", horizontalDepthM, 8000.0, 1.0, 1.0e7, horizontalScale), types) { FairType = r.Float("fairType", -1f, -1f, 1f), LowStratiform = LowStratiformRule(r),
                     SoftnessScale = r.Float("softnessScale", 1f, 0.1f, 10f), WaterPower = r.Float("waterPower", 2f, 0.5f, 6f),
                     LightAmbient =r.Float("lightAmbient", 1f, 0f, 4f),
                     LightIsotropy = r.Float("lightIsotropy", 0f, 0f, 1f), LightPlateau = r.Float("lightPlateau", 0f, 0f, 4f),
                     AmbientMs = r.Float("ambientMs", CloudLayerDef.DefaultAmbientMs, 0f, 20f), AmbientDecay = r.Float("ambientDecay", CloudLayerDef.DefaultAmbientDecay, 0f, 2f),
                     LightCellWidth = (float)Length(r, "lightCellWidth", "lightCellWidthDepths", horizontalDepthM, 0.0, 0.0, 1.0e6, horizontalScale),
-                    RainType = r.Float("rainType", 1f, 0f, 1f), FibreStretch = r.Float("fibreStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
+                    RainType = r.Float("rainType", 1f, 0f, 1f), FilamentStretch = r.Float("filamentStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
                     CellPitchM = (float)Length(r, "cellPitch", "cellPitchDepths", horizontalDepthM, 0.0, 0.0, 1.0e6, horizontalScale),
-                    CellBillow = r.Float("cellBillow", CloudLayerDef.DefaultCellBillow, 0f, 2f), CellBandM = s * r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
+                    CellBulge = r.Float("cellBulge", CloudLayerDef.DefaultCellBulge, 0f, 2f), CellBandM = s * r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
                     CellFine = r.Float("cellFine", CloudLayerDef.DefaultCellFine, 0f, 4f),
-                    FibreMinWindMs = r.Float("fibreMinWindMs", FibreAxis.DefaultMinWindMs, 0f, 100f),
-                    FibreTurnSeconds = r.Float("fibreTurnSeconds", FibreAxis.DefaultTurnSeconds, 0f, 3600f),
+                    FilamentMinWindMs = r.Float("filamentMinWindMs", FilamentAxis.DefaultMinWindMs, 0f, 100f),
+                    FilamentTurnSeconds = r.Float("filamentTurnSeconds", FilamentAxis.DefaultTurnSeconds, 0f, 3600f),
                     TopReach = r.Float("topReach", 0f, 0f, 1f),
                     TopRefMs = r.Float("topRefMs", 1.2f, -50f, 100f),
                     TopFullMs = r.Float("topFullMs", 6f, 0.1f, 200f),
@@ -290,24 +290,24 @@ namespace ReDefinition.Atmospheres
             return layers;
         }
 
-        // The layer's deck rule (WeatherDeckRule): null without deckRule = 1, else the defaults with the keys of the layer's node.
-        private static WeatherDeckRule DeckRule(BodyNodeReader r)
+        // The layer's low stratiform rule (WeatherLowStratiformRule): null without lowStratiformRule = 1, else the defaults with the keys of the layer's node.
+        private static WeatherLowStratiformRule LowStratiformRule(BodyNodeReader r)
         {
-            if (r.Float("deckRule", 0f, 0f, 1f) < 0.5f) return null;
-            WeatherDeckRule d = WeatherDeckRule.Defaults;
-            return new WeatherDeckRule
+            if (r.Float("lowStratiformRule", 0f, 0f, 1f) < 0.5f) return null;
+            WeatherLowStratiformRule d = WeatherLowStratiformRule.Defaults;
+            return new WeatherLowStratiformRule
             {
-                FogSpreadK = r.Float("deckFogSpreadK", d.FogSpreadK, 0f, 50f),
-                FogSpreadBandK = r.Float("deckFogSpreadBandK", d.FogSpreadBandK, 0f, 50f),
-                FogWindMs = r.Float("deckFogWindMs", d.FogWindMs, 0f, 100f),
-                FogWindBandMs = r.Float("deckFogWindBandMs", d.FogWindBandMs, 0f, 100f),
-                PrecipFrom = r.Float("deckPrecipFrom", d.PrecipFrom, 0f, 1f),
-                PrecipFullAt = r.Float("deckPrecipFullAt", d.PrecipFullAt, 0f, 1f),
-                FogType = r.Float("deckFogType", d.FogType, 0f, 1f),
-                PrecipType = r.Float("deckPrecipType", d.PrecipType, 0f, 1f),
-                Fog = r.Float("deckFog", d.Fog ? 1f : 0f, 0f, 1f) >= 0.5f,
-                RainFloor = r.Float("deckRainFloor", d.RainFloor, 0f, 1f),
-                RainFloorFullAt = r.Float("deckRainFloorFullAt", d.RainFloorFullAt, 0f, 1f)
+                FogSpreadK = r.Float("lowStratiformFogSpreadK", d.FogSpreadK, 0f, 50f),
+                FogSpreadBandK = r.Float("lowStratiformFogSpreadBandK", d.FogSpreadBandK, 0f, 50f),
+                FogWindMs = r.Float("lowStratiformFogWindMs", d.FogWindMs, 0f, 100f),
+                FogWindBandMs = r.Float("lowStratiformFogWindBandMs", d.FogWindBandMs, 0f, 100f),
+                PrecipFrom = r.Float("lowStratiformPrecipFrom", d.PrecipFrom, 0f, 1f),
+                PrecipFullAt = r.Float("lowStratiformPrecipFullAt", d.PrecipFullAt, 0f, 1f),
+                FogType = r.Float("lowStratiformFogType", d.FogType, 0f, 1f),
+                PrecipType = r.Float("lowStratiformPrecipType", d.PrecipType, 0f, 1f),
+                Fog = r.Float("lowStratiformFog", d.Fog ? 1f : 0f, 0f, 1f) >= 0.5f,
+                RainFloor = r.Float("lowStratiformRainFloor", d.RainFloor, 0f, 1f),
+                RainFloorFullAt = r.Float("lowStratiformRainFloorFullAt", d.RainFloorFullAt, 0f, 1f)
             };
         }
 
@@ -333,18 +333,18 @@ namespace ReDefinition.Atmospheres
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
                 DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),
                 BaseLight = r.Float("baseLight", 1f, 0f, 4f),
-                HeadLight = r.Float("headLight", 1f, 0f, 4f),
+                TopLight = r.Float("topLight", 1f, 0f, 4f),
                 BaseAmbient = r.Float("baseAmbient", 1f, 0f, 4f),
-                HeadAmbient = r.Float("headAmbient", 1f, 0f, 4f),
+                TopAmbient = r.Float("topAmbient", 1f, 0f, 4f),
                 Lift = ProfileCurve(r.Child("LIFT"), "lift"),
                 ShapeSmoothing = r.Float("shapeSmoothing", -1f, -1f, 8f),
-                Heap = HeapModel.PresetOf(r.String("heap", "none")),
+                Cumuliform = CumuliformModel.PresetOf(r.String("cumuliform", "none")),
                 EdgePower = r.Float("edgePower", 0f, 0f, 6f),
                 Cavity = r.Float("cavity", 0f, 0f, 1f),
-                Puff = CloudField.ClassOf(r.String("puff", "none")),
+                Form = CloudField.ClassOf(r.String("form", "none")),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
-                RollAmount = r.Float("rollAmount", 0f, 0f, 1f),
+                UndulatusAmount = r.Float("undulatusAmount", 0f, 0f, 1f),
                 Climate = Climate(r.Child("CLIMATE"))
             };
         }
@@ -416,8 +416,8 @@ namespace ReDefinition.Atmospheres
 
         internal static LookRules Look(BodyNodeReader r)
         {
-            return new LookRules(r.Colour("fogColour"), r.Float("visibilityMinM", 60f, 1f, 100000f), r.Colour("veilGroundColour"), r.Colour("veilSkyColour"),
-                r.Colour("flakeColour"));
+            return new LookRules(r.Colour("visibilityExtinctionColour"), r.Float("visibilityMinM", 60f, 1f, 100000f), r.Colour("precipExtinctionGroundColour"), r.Colour("precipExtinctionSkyColour"),
+                r.Colour("hydrometeorColour"));
         }
 
         internal static SoundRules Sound(BodyNodeReader r)

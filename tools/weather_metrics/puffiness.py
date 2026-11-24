@@ -1,4 +1,4 @@
-"""Puffiness of a cloud picture (package PUFF, 2026-11-15): how much small-scale billowy detail the cloud pixels carry.
+"""Puffiness of a cloud picture (package PUFF, 2026-11-15): how much small-scale bulging detail the cloud pixels carry.
 
 The cloud mask is the colour distance of the picture to the same view without clouds (the no-cloud frame of the series; e40pp's mask rule). Three groups of numbers:
 

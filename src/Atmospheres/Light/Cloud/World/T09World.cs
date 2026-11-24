@@ -39,7 +39,7 @@ namespace ReDefinition.Atmospheres
         // the layer's map); empty where the pass has no stack.
         System.Collections.Generic.IList<T09DrawnLayer> OwnDrawnLayers();
         // Own layer l's coverage at a place for a universal time the clock need not stand at: the generator's own layer lookup (LayerCoupling.Coverage at the layer's height,
-        // the function the layer maps are made of), a deck layer (the weather deck rule) only where precipitation falls, at most the column's cover (the combination scales
+        // the function the layer maps are made of), a low stratiform layer (the low stratiform rule) only where precipitation falls, at most the column's cover (the combination scales
         // the layers down to it). Without the meso pattern, the cells and the fog rule: a forecast to rank times by, not what is drawn. NaN where the field cannot answer.
         double ForecastLayerCover(int layer, double latDeg, double lonDeg, double ut);
         // Own layer l's coverage at a place as the pass holds it now (the CPU mirror of the maps it draws, every rule applied); NaN where there is no stack.
@@ -605,7 +605,7 @@ namespace ReDefinition.Atmospheres
             double cover = AtmoSim.Core.LayerCoupling.Coverage(s.Generator, latDeg * Math.PI / 180.0, lonDeg * Math.PI / 180.0, ut, CloudBridgeStack.MidHeightM(def), LayerWindOptions.Layers());
             WeatherSample column;
             if (!WeatherHub.Sample(body.flightGlobalsIndex, latDeg, lonDeg, 0.0, ut, out column)) return double.NaN;
-            if (CloudLookTuning.DeckRuleOf(def.Name, def.Deck) != null && column.Level01 <= 0f) return 0.0;
+            if (CloudLookTuning.LowStratiformRuleOf(def.Name, def.LowStratiform) != null && column.Level01 <= 0f) return 0.0;
             return Math.Min(cover, column.CloudCover01);
         }
 

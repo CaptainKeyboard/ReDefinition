@@ -282,7 +282,7 @@ def weather_types():
     return [slab_type("stratus", 0.0, 0.3, STRATUS, 0.2), slab_type("cumulus", 0.0, 0.65, CUMULUS, 0.5), slab_type("cumulonimbus", 0.0, 1.0, ANVIL, 0.6)]
 
 
-def deck(inner=1000.0, outer=3000.0, sigma=0.012, coverage=0.62, name="deck"):
+def stratiform_layer(inner=1000.0, outer=3000.0, sigma=0.012, coverage=0.62, name="layer"):
     return layer(inner, outer, sigma, weather_types(), coverage=coverage, softness=0.18, cov_map="view-coverage.r8", type_map="view-type.r8", noise=0.45,
                  noise_scale=700.0, name=name)
 
@@ -294,7 +294,7 @@ def cirrus():
 
 def view_site():
     """A place (lat, lon in degrees) where the view table's coverage map clouds about 60 % of the sky within 3.5 degrees (a broken field,
-    not a hole and not a solid deck): the first of the candidates on a 5 degree grid whose covered share is nearest to 0.6 at coverage 0.62."""
+    not a hole and not a solid cloud layer): the first of the candidates on a 5 degree grid whose covered share is nearest to 0.6 at coverage 0.62."""
     grid = pr.value_noise_map(21)
     best, best_err = (0.0, 0.0), 9.0
     for lat in range(-30, 31, 5):
@@ -319,12 +319,12 @@ def picture_jobs():
                          stepGrowth=0.0002, jitter=0.0, earlyOut=0.01, sunSteps=4, mapWidth=MAP_W, mapHeight=MAP_H, **kw))
 
     site = view_site()
-    add("ground", site, 2.0, 14.0, 0.0, [deck()])
-    add("inside", site, 2000.0, 8.0, 0.0, [deck()])
-    add("above", site, 8000.0, -14.0, 0.0, [deck()])
-    add("orbit-edge", site, 350000.0, -48.0, 0.0, [deck(), cirrus()], fov=70.0)
-    add("stack-below", site, 2.0, 30.0, 0.0, [deck(1000.0, 2400.0, 0.014, 0.45), cirrus()])
-    add("stack-above", site, 12000.0, -20.0, 0.0, [deck(1000.0, 2400.0, 0.014, 0.45), cirrus()])
+    add("ground", site, 2.0, 14.0, 0.0, [stratiform_layer()])
+    add("inside", site, 2000.0, 8.0, 0.0, [stratiform_layer()])
+    add("above", site, 8000.0, -14.0, 0.0, [stratiform_layer()])
+    add("orbit-edge", site, 350000.0, -48.0, 0.0, [stratiform_layer(), cirrus()], fov=70.0)
+    add("stack-below", site, 2.0, 30.0, 0.0, [stratiform_layer(1000.0, 2400.0, 0.014, 0.45), cirrus()])
+    add("stack-above", site, 12000.0, -20.0, 0.0, [stratiform_layer(1000.0, 2400.0, 0.014, 0.45), cirrus()])
     return views
 
 
@@ -552,7 +552,7 @@ LOOK_MEAN_LIMIT = 0.012    # [proposed, new] the mean absolute difference of the
 def look_jobs():
     jobs = []
     bases = picture_jobs()
-    # The hill: the inside view (2 km, in the deck) with a sphere 3 km ahead at the camera's height, radius 900 m, whose depth limits the
+    # The hill: the inside view (2 km, in the cloud layer) with a sphere 3 km ahead at the camera's height, radius 900 m, whose depth limits the
     # march: cloud lies in front of it and behind it, and the depth-aware composite of a lower march resolution has an edge to keep.
     inside = [b for b in bases if b["id"] == "V-inside"][0]
     hill = json.loads(json.dumps(inside))

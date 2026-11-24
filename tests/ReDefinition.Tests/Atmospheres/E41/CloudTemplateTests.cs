@@ -131,7 +131,7 @@ namespace ReDefinition.Tests.Atmospheres.E41
         }
 
         [TestMethod]
-        public void TheDeckThickensWithTheLevelAndEveryTypeIsOneTheRolesFind()
+        public void TheLayerThickensWithTheLevelAndEveryTypeIsOneTheRolesFind()
         {
             ConfigNode[] items = Volume(VolumeObject("Kerbin")).GetNode("cloudTypes").GetNodes("Item");
             float[] mins = items.Select(i => (float)Num(i.GetValue("minAltitude"))).ToArray();
@@ -144,12 +144,12 @@ namespace ReDefinition.Tests.Atmospheres.E41
             for (int i = 0; i <= 20; i++)
             {
                 float level = i / 20f;
-                float thickness = CloudTypeEncoding.DeckThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, level, false));
-                Assert.IsTrue(thickness >= previous - 1e-3f, "the deck does not thin out as the level rises (level " + level + ")");
+                float thickness = CloudTypeEncoding.LayerThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, level, false));
+                Assert.IsTrue(thickness >= previous - 1e-3f, "the layer does not thin out as the level rises (level " + level + ")");
                 previous = thickness;
             }
-            Assert.AreEqual(300f, CloudTypeEncoding.DeckThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, 0.1f, false)), 1f);
-            Assert.AreEqual(2000f, CloudTypeEncoding.DeckThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, 0.95f, false)), 1f);
+            Assert.AreEqual(300f, CloudTypeEncoding.LayerThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, 0.1f, false)), 1f);
+            Assert.AreEqual(2000f, CloudTypeEncoding.LayerThicknessM(mins, maxs, CloudTypeEncoding.Value(slots, 0.95f, false)), 1f);
         }
 
         [TestMethod]

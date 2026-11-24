@@ -323,7 +323,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Drive(r);
             Assert.IsTrue(r.Probe.Passed, Dump(r));
             // cb_far: the camera 5 degrees up over a horizon about 1.8 degrees down: the horizon row is 0.40 from the bottom, the last measure was given it plus the margin;
-            // the last view is a deck from 90 m at 45 degrees: the horizon is far below the frame.
+            // the last view is a low stratiform layer from 90 m at 45 degrees: the horizon is far below the frame.
             Assert.AreEqual(0.0, r.Rig.LastSkyFromV, 1e-9, "no ground in the last view's frame");
             double row = PictureMask.HorizonRow(5.0, 60.0, 300.0, 600000.0);
             Assert.AreEqual(0.397, row, 0.005);

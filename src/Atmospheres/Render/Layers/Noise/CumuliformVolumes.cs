@@ -4,32 +4,32 @@ using System.Threading.Tasks;
 
 namespace ReDefinition.Atmospheres
 {
-    // The constants of the heap volume (package CLOUDR1, P2 and P3). tools/weather_metrics/noise_model.py holds the same numbers (gen_heap).
-    internal static class HeapModel
+    // The constants of the cumuliform volume (package CLOUDR1, P2 and P3). tools/weather_metrics/noise_model.py holds the same numbers (gen_cumuliform).
+    internal static class CumuliformModel
     {
         // The cell counts per period of the octaves: FirstCells * 2^k (lacunarity 2, so the cascade is self-similar), up to the octave whose cell is MinOctaveVoxels voxels wide.
         internal const int FirstCells = 2;
-        // The period of the heap volume in noise scales: half the shape volume's (16), so its largest lobe is 4 scales (1 km at a scale of 250 m) and its finest cell, 4 voxels wide at 64 voxels,
+        // The period of the cumuliform volume in noise scales: half the shape volume's (16), so its largest lobe is 4 scales (1 km at a scale of 250 m) and its finest cell, 4 voxels wide at 64 voxels,
         // half a scale (125 m). A 2 km lobe (the largest cell at the shape volume's period) let the volume's own low frequencies decide where a km-wide patch is cloud: the weather map decides that.
         internal const double PeriodScales = 8.0;
-        // The share of the untiling displacement's horizontal part the heap lookup keeps (its radial part is dropped): the displacement stretches what it moves, as worms along the ground and as columns.
+        // The share of the untiling displacement's horizontal part the cumuliform lookup keeps (its radial part is dropped): the displacement stretches what it moves, as worms along the ground and as columns.
         internal const double WarpShare = 0.5;
         internal const int MinOctaveVoxels = 4;
         // The dome radius round a feature point, in cells of the octave, and the width of the polynomial smooth maximum that joins the domes of neighbouring cells (a crease forms
         // between two lobes).
         internal const double DomeRadius = 0.9;
         internal const double SmoothWidth = 0.15;
-        // The Hurst exponent of the cascade of preset 1 (billow) and preset 2 (rough): octave k has the weight 2^(-H k), so the outline of a level set of the field has the
+        // The Hurst exponent of the cascade of preset 1 (bulge) and preset 2 (rough): octave k has the weight 2^(-H k), so the outline of a level set of the field has the
         // dimension 2 - H (1.35 and 1.55); the power spectrum of a slice falls as k^-(2 H + 2).
         internal static readonly double[] Hurst = { 0.65, 0.45 };
-        internal static readonly string[] PresetNames = { "none", "billow", "rough" };
+        internal static readonly string[] PresetNames = { "none", "bulge", "rough" };
         // The cavity channel: 1 - gain x max(blur - field, 0), the blur a box of (2 r + 1)^3 voxels with r = N / 32 (at least 1).
         internal const double CavityGain = 3.0;
         // The levels below this size (voxels per side) are box means of the level above; the levels above hold the octaves whose cell is at least MinOctaveVoxels wide there.
         internal const int AnalyticLevelMin = 8;
         internal const int PresetCount = 2;
 
-        // 0 (none) for an unknown name, 1 billow, 2 rough.
+        // 0 (none) for an unknown name, 1 bulge, 2 rough.
         internal static int PresetOf(string name)
         {
             if (string.IsNullOrEmpty(name)) return 0;
@@ -47,10 +47,10 @@ namespace ReDefinition.Atmospheres
         }
     }
 
-    // The heap volume: the macro shape of a cumulus as a cascade of heaps on heaps (package CLOUDR1 P2), plus its cavity (P3). One RGBA8 volume of N^3 voxels with a mip chain: R the
-    // heap field of preset 1, G of preset 2, B the cavity of preset 1, A of preset 2. The presets are channels of one volume (not slabs of an atlas: the mips of a slab atlas would
+    // The cumuliform volume: the macro shape of a cumulus as a cascade of mounds on mounds (package CLOUDR1 P2), plus its cavity (P3). One RGBA8 volume of N^3 voxels with a mip chain: R the
+    // cumuliform field of preset 1, G of preset 2, B the cavity of preset 1, A of preset 2. The presets are channels of one volume (not slabs of an atlas: the mips of a slab atlas would
     // average neighbouring slabs and the wrap in z would blend them), so one fetch reads a preset's field and its cavity together.
-    internal sealed class HeapVolumeSet
+    internal sealed class CumuliformVolumeSet
     {
         internal int N;
         // Level m (size N >> m) as RGBA bytes; Levels[0] is the volume itself, the chain ends at 1 x 1 x 1.
@@ -67,43 +67,43 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        internal static HeapVolumeSet Generate(int n, uint seed)
+        internal static CumuliformVolumeSet Generate(int n, uint seed)
         {
             var watch = Stopwatch.StartNew();
-            var set = new HeapVolumeSet { N = n, Levels = HeapVolumes.Generate(n, seed) };
+            var set = new CumuliformVolumeSet { N = n, Levels = CumuliformVolumes.Generate(n, seed) };
             set.GenerationMs = watch.Elapsed.TotalMilliseconds;
             return set;
         }
     }
 
-    // The generator of the heap volume.
+    // The generator of the cumuliform volume.
     //
-    // Technique: the rounded heaps of the shape volume are domes sqrt(1 - (f1 / R)^2) round jittered feature points (Worley, "A cellular texture basis function", SIGGRAPH 1996, for the
+    // Technique: the rounded mounds of the shape volume are domes sqrt(1 - (f1 / R)^2) round jittered feature points (Worley, "A cellular texture basis function", SIGGRAPH 1996, for the
     // points; the dome profile and the smooth maximum of Quilez, "Smooth minimum", iquilezles.org, as the join), summed over octaves of doubled frequency with the weights 2^(-H k) (the
     // spectral synthesis of fractional Brownian fields, Mandelbrot and Van Ness 1968; Musgrave et al. in "Texturing and Modeling"), and rank-equalised like the shape volume. The
-    // shape-by-type with a volume of heap structure follows Schneider, "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015, and "Nubis", SIGGRAPH 2017 and 2022;
+    // shape-by-type with a volume of cumuliform structure follows Schneider, "The real-time volumetric cloudscapes of Horizon Zero Dawn", SIGGRAPH 2015, and "Nubis", SIGGRAPH 2017 and 2022;
     // the cavity channel is the baked ambient occlusion of such a volume. The code is the project's own.
-    internal static class HeapVolumes
+    internal static class CumuliformVolumes
     {
         // The levels of the volume of size n, RGBA bytes each.
         internal static byte[][] Generate(int n, uint seed)
         {
             int levels = NoiseVolumeSet.MipLevels(n);
             var result = new byte[levels][];
-            var fields = new double[HeapModel.PresetCount][];
-            for (int p = 0; p < HeapModel.PresetCount; p++) fields[p] = HeapField(n, HeapModel.Hurst[p], seed + 17u * (uint)p);
-            var cavity = new double[HeapModel.PresetCount][];
-            for (int p = 0; p < HeapModel.PresetCount; p++) cavity[p] = Cavity(fields[p], n);
+            var fields = new double[CumuliformModel.PresetCount][];
+            for (int p = 0; p < CumuliformModel.PresetCount; p++) fields[p] = CumuliformField(n, CumuliformModel.Hurst[p], seed + 17u * (uint)p);
+            var cavity = new double[CumuliformModel.PresetCount][];
+            for (int p = 0; p < CumuliformModel.PresetCount; p++) cavity[p] = Cavity(fields[p], n);
             result[0] = Pack(fields, cavity);
             int size = n;
             for (int m = 1; m < levels; m++)
             {
                 int half = size / 2;
-                var nextFields = new double[HeapModel.PresetCount][];
-                var nextCavity = new double[HeapModel.PresetCount][];
-                for (int p = 0; p < HeapModel.PresetCount; p++)
+                var nextFields = new double[CumuliformModel.PresetCount][];
+                var nextCavity = new double[CumuliformModel.PresetCount][];
+                for (int p = 0; p < CumuliformModel.PresetCount; p++)
                 {
-                    nextFields[p] = half >= HeapModel.AnalyticLevelMin ? HeapField(half, HeapModel.Hurst[p], seed + 17u * (uint)p) : Equalize(Mean8(fields[p], size));
+                    nextFields[p] = half >= CumuliformModel.AnalyticLevelMin ? CumuliformField(half, CumuliformModel.Hurst[p], seed + 17u * (uint)p) : Equalize(Mean8(fields[p], size));
                     nextCavity[p] = Mean8(cavity[p], size);
                 }
                 fields = nextFields;
@@ -114,16 +114,16 @@ namespace ReDefinition.Atmospheres
             return result;
         }
 
-        // The shape volume's levels with the heap's: RGBA bytes per level, r the shape (level 0 and its re-equalised mips), g the heap field of preset 1, b of preset 2, a the cavity of preset 1.
+        // The shape volume's levels with the cumuliform's: RGBA bytes per level, r the shape (level 0 and its re-equalised mips), g the cumuliform field of preset 1, b of preset 2, a the cavity of preset 1.
         // One texture and one sampler for both, because the layer pass has no sampler register left (ps_4_0 allows 16).
-        internal static byte[][] MergeWithShape(byte[] shape, byte[][] shapeMips, HeapVolumeSet heap)
+        internal static byte[][] MergeWithShape(byte[] shape, byte[][] shapeMips, CumuliformVolumeSet cumuliform)
         {
-            var levels = new byte[heap.Levels.Length][];
+            var levels = new byte[cumuliform.Levels.Length][];
             for (int m = 0; m < levels.Length; m++)
             {
                 byte[] s = m == 0 ? shape : shapeMips[m - 1];
-                byte[] h = heap.Levels[m];
-                if (s.Length * 4 != h.Length) throw new ArgumentException("the shape and heap levels differ in size at level " + m);
+                byte[] h = cumuliform.Levels[m];
+                if (s.Length * 4 != h.Length) throw new ArgumentException("the shape and cumuliform levels differ in size at level " + m);
                 var merged = new byte[h.Length];
                 for (int i = 0; i < s.Length; i++)
                 {
@@ -156,10 +156,10 @@ namespace ReDefinition.Atmospheres
             return (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(v * 255.0, MidpointRounding.ToEven)));
         }
 
-        // The ranked heap field of a level of `size` voxels per side: the octaves that level holds, summed with the weights 2^(-hurst k), then equalised (ties share their mean rank).
-        internal static double[] HeapField(int size, double hurst, uint seed)
+        // The ranked cumuliform field of a level of `size` voxels per side: the octaves that level holds, summed with the weights 2^(-hurst k), then equalised (ties share their mean rank).
+        internal static double[] CumuliformField(int size, double hurst, uint seed)
         {
-            int[] octaves = HeapModel.Octaves(size);
+            int[] octaves = CumuliformModel.Octaves(size);
             var total = new double[size * size * size];
             Parallel.For(0, size, z =>
             {
@@ -190,10 +190,10 @@ namespace ReDefinition.Atmospheres
                         double a, b, c;
                         NoiseHash.Vec(NoiseHash.Hash3(NoiseHash.Mod(cx, cells), NoiseHash.Mod(cy, cells), NoiseHash.Mod(cz, cells), seed), out a, out b, out c);
                         double ex = cx + a - px, ey = cy + b - py, ez = cz + c - pz;
-                        double r = Math.Sqrt(ex * ex + ey * ey + ez * ez) / HeapModel.DomeRadius;
+                        double r = Math.Sqrt(ex * ex + ey * ey + ez * ez) / CumuliformModel.DomeRadius;
                         double dome = Math.Sqrt(Math.Max(0.0, 1.0 - r * r));
                         if (first) { acc = dome; first = false; }
-                        else acc = SmoothMax(acc, dome, HeapModel.SmoothWidth);
+                        else acc = SmoothMax(acc, dome, CumuliformModel.SmoothWidth);
                     }
             return acc;
         }
@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
             var cavity = new double[field.Length];
             for (int i = 0; i < cavity.Length; i++)
             {
-                double c = 1.0 - HeapModel.CavityGain * Math.Max(blur[i] - field[i], 0.0);
+                double c = 1.0 - CumuliformModel.CavityGain * Math.Max(blur[i] - field[i], 0.0);
                 cavity[i] = c < 0.0 ? 0.0 : c > 1.0 ? 1.0 : c;
             }
             return cavity;

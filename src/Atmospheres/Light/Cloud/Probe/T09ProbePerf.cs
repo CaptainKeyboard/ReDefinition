@@ -9,10 +9,10 @@ namespace ReDefinition.Atmospheres
     // mode reads "reconstruct" because recon.accumulate is above 0, see ExpectedMode) and the same pass with ONE thing switched off or changed, each variant on the five views:
     //   noero      cloud.light.erosion 0 (the sun's march reads no eroded density)
     //   noblend    cloud.noise.blend 0 (no four-tap blended noise read, the untiling displacement again)
-    //   noheap     the heap volume off on the cumulus layer only (edgePower stays; the cavity goes with the heap, it acts only on a type that reads one)
+    //   nocumuliform     the cumuliform volume off on the cumulus layer only (edgePower stays; the cavity goes with the cumuliform, it acts only on a type that reads one)
     //   nocatmull  recon.catmull 0 (bilinear history)
     //   g48        48 grid points (cloudSamples 48)
-    //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, heap 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
+    //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, cumuliform 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
     //   noshadow   cloudShadows 0
     //   norays     rtOwnClouds 0 (the ray-side pack; in the K-T2 starts raytracing is Off, so nothing asks for the pack (RtOwnClouds.Tick releases it) and this equals plain: a drift control)
     //   nolight    layers.costDebug 1 (no light march; cost attribution, the picture is wrong)
@@ -67,7 +67,7 @@ namespace ReDefinition.Atmospheres
             {
                 case "noero":
                 case "noblend":
-                case "noheap":
+                case "nocumuliform":
                 case "nocatmull":
                 case "g48":
                 case "prev":
@@ -163,7 +163,7 @@ namespace ReDefinition.Atmospheres
                 case "hnotd":
                 case "hnotri":
                 case "bnowb":
-                case "bnohaze":
+                case "bnoaerial":
                 case "sg5e4":
                 case "sg2e4":
                 case "sgfrom2k":
@@ -232,7 +232,7 @@ namespace ReDefinition.Atmospheres
             {
                 case "noero": ForceTuning(CloudLookTuning.TuneLightErosion, 0f); break;
                 case "noblend": ForceTuning(CloudLookTuning.TuneNoiseBlend, 0f); break;
-                case "noheap": ForceTuning(CloudLookTuning.TuneHeapLayer + CumulusLayer(), 0f); break;
+                case "nocumuliform": ForceTuning(CloudLookTuning.TuneCumuliformLayer + CumulusLayer(), 0f); break;
                 case "nocatmull": ForceTuning(OwnCloudOptions.TuneCatmull, 0f); break;
                 case "g48": SetSetting(AtmospheresSettings.Keys.CloudSamples, 48.0); break;
                 case "prev":
@@ -241,7 +241,7 @@ namespace ReDefinition.Atmospheres
                         ForceTuning(CloudLookTuning.TuneNoiseBlend, 0f);
                         ForceTuning(CloudLookTuning.TuneLightErosion, 0f);
                         ForceTuning(OwnCloudOptions.TuneCatmull, 0f);
-                        ForceTuning(CloudLookTuning.TuneHeapLayer + cumulus, 0f);
+                        ForceTuning(CloudLookTuning.TuneCumuliformLayer + cumulus, 0f);
                         ForceTuning(CloudLookTuning.TuneEdgePowerLayer + cumulus, 2f);
                         ForceTuning(CloudLookTuning.TuneCavityLayer + cumulus, 0f);
                         SetSetting(AtmospheresSettings.Keys.CloudSamples, 48.0);
@@ -461,9 +461,9 @@ namespace ReDefinition.Atmospheres
                 case "hclip1": ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault); break;
                 case "hnotd": ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f); break;
                 case "hnotri": ForceTuning(OwnCloudOptions.TuneMarchTriangle, OwnCloudOptions.MarchTriangleDefault ? 1f : 0f); break;
-                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.hazeStrength 0).
+                // The band hunt (owner "fix what you see"): the scene's white balance off (setting sceneWhiteBalance 0) and the clouds' aerial perspective off (cloud.aerialPerspectiveStrength 0).
                 case "bnowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
-                case "bnohaze": ForceTuning(CloudLookTuning.TuneHazeStrength, 0f); break;
+                case "bnoaerial": ForceTuning(CloudLookTuning.TuneAerialPerspectiveStrength, 0f); break;
                 // The storm's ground view below 48 fps (PRUEFPROTOKOLL 76/77): points by distance put many short steps into the fog near the camera (fpnosg 53 fps ground but 46
                 // above). sg5e4 / sg2e4 a weaker growth (layers.spanGrowthPerM 0.0005 / 0.0002), sgfrom2k the growth from 2 km on (layers.spanGrowthFromM 2000), sgstep12 the fast
                 // growth with the shortest step 12 m (layers.minStepM; the look's 6 m).

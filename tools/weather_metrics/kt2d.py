@@ -5,14 +5,14 @@
   python tools/weather_metrics/kt2d.py --selftest
 
 The probe (src/Atmospheres/Light/Cloud/Probe/T09ProbeDiag.cs) writes ATMORESULT lines T09d.<view>.<cover>.<gain>.<stat> (raw luminance of the camera
-target in three regions: sky above the horizon, sunlit sea or ground below it, the deck the pass changed against the baseline). This script adds, per
+target in three regions: sky above the horizon, sunlit sea or ground below it, the cloud layer the pass changed against the baseline). This script adds, per
 view and cover, three numbers that read the units without a constant fit, and a table in the report:
 
-  T09d.<view>.<cover>.reach_gain   the sun gain at which the deck would reach the baseline sky under proportional growth: 1 / deck_over_off_sky(gain 1)
-  T09d.<view>.<cover>.slope        the exponent of the deck median against the gain over the gains that stay below the clip: 1.0 means proportional
+  T09d.<view>.<cover>.reach_gain   the sun gain at which the cloud layer would reach the baseline sky under proportional growth: 1 / cloud_over_off_sky(gain 1)
+  T09d.<view>.<cover>.slope        the exponent of the cloud median against the gain over the gains that stay below the clip: 1.0 means proportional
                                    (the pass's radiance is all there is), near 0 means something after the pass clamps or replaces it
   T09d.<view>.<cover>.verdict      1 prediction A (units or composition; nothing clamps: slope 0.8 to 1.2), -1 prediction B (slope under 0.5), 0 between
-                                   or not measurable (no deck, or every gain clipped)
+                                   or not measurable (no cloud layer, or every gain clipped)
 
 The expected values are in tests/series/K-T2d.json (description) and the rows of tests/series/rows/T09.json. Stdlib only.
 """
@@ -70,7 +70,7 @@ def layers_table(values, view, cover, region, get, add, notes):
       L<k>.closed_p1 / closed_c35      the picture's closed share of the region with only layer k drawn
       L<k>.closed_minus_model_p1       the drawn closed share minus the model's at the CPU map value (a layer whose map the pass reads as the CPU does: near 0)
       L<k>.gpu_minus_cpu               the pass's map value minus the CPU readers' (the uploaded bytes at the vessel's place)
-      sheet_layer                      the layer whose own closed share is the highest at shift 0 (-1: none measured)
+      stratiform_layer                      the layer whose own closed share is the highest at shift 0 (-1: none measured)
       gpu_matches_cpu                  1 when every layer's GPU and pass-sample map are within GPU_TOLERANCE of the CPU map, -1 when one is not, absent without GPU rows
     """
     def row(k, stat):
@@ -84,8 +84,8 @@ def layers_table(values, view, cover, region, get, add, notes):
     lines = []
     for k in ks:
         p1, c35 = get("only%d" % k, "%s_closed_share" % region), get("only%dc35" % k, "%s_closed_share" % region)
-        f1, f35 = get("only%d" % k, "deck_fraction"), get("only%dc35" % k, "deck_fraction")
-        m1, m35 = get("only%d" % k, "deck_median"), get("only%dc35" % k, "deck_median")
+        f1, f35 = get("only%d" % k, "cloud_fraction"), get("only%dc35" % k, "cloud_fraction")
+        m1, m35 = get("only%d" % k, "cloud_median"), get("only%dc35" % k, "cloud_median")
         cpu, gpu, sh = row(k, "cpu_cover"), row(k, "gpu_cover"), row(k, "shader_cover")
         mod1, mod35 = row(k, "model_closed_p1"), row(k, "model_closed_c35")
         pre = "T09d.%s.%s.layers.L%d." % (view, cover, k)
@@ -108,9 +108,9 @@ def layers_table(values, view, cover, region, get, add, notes):
 
         def f(v, fmt="%.3f"):
             return "-" if v is None else fmt % v
-        lines.append("L%d cpu %s gpu %s pass %s (type %s) | drawn closed p1 %s c35 %s | model p1 %s c35 %s | deck_fraction %s / %s | deck median %s / %s" % (
+        lines.append("L%d cpu %s gpu %s pass %s (type %s) | drawn closed p1 %s c35 %s | model p1 %s c35 %s | cloud_fraction %s / %s | cloud median %s / %s" % (
             k, f(cpu), f(gpu), f(sh), f(row(k, "cpu_type")), f(p1, "%.2f"), f(c35, "%.2f"), f(mod1, "%.2f"), f(mod35, "%.2f"), f(f1, "%.2f"), f(f35, "%.2f"), f(m1), f(m35)))
-    add("T09d.%s.%s.layers.sheet_layer" % (view, cover), best_k)
+    add("T09d.%s.%s.layers.stratiform_layer" % (view, cover), best_k)
     if have_gpu:
         add("T09d.%s.%s.layers.gpu_matches_cpu" % (view, cover), -1 if mismatch else 1)
     surface, cold = values.get((view, cover, "layers", "surface_temp_k")), values.get((view, cover, "layers", "stack_cold"))
@@ -127,8 +127,8 @@ A1_BAND = (-0.20, 0.15)      # closed share at shift 0 between map - 0.20 and ma
 A1_FALL = 0.10               # and a fall of at least this per -0.08 of shift
 A2_TOWERS = (0.10, 0.30)     # ground high at shift 0
 A2_OPEN = 0.15               # and under this at -0.08 (the plan's 0.05 is at -0.15; start 51 takes -0.08)
-A4_DECK = 0.60               # the rain deck alone at the T2 pick
-A5_BR = (0.80, 0.92)         # deck b over r for the lit part at 45 degrees
+A4_LOW_STRATIFORM = 0.60               # the low stratiform rain layer alone at the T2 pick
+A5_BR = (0.80, 0.92)         # cloud layer b over r for the lit part at 45 degrees
 A5_PLATEAU = 0.05            # sky_over_off_sky and ground_over_off_ground within 1 +- this
 ORDER_STEP_ON, ORDER_STEP_OFF = 0.08, 0.15     # E40 start 52: the colour step at the sea horizon's row over the baseline's, with cloud.afterScatterer 1 (at most) and 0 (at least)
 A7_STEP = 0.10              # the horizon band's change against the baseline
@@ -145,10 +145,10 @@ def _mean(vals):
 
 def order_profile(frames, get, add, notes, pre, head):
     """Start 52 follow-up: the vertical row profile (rows prof_b<k> below the horizon row, prof_a<k> above it; k 0 nearest) of the order frames ord1, ord0 and their repeats ord0b, ord1b
-    (order 1, 0, 0, 1), the colour of the deck row by row with the mound rims left out. Per band and channel: the mean of the two ord0 frames minus the mean of the two ord1 frames
+    (order 1, 0, 0, 1), the colour of the cloud layer row by row with the mound rims left out. Per band and channel: the mean of the two ord0 frames minus the mean of the two ord1 frames
     (order.<band>.d_r / d_g / d_b), the floor (the larger of the repeats' differences |ord1 - ord1b| and |ord0 - ord0b|, largest channel; order.<band>.floor), a verdict
-    order.<band>.moves (1 when the largest channel of d exceeds PROFILE_FLOOR_MIN and twice the floor, -1 when it does not), and the distance of each order's deck colour to the
-    baseline's over the same samples (order.<band>.gap_ord1 / gap_ord0: the deck's distance to the haze; a deck fading into it approaches 0 towards the row)."""
+    order.<band>.moves (1 when the largest channel of d exceeds PROFILE_FLOOR_MIN and twice the floor, -1 when it does not), and the distance of each order's cloud layer colour to the
+    baseline's over the same samples (order.<band>.gap_ord1 / gap_ord0: the cloud layer's distance to the aerial perspective's colour; a cloud layer fading into it approaches 0 towards the row)."""
     if not any(f.startswith("ord") for f in frames):
         return
     ons, offs = ("ord1", "ord1b"), ("ord0", "ord0b")
@@ -214,14 +214,14 @@ NOISE55 = re.compile(r"^f\d+s\d+$")
 
 
 def look55_table(frames, get, add, notes, pre, head, region):
-    """Start look55 (E40, T09ProbeLook55): the colour of the deck (b over r of the deck's median colour, per frame), the grain pair, the fog frames, the noise-scale frames and the
+    """Start look55 (E40, T09ProbeLook55): the colour of the cloud layer (b over r of the cloud layer's median colour, per frame), the grain pair, the fog frames, the noise-scale frames and the
     shadow pair, as rows and notes. The verdicts are the result file's; the rows only carry the numbers."""
     for f in COLOUR55:
-        r, g, b = get(f, "deck_r"), get(f, "deck_g"), get(f, "deck_b")
+        r, g, b = get(f, "cloud_r"), get(f, "cloud_g"), get(f, "cloud_b")
         if r and b is not None:
-            add(pre + "%s.deck_b_over_r" % f, b / r)
-            notes.append("%-12s colour %-8s deck r %.3f g %s b %.3f (b/r %.3f), deck median %s" % (
-                head, f, r, "-" if g is None else "%.3f" % g, b, b / r, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+            add(pre + "%s.cloud_b_over_r" % f, b / r)
+            notes.append("%-12s colour %-8s cloud r %.3f g %s b %.3f (b/r %.3f), cloud median %s" % (
+                head, f, r, "-" if g is None else "%.3f" % g, b, b / r, "-" if get(f, "cloud_median") is None else "%.3f" % get(f, "cloud_median")))
     for v in GRAIN55:
         tstd, hfx = get(v, "grain_tstd"), get(v, "grain_hfx")
         if tstd is not None:
@@ -230,16 +230,16 @@ def look55_table(frames, get, add, notes, pre, head, region):
     for f in FOG55:
         sky, gr = get(f, "sky_closed_share"), get(f, "ground_closed_share")
         if sky is not None or gr is not None:
-            notes.append("%-12s fog frame %-6s closed sky %s ground %s, deck median %s" % (
-                head, f, "-" if sky is None else "%.3f" % sky, "-" if gr is None else "%.3f" % gr, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+            notes.append("%-12s fog frame %-6s closed sky %s ground %s, cloud median %s" % (
+                head, f, "-" if sky is None else "%.3f" % sky, "-" if gr is None else "%.3f" % gr, "-" if get(f, "cloud_median") is None else "%.3f" % get(f, "cloud_median")))
     for f in frames:
         if NOISE55.match(f):
             got = get(f, "%s_closed_share" % region)
             tau = get("aid1" + f, "aidtau_closed_share")
             if got is not None:
                 add(pre + "%s.closed" % f, got)
-            notes.append("%-12s noise-scale frame %-7s closed %s, tau closed %s, deck median %s" % (
-                head, f, "-" if got is None else "%.3f" % got, "-" if tau is None else "%.3f" % tau, "-" if get(f, "deck_median") is None else "%.3f" % get(f, "deck_median")))
+            notes.append("%-12s noise-scale frame %-7s closed %s, tau closed %s, cloud median %s" % (
+                head, f, "-" if got is None else "%.3f" % got, "-" if tau is None else "%.3f" % tau, "-" if get(f, "cloud_median") is None else "%.3f" % get(f, "cloud_median")))
     s1, s0 = get("sh1", "ground_median"), get("sh0", "ground_median")
     if s1 is not None and s0 is not None:
         add(pre + "shadow.ground_median_sh0_minus_sh1", s0 - s1)
@@ -287,7 +287,7 @@ def cost55_rows(texts, notes):
 
 def look_table(values, view, cover, get, add, notes):
     """The look starts' frames (T09ProbeLook): per set the closed share at shift 0 and -0.08 beside the expectation the CPU oracle wrote before the frame, the forced-map frame,
-    the layer-alone and rain-deck frames, the light variants and the horizon. Verdicts are 1 (inside), -1 (outside) against the plan's acceptance rows."""
+    the layer-alone and low-stratiform-rain frames, the light variants and the horizon. Verdicts are 1 (inside), -1 (outside) against the plan's acceptance rows."""
     frames = sorted({f for (v, c, f, s) in values if v == view and c == cover})
     sets = sorted({LOOK_SET.match(f).group(1) for f in frames if LOOK_SET.match(f)})
     region = "sky" if view == "ground" else "ground"
@@ -364,7 +364,7 @@ def look_table(values, view, cover, get, add, notes):
                 add(pre + "ovr.map_varies_over_view", verdict)
         notes.append("%-12s forced map: closed %.2f against the oracle's %.2f; own map %s against %s" % (
             head, ovr, expo, "-" if base is None else "%.2f" % base, "-" if get("kC0", "expect_closed_mean") is None else "%.2f" % get("kC0", "expect_closed_mean")))
-    # The layers alone under the winning set, the rain deck at light precipitation (A4) and from inside and above.
+    # The layers alone under the winning set, the low stratiform rain layer at light precipitation (A4) and from inside and above.
     for f in frames:
         m = re.match(r"^w(C\d)o(\d)$", f)
         if m:
@@ -372,7 +372,7 @@ def look_table(values, view, cover, get, add, notes):
             if got is not None:
                 add(pre + "%s.only%s.closed" % (m.group(1), m.group(2)), got)
                 if m.group(2) == "0" and cover == "high":
-                    add(pre + "%s.a4_rain_deck" % m.group(1), 1 if got >= A4_DECK else -1)
+                    add(pre + "%s.a4_low_stratiform_rain" % m.group(1), 1 if got >= A4_LOW_STRATIFORM else -1)
         if f in ("l0in", "l0mid", "l0up"):
             sky = get(f, "sky_closed_share")
             gr = get(f, "ground_closed_share")
@@ -404,17 +404,17 @@ def look_table(values, view, cover, get, add, notes):
         got = get(f, "%s_closed_share" % region)
         if got is not None:
             add(pre + "%s.closed" % f, got)
-    # Look B: the colour of the deck and the plateau rows.
+    # Look B: the colour of the cloud layer and the plateau rows.
     for f in ("t0", "e14", "air1"):
-        r, b = get(f, "deck_r"), get(f, "deck_b")
+        r, b = get(f, "cloud_r"), get(f, "cloud_b")
         if r and b is not None:
-            add(pre + "%s.deck_b_over_r" % f, b / r)
+            add(pre + "%s.cloud_b_over_r" % f, b / r)
             add(pre + "%s.a5_colour" % f, 1 if A5_BR[0] <= b / r <= A5_BR[1] else -1)
         for stat in ("sky_over_off_sky", "ground_over_off_ground"):
             v = get(f, stat)
             if v is not None:
                 add(pre + "%s.%s_ok" % (f, stat), 1 if abs(v - 1.0) <= A5_PLATEAU else -1)
-        clip = get(f, "deck_clipped")
+        clip = get(f, "cloud_clipped")
         if clip is not None:
             add(pre + "%s.a5_clipped" % f, 1 if clip < 0.001 else -1)
     look55_table(frames, get, add, notes, pre, head, region)
@@ -442,14 +442,14 @@ def analyse(values, notes):
     for view in views:
         for cover in sorted({k[1] for k in values if k[0] == view}):
             def get(gain, stat):
-                # A frame whose pose was not the view's (pose_ok 0) is not used: the numbers of the wrong place say nothing about the deck.
+                # A frame whose pose was not the view's (pose_ok 0) is not used: the numbers of the wrong place say nothing about the cloud layer.
                 if values.get((view, cover, gain, "pose_ok")) == 0.0:
                     return None
                 return values.get((view, cover, gain, stat))
-            medians = [(g, get("g%d" % g, "deck_median")) for g in GAINS]
-            below_clip = [(g, v) for g, v in medians if v is not None and (get("g%d" % g, "deck_clipped") or 0.0) < 0.05 and v < CLIP]
+            medians = [(g, get("g%d" % g, "cloud_median")) for g in GAINS]
+            below_clip = [(g, v) for g, v in medians if v is not None and (get("g%d" % g, "cloud_clipped") or 0.0) < 0.05 and v < CLIP]
             s = slope(below_clip)
-            ratio = get("g1", "deck_over_off_sky")
+            ratio = get("g1", "cloud_over_off_sky")
             head = "%s %s" % (view, cover)
             if ratio is not None and ratio > 1e-6:
                 add("T09d.%s.%s.reach_gain" % (view, cover), 1.0 / ratio)
@@ -461,10 +461,10 @@ def analyse(values, notes):
             add("T09d.%s.%s.verdict" % (view, cover), verdict)
             # The output stage (CloudOutputStage), gain 1, measured after the ladder: u1 the units alone (sun unit pi, no gamma), p1 the product's stage
             # (pi, gamma 2.2, exposure 1), pe2 the same at exposure 2. Expected, written before the start (ground view: sun 15.6 degrees up, sea 0.443, sky 0.458):
-            #   u1 / g1 = pi (3.0 to 3.3: the deck is direct light; from above the ambient part is not scaled, so 1.5 to 2.6),
+            #   u1 / g1 = pi (3.0 to 3.3: the cloud layer is direct light; from above the ambient part is not scaled, so 1.5 to 2.6),
             #   p1 / off sea: ground 0.27 to 0.43 (0.34), above 0.8 to 1.4 (1.1); p1 / off sky (ground) 0.27 to 0.40,
-            #   pe2 / p1 = 2 ^ (1 / 2.2) = 1.37 (1.30 to 1.40) while the deck is below the white (0.415).
-            u1, p1, pe2, g1 = get("u1", "deck_median"), get("p1", "deck_median"), get("pe2", "deck_median"), get("g1", "deck_median")
+            #   pe2 / p1 = 2 ^ (1 / 2.2) = 1.37 (1.30 to 1.40) while the cloud layer is below the white (0.415).
+            u1, p1, pe2, g1 = get("u1", "cloud_median"), get("p1", "cloud_median"), get("pe2", "cloud_median"), get("g1", "cloud_median")
             sea, sky = get("off", "ground_median"), get("off", "sky_median")
             stage_ok = None
             if u1 is not None and g1:
@@ -482,7 +482,7 @@ def analyse(values, notes):
                 notes.append("%-12s stage: u1 %s p1 %s pe2 %s | p1 / sea %.2f -> %s" % (
                     head, "-" if u1 is None else "%.3f" % u1, "%.3f" % p1, "-" if pe2 is None else "%.3f" % pe2, p1 / sea,
                     "commensurable" if stage_ok else "outside the expected band"))
-            # The coverage variants (cloud.coverageShift 0 = p1, -0.08 = c42, -0.15 = c35): the picture's closed share of the region where the deck is seen (the sky of the ground view,
+            # The coverage variants (cloud.coverageShift 0 = p1, -0.08 = c42, -0.15 = c35): the picture's closed share of the region where the cloud layer is seen (the sky of the ground view,
             # the ground region of the above view) against CloudCoverModel's share at the pass's map value (model_closed, written by the probe before the frame is read).
             region = "sky" if view == "ground" else "ground"
             parts = []
@@ -502,7 +502,7 @@ def analyse(values, notes):
             layers_table(values, view, cover, region, get, add, notes)
             look_table(values, view, cover, get, add, notes)
             cells =" ".join("g%d %s" % (g, "-" if v is None else "%.3f" % v) for g, v in medians)
-            notes.append("%-12s deck median: %s | off sky %s, off sea %s | slope %s verdict %s | reach gain %s" % (
+            notes.append("%-12s cloud median: %s | off sky %s, off sea %s | slope %s verdict %s | reach gain %s" % (
                 head, cells,
                 "-" if get("off", "sky_median") is None else "%.3f" % get("off", "sky_median"),
                 "-" if get("off", "ground_median") is None else "%.3f" % get("off", "ground_median"),
@@ -517,8 +517,8 @@ def series_results(texts):
     return analyse(parse(texts.values()), NOTES) + cost55_rows(list(texts.values()), NOTES)
 
 
-def _fake(view, cover, off_sky, off_sea, deck1, gain_exp, clip=1.0):
-    """The rows a run would write for a deck of deck1 at gain 1 growing as gain ** gain_exp (clipped at clip)."""
+def _fake(view, cover, off_sky, off_sea, cloud1, gain_exp, clip=1.0):
+    """The rows a run would write for a cloud layer of cloud1 at gain 1 growing as gain ** gain_exp (clipped at clip)."""
     lines = []
 
     def row(metric, value):
@@ -526,10 +526,10 @@ def _fake(view, cover, off_sky, off_sea, deck1, gain_exp, clip=1.0):
     row("off.sky_median", off_sky)
     row("off.ground_median", off_sea)
     for g in GAINS:
-        v = min(clip, deck1 * g ** gain_exp)
-        row("g%d.deck_median" % g, v)
-        row("g%d.deck_clipped" % g, 1.0 if v >= clip else 0.0)
-        row("g%d.deck_over_off_sky" % g, v / off_sky)
+        v = min(clip, cloud1 * g ** gain_exp)
+        row("g%d.cloud_median" % g, v)
+        row("g%d.cloud_clipped" % g, 1.0 if v >= clip else 0.0)
+        row("g%d.cloud_over_off_sky" % g, v / off_sky)
     return "\n".join(lines)
 
 
@@ -542,7 +542,7 @@ def selftest():
     assert got["T09d.ground.high.verdict"] == 1, got
     assert abs(got["T09d.ground.high.reach_gain"] - 10.0) < 1e-6, got
     assert notes and "A (units)" in notes[0], notes
-    # Prediction B: the deck does not follow the gain.
+    # Prediction B: the cloud layer does not follow the gain.
     notes = []
     rows = analyse(parse([_fake("above", "low", 0.5, 0.7, 0.12, 0.05)]), notes)
     got = {r["metric"]: r["value"] for r in rows}
@@ -559,7 +559,7 @@ def selftest():
     assert abs(got["T09d.ground.high.slope"] - 1.0) < 0.1 and got["T09d.ground.high.verdict"] in (0, 1), got
     # The output stage: the values the unit test pins for the K-T2d ground view (raw 0.0145, sea 0.443, sky 0.458): u1 pi times, p1 0.152, pe2 1.37 times p1.
     stage = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + "".join(
-        '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.%s.deck_median","value":%r,"variant":"plain"}' % (tag, v)
+        '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.%s.cloud_median","value":%r,"variant":"plain"}' % (tag, v)
         for tag, v in (("u1", 0.0456), ("p1", 0.152), ("pe2", 0.208)))
     notes = []
     got = {r["metric"]: r["value"] for r in analyse(parse([stage]), notes)}
@@ -568,7 +568,7 @@ def selftest():
     assert abs(got["T09d.ground.high.stage.p1_over_sky"] - 0.332) < 0.01, got
     assert abs(got["T09d.ground.high.stage.pe2_over_p1"] - 1.37) < 0.02, got
     assert any("commensurable" in n for n in notes), notes
-    black = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.p1.deck_median","value":0.0145}'
+    black = _fake("ground", "high", 0.458, 0.443, 0.0145, 1.0) + '\nATMORESULT {"series":"K-T2d","metric":"T09d.ground.high.p1.cloud_median","value":0.0145}'
     assert {r["metric"]: r["value"] for r in analyse(parse([black]), [])}["T09d.ground.high.stage.verdict"] == -1
     # The coverage variants: the picture's closed share against the model's, and the order p1 >= c42 >= c35.
     cover = "".join(
@@ -588,10 +588,10 @@ def selftest():
         for m, v in (("L0.cpu_cover", 0.406), ("L0.gpu_cover", 0.406), ("L0.shader_cover", 0.406), ("L0.model_closed_p1", 0.34), ("L0.model_closed_c35", 0.0),
                      ("L1.cpu_cover", 0.665), ("L1.gpu_cover", 0.90), ("L1.shader_cover", 0.90), ("L1.model_closed_p1", 0.73), ("L1.model_closed_c35", 0.30),
                      ("only0.sky_closed_share", 0.05), ("only0c35.sky_closed_share", 0.0), ("only1.sky_closed_share", 0.99), ("only1c35.sky_closed_share", 0.97),
-                     ("only1.deck_fraction", 0.6), ("only1.deck_median", 0.4), ("layers.surface_temp_k", 288.0), ("layers.stack_cold", 0)))
+                     ("only1.cloud_fraction", 0.6), ("only1.cloud_median", 0.4), ("layers.surface_temp_k", 288.0), ("layers.stack_cold", 0)))
     notes = []
     got = {r["metric"]: r["value"] for r in analyse(parse([layers]), notes)}
-    assert got["T09d.ground.low.layers.sheet_layer"] == 1, got
+    assert got["T09d.ground.low.layers.stratiform_layer"] == 1, got
     assert abs(got["T09d.ground.low.layers.L1.closed_minus_model_p1"] - 0.26) < 1e-9 and abs(got["T09d.ground.low.layers.L1.closed_c35"] - 0.97) < 1e-9, got
     assert abs(got["T09d.ground.low.layers.L1.gpu_minus_cpu"] - 0.235) < 1e-9 and got["T09d.ground.low.layers.gpu_matches_cpu"] == -1, got
     assert abs(got["T09d.ground.low.layers.L0.gpu_minus_cpu"]) < 1e-9, got
@@ -629,9 +629,9 @@ def selftest():
     assert {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + stays]), [])}[pre + "ovr.map_varies_over_view"] == -1
     high = look_rows("ground", "high", (("kC4.sky_closed_share", 0.20), ("kC4m8.sky_closed_share", 0.05), ("wC4o0.sky_closed_share", 0.75)))
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "high", 0.5, 0.7, 0.05, 1.0) + high]), [])}
-    assert got["T09d.ground.high.look.C4.a2_towers"] == 1 and got["T09d.ground.high.look.C4.a4_rain_deck"] == 1, got
-    light = look_rows("ground", "high", (("t0.deck_r", 0.5), ("t0.deck_b", 0.35), ("e14.deck_r", 0.4), ("e14.deck_b", 0.36), ("t0.sky_over_off_sky", 1.0), ("t0.ground_over_off_ground", 1.2),
-                                        ("t0.deck_clipped", 0.0)))
+    assert got["T09d.ground.high.look.C4.a2_towers"] == 1 and got["T09d.ground.high.look.C4.a4_low_stratiform_rain"] == 1, got
+    light = look_rows("ground", "high", (("t0.cloud_r", 0.5), ("t0.cloud_b", 0.35), ("e14.cloud_r", 0.4), ("e14.cloud_b", 0.36), ("t0.sky_over_off_sky", 1.0), ("t0.ground_over_off_ground", 1.2),
+                                        ("t0.cloud_clipped", 0.0)))
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "high", 0.5, 0.7, 0.05, 1.0) + light]), [])}
     assert got["T09d.ground.high.look.t0.a5_colour"] == -1 and got["T09d.ground.high.look.e14.a5_colour"] == 1, got       # 0.70 is beige, 0.90 is inside the band
     assert got["T09d.ground.high.look.t0.sky_over_off_sky_ok"] == 1 and got["T09d.ground.high.look.t0.ground_over_off_ground_ok"] == -1 and got["T09d.ground.high.look.t0.a5_clipped"] == 1, got
@@ -667,11 +667,11 @@ def selftest():
     assert any("hh2 - ord0 r +0.002 g +0.002 b +0.002" in n for n in notes), notes
     assert not any(k.startswith("T09d.above.low.look.order.") for k in {r["metric"]: 1 for r in analyse(parse([_fake("above", "low", 0.5, 0.7, 0.05, 1.0)]), [])}), "no order frames, no order rows"
     # Start look55: the colour and grain notes and rows, and the cost windows from the profiler's reports (kt2.py's parser) with the differences against plain.
-    colour = look_rows("ground", "low", (("caDt0.deck_r", 0.60), ("caDt0.deck_g", 0.55), ("caDt0.deck_b", 0.42), ("ca02t0.deck_r", 0.50), ("ca02t0.deck_b", 0.48),
+    colour = look_rows("ground", "low", (("caDt0.cloud_r", 0.60), ("caDt0.cloud_g", 0.55), ("caDt0.cloud_b", 0.42), ("ca02t0.cloud_r", 0.50), ("ca02t0.cloud_b", 0.48),
                                          ("gacc.grain_tstd", 0.0077), ("gacc.grain_hfx", -0.0018), ("gacc.grain_n", 1000), ("sh1.ground_median", 0.30), ("sh0.ground_median", 0.28)))
     notes = []
     got = {r["metric"]: r["value"] for r in analyse(parse([_fake("ground", "low", 0.5, 0.7, 0.05, 1.0) + colour]), notes)}
-    assert abs(got["T09d.ground.low.look.caDt0.deck_b_over_r"] - 0.7) < 1e-9 and abs(got["T09d.ground.low.look.ca02t0.deck_b_over_r"] - 0.96) < 1e-9, got
+    assert abs(got["T09d.ground.low.look.caDt0.cloud_b_over_r"] - 0.7) < 1e-9 and abs(got["T09d.ground.low.look.ca02t0.cloud_b_over_r"] - 0.96) < 1e-9, got
     assert abs(got["T09d.ground.low.look.shadow.ground_median_sh0_minus_sh1"] + 0.02) < 1e-9, got
     assert any("colour caDt0" in n and "b/r 0.700" in n for n in notes) and any("grain gacc" in n and "tstd 0.0077" in n for n in notes), notes
 

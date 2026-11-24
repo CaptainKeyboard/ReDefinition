@@ -2,17 +2,17 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The runtime shift of the layers' coverage threshold (K-T2d: the rain deck's coverage 0.5 closes the whole sky at a map value of 0.47 to 0.64; the owner has not decided
+    // The runtime shift of the layers' coverage threshold (K-T2d: the low stratiform rain layer's coverage 0.5 closes the whole sky at a map value of 0.47 to 0.64; the owner has not decided
     // between 0.5 and about 0.42, so both are measured as a switchable variant). The one place where the threshold enters: CloudLayerDef.EffectiveCoverage adds the shift, and
     // every reader of the threshold (the layer pass's frame values, the cloud shadows' frame values, the CPU density LayerDensity and HeightDensity, CloudCoverModel) reads that,
     // never CloudLayerDef.Coverage. Default 0 = the configured coverage, unchanged.
     //   cloud.coverageShift      added to the coverage of every layer, -1 to 1
-    //   cloud.coverageShiftRain  added to the layers of the group "weather" (the rain deck, or the snow deck in its place) on top of the first
+    //   cloud.coverageShiftRain  added to the layers of the group "weather" (the low stratiform rain layer, or the low stratiform snow layer in its place) on top of the first
     // The result is clamped to 0 to 1, the range of the coverage.
     internal static class CloudCoverShift
     {
         internal const string TuneShift = "cloud.coverageShift", TuneShiftRain = "cloud.coverageShiftRain";
-        // The group the layer-selective key acts on (Clouds-<body>.cfg: the rain and the snow deck share it).
+        // The group the layer-selective key acts on (Clouds-<body>.cfg: the low stratiform rain and snow layers share it).
         internal const string RainGroup = "weather";
 
         private static long seenVersion = -1;

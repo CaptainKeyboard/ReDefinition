@@ -180,7 +180,7 @@ namespace ReDefinition.Atmospheres
             }
             Emit("T18.clock_answered", answered.Count);
             Emit("T18.clock_wet_hours", wet.Count);
-            // An hour with precipitation over the vessel has a rain deck under the layers: the pictures could not tell the own clouds from it.
+            // An hour with precipitation over the vessel has a low stratiform rain layer under the layers: the pictures could not tell the own clouds from it.
             var order = answered.FindAll(c => c.Value >= CoverMin && c.Value <= CoverMax && !wet.Contains(c.Key));
             order.Sort((a, b) =>
             {

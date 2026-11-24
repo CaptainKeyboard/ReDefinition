@@ -86,24 +86,24 @@ namespace ReDefinition.Tests.Atmospheres.C24
 
         // ---- the optical depth estimate ----
 
-        private static CloudDensityEstimate.Deck Deck()
+        private static CloudDensityEstimate.CloudLayer Layer()
         {
-            return new CloudDensityEstimate.Deck { BottomM = 2000.0, TopM = 6000.0, Density = 1f, TimeFade = 1f };
+            return new CloudDensityEstimate.CloudLayer { BottomM = 2000.0, TopM = 6000.0, Density = 1f, TimeFade = 1f };
         }
 
         [TestMethod]
-        public void TheEstimateIsZeroAtCoverageZeroAndWithoutADeck()
+        public void TheEstimateIsZeroAtCoverageZeroAndWithoutALayer()
         {
-            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => 0f));
-            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, null));
-            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 7000.0, h => 1f), "the observer above the deck");
-            var empty = Deck();
+            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => 0f));
+            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, null));
+            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 7000.0, h => 1f), "the observer above the cloud layer");
+            var empty = Layer();
             empty.TopM = empty.BottomM;
             Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(empty, 0.0, h => 1f));
-            var dark = Deck();
+            var dark = Layer();
             dark.TimeFade = 0f;
             Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(dark, 0.0, h => 1f));
-            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => float.NaN));
+            Assert.AreEqual(0f, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => float.NaN));
         }
 
         [TestMethod]
@@ -112,23 +112,23 @@ namespace ReDefinition.Tests.Atmospheres.C24
             float previous = -1f;
             foreach (float coverage in new[] { 0f, 0.1f, 0.25f, 0.5f, 0.75f, 1f })
             {
-                float tau = CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => coverage);
+                float tau = CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => coverage);
                 Assert.IsTrue(tau > previous || (coverage == 0f && tau == 0f), "coverage " + coverage + " gave " + tau);
                 Assert.IsTrue(tau >= 0f && tau <= CloudDensityEstimate.TauAtFullCoverage + 1e-4f);
                 previous = tau;
             }
-            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => 1f), 1e-4f);
-            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage, CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => 9f), 1e-4f,
+            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => 1f), 1e-4f);
+            Assert.AreEqual(CloudDensityEstimate.TauAtFullCoverage, CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => 9f), 1e-4f,
                             "a coverage above 1 counts as 1");
         }
 
         [TestMethod]
-        public void TheEstimateFromInsideTheDeckCountsTheCloudAboveOnly()
+        public void TheEstimateFromInsideTheCloudLayerCountsTheCloudAboveOnly()
         {
-            float whole = CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => 1f);
-            float half = CloudDensityEstimate.VerticalOpticalDepth(Deck(), 4000.0, h => 1f);
+            float whole = CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => 1f);
+            float half = CloudDensityEstimate.VerticalOpticalDepth(Layer(), 4000.0, h => 1f);
             Assert.AreEqual(whole / 2f, half, 1e-4f);
-            var d = Deck();
+            var d = Layer();
             d.TimeFade = 0.5f;
             Assert.AreEqual(whole / 2f, CloudDensityEstimate.VerticalOpticalDepth(d, 0.0, h => 1f), 1e-4f);
         }
@@ -136,7 +136,7 @@ namespace ReDefinition.Tests.Atmospheres.C24
         [TestMethod]
         public void TheTransmissionOfTheEstimateFollowsTheSharedDefinition()
         {
-            float tau = CloudDensityEstimate.VerticalOpticalDepth(Deck(), 0.0, h => 0.5f);
+            float tau = CloudDensityEstimate.VerticalOpticalDepth(Layer(), 0.0, h => 0.5f);
             float overhead = SunTransmission.From(tau, (float)(Math.PI / 2.0));
             float low = SunTransmission.From(tau, 0.2f);
             Assert.IsTrue(overhead > low && overhead < 1f && low >= 0f);

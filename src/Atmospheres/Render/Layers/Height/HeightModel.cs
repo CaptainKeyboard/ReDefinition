@@ -51,7 +51,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The share of a type that is rooted in the surface layer of the air (convective cloud, whose base is the condensation level):
-        // 1 for a base share up to 0.1, 0 from 0.4, smooth between. Decks and cloud higher in the layer follow only the free variation.
+        // 1 for a base share up to 0.1, 0 from 0.4, smooth between. Low stratiform layers and cloud higher in the layer follow only the free variation.
         internal static double RootWeight(double baseShare)
         {
             double x = (baseShare - 0.1) / 0.3;

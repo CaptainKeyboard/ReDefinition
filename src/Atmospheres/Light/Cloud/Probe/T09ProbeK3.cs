@@ -100,23 +100,23 @@ namespace ReDefinition.Atmospheres
             return parts.Count == 0 ? "(none)" : string.Join(", ", parts.ToArray());
         }
 
-        // The look keys of the sheet layer: the name is read from the pass's stack when the variant is on (the highest map outside a group, as the look probe finds it).
+        // The look keys of the stratiform layer: the name is read from the pass's stack when the variant is on (the highest map outside a group, as the look probe finds it).
         private void K3ApplySheet(K3Variant v)
         {
-            if (v.Special != K3Special.SheetShift && v.Special != K3Special.SheetTypeFair && v.Special != K3Special.SheetTypeOverride) return;
+            if (v.Special != K3Special.StratiformShift && v.Special != K3Special.StratiformTypeFair && v.Special != K3Special.StratiformTypeOverride) return;
             T09LookInput input = Game.ReadLookInput();
-            int sheet = input == null ? -1 : SheetLayer(input);
+            int sheet = input == null ? -1 : StratiformLayer(input);
             if (sheet < 0)
             {
-                Warn("k3_no_sheet_layer", v.Id + ": the pass has no layer stack to read; the key of the sheet layer is not set");
+                Warn("k3_no_stratiform_layer", v.Id + ": the pass has no layer stack to read; the key of the stratiform layer is not set");
                 return;
             }
             string name = input.Layers[sheet].Name;
-            EmitText("K3.sheet_layer", name);
+            EmitText("K3.stratiform_layer", name);
             switch (v.Special)
             {
-                case K3Special.SheetShift: ForceTuning(CloudLookTuning.TuneLayerShift + name, -0.1f); break;
-                case K3Special.SheetTypeFair: ForceTuning(CloudLookTuning.TuneTypeFair + name, 0.5f); break;
+                case K3Special.StratiformShift: ForceTuning(CloudLookTuning.TuneLayerShift + name, -0.1f); break;
+                case K3Special.StratiformTypeFair: ForceTuning(CloudLookTuning.TuneTypeFair + name, 0.5f); break;
                 default: ForceTuning(CloudLookTuning.TuneTypeOverride + name, 1f); break;
             }
         }
@@ -222,10 +222,10 @@ namespace ReDefinition.Atmospheres
                         return o != null && o.Stats.Mode != "off" && o.Stats.FramesDrawn - drawnFrom > SteadyFrames;
                     }, 150, "the own pass to draw a steady stretch (" + id + ")");
                 }
-                // The sheet layer's name comes from the pass's stack, which is there once the pass draws.
+                // The stratiform layer's name comes from the pass's stack, which is there once the pass draws.
                 if (v.Special != K3Special.None) K3ApplySheet(v);
                 // The maps and the type values slew to the new numbers (the limit is 0.08 a second).
-                if (v.Special == K3Special.SheetShift || v.Special == K3Special.SheetTypeFair || v.Special == K3Special.SheetTypeOverride) yield return ProbeWait.Seconds(LookTypeSettleS);
+                if (v.Special == K3Special.StratiformShift || v.Special == K3Special.StratiformTypeFair || v.Special == K3Special.StratiformTypeOverride) yield return ProbeWait.Seconds(LookTypeSettleS);
                 if (placedView != v.View)
                 {
                     foreach (ProbeWait w in PlaceChecked(siteLat, siteLon, view)) yield return w;

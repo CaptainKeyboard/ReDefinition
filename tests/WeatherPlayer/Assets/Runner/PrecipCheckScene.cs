@@ -11,17 +11,17 @@ namespace ReDefinition.WeatherPlayer
     //   * per type at level 0.6 over a flat grey: the luminance shift has the sign of the type's colour, enough pixels change, the
     //     pattern moves down (gravity), and with a wind from the west it moves to the east (every type, grit included);
     //   * below level 0.04 nothing is drawn: the frame equals the frame without the renderer;
-    //   * Host against Scene composite of the same frame with veil and flakes at levels 0.3, 0.6, 1.0: mean luminance within 5 %;
-    //   * a cross-fade between the two (weights 0.5 / 0.5) covers the veil as one veil, not two.
+    //   * Host against Scene composite of the same frame with extinction and hydrometeors at levels 0.3, 0.6, 1.0: mean luminance within 5 %;
+    //   * a cross-fade between the two (weights 0.5 / 0.5) covers the extinction as one extinction, not two.
     //
     //   -mode scene -scene precip-check
     [WeatherScene("precip-check")]
     public sealed class PrecipCheckScene : WeatherSceneBase
     {
         private const float Grey = 0.45f;
-        // The veil's colours in scene units: both at the luminance of the fake world's image (about 0.42), as the frame driver's colours
-        // are meant to be, so that the luminance-relative Host colour and the absolute Scene colour can agree.
-        private static readonly Color VeilGround = new Color(0.40f, 0.42f, 0.45f), VeilSky = new Color(0.39f, 0.42f, 0.46f);
+        // The precipitation extinction's colours in scene units: both at the luminance of the fake world's image (about 0.42), as the frame driver's
+        // colours are meant to be, so that the luminance-relative Host colour and the absolute Scene colour can agree.
+        private static readonly Color ExtinctionGround = new Color(0.40f, 0.42f, 0.45f), ExtinctionSky = new Color(0.39f, 0.42f, 0.46f);
         private PrecipPass pass;
         private PrecipState state;
         private PrecipTuning tuning;
@@ -42,17 +42,17 @@ namespace ReDefinition.WeatherPlayer
             Cam.transform.rotation = Quaternion.Euler(4f, 0f, 0f);
         }
 
-        private PrecipInput Input(PrecipType type, float level, float windE, bool veil)
+        private PrecipInput Input(PrecipType type, float level, float windE, bool extinction)
         {
             return new PrecipInput
             {
                 Active = true, Type = type, Level = level, VisibilityM = Mathf.Lerp(8000f, 60f, level), WindE = windE, GustNoise = 0.5f, GustDirNoise = 0.5f,
-                FlakeFallMs = 1.1f, FlakeBrightness = 1f, Seed = 11,
-                Near = new FlakeLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
-                Mid = new FlakeLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
-                Far = new FlakeLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
-                VeilGroundAlpha = veil ? 0.6f * level : 0f, VeilSkyAlpha = veil ? 0.7f * level : 0f,
-                VeilGroundColour = VeilGround, VeilSkyColour = VeilSky, SkyGreyStart = 0f, SkyGreyFull = 30f,
+                HydrometeorFallMs = 1.1f, HydrometeorBrightness = 1f, Seed = 11,
+                Near = new HydrometeorLayer { Width = 7f, Share = 0.06f, SizeMin = 0.10f, SizeMax = 0.26f, Opacity = 0.5f },
+                Mid = new HydrometeorLayer { Width = 18f, Share = 0.34f, SizeMin = 0.03f, SizeMax = 0.08f, Opacity = 0.95f },
+                Far = new HydrometeorLayer { Width = 36f, Share = 0.60f, SizeMin = 0.02f, SizeMax = 0.05f, Opacity = 1f },
+                ExtinctionGroundAlpha = extinction ? 0.6f * level : 0f, ExtinctionSkyAlpha = extinction ? 0.7f * level : 0f,
+                ExtinctionGroundColour = ExtinctionGround, ExtinctionSkyColour = ExtinctionSky, SkyGreyStart = 0f, SkyGreyFull = 30f,
                 Density = 1f, TypeEnabled = true, FovYRad = Cam.fieldOfView * Mathf.Deg2Rad, HeightPx = Height, Dt = 1f / 60f, GroundDistM = 1e6f
             };
         }
@@ -63,7 +63,7 @@ namespace ReDefinition.WeatherPlayer
             {
                 Host = host, Weight = weight, AxisE = Vector3.right, AxisU = Vector3.up, AxisN = Vector3.forward, TargetWidth = Width, TargetHeight = Height,
                 CamE = camE, TimeMod60 = (float)(state.Time % 60.0), GroundDistance = 1e5f, Seed = 11,
-                VeilGroundColour = VeilGround, VeilSkyColour = VeilSky, SkyGreyStartDeg = 0f, SkyGreyFullDeg = 30f,
+                ExtinctionGroundColour = ExtinctionGround, ExtinctionSkyColour = ExtinctionSky, SkyGreyStartDeg = 0f, SkyGreyFullDeg = 30f,
                 Grade = 0.55f, LumaGain = 1f, Dt = 1f / 60f, Tuning = tuning, View = Cam.worldToCameraMatrix,
                 Projection = GL.GetGPUProjectionMatrix(Cam.projectionMatrix, true)
             };
@@ -109,7 +109,7 @@ namespace ReDefinition.WeatherPlayer
                 warm.Release();
             }
             var cmd = new CommandBuffer { name = "precip-check host" };
-            if (frame.VeilGround > 0.001f || frame.VeilSky > 0.001f) pass.RecordLuma(cmd, Target, 1f / 60f, tuning.LumaTauS);
+            if (frame.ExtinctionGround > 0.001f || frame.ExtinctionSky > 0.001f) pass.RecordLuma(cmd, Target, 1f / 60f, tuning.LumaTauS);
             cmd.SetRenderTarget(Target);
             pass.Record(cmd, ref frame, ref draw);
             Graphics.ExecuteCommandBuffer(cmd);
@@ -142,7 +142,7 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // The best correlation to the east (shifts 1..range) over the best to the west, at the known vertical shift. Above 1 the pattern
-        // moved east; the flakes sit at many depths and so move by many amounts, which is why the sides are compared and no one shift
+        // moved east; the hydrometeors sit at many depths and so move by many amounts, which is why the sides are compared and no one shift
         // is read.
         private static float EastBias(float[] a, float[] b, int width, int height, int range, int vertical)
         {
@@ -296,12 +296,12 @@ namespace ReDefinition.WeatherPlayer
                 LumaFrame sceneHalf = null;
                 yield return Grab(r => sceneHalf = r);
                 Detach();
-                // Half the Scene veil, then half the Host veil on top of that frame is what a cross-fade at 0.5 / 0.5 draws.
+                // Half the Scene extinction, then half the Host extinction on top of that frame is what a cross-fade at 0.5 / 0.5 draws.
                 Attach(f, Draw(false, 0.5f, 0.0));
                 yield return GrabHost(f, Draw(true, 0.5f, 0.0), r => mixed = r);
                 Detach();
                 double mp = ImageStats.MeanLuma(pure, ImageStats.Rect2.Whole(pure)), mm = ImageStats.MeanLuma(mixed, ImageStats.Rect2.Whole(mixed));
-                Sink.AtMost("switch.veil_ratio_dev", Math.Abs(mm - mp) / Math.Max(mp, 1e-4), 0.05);
+                Sink.AtMost("switch.extinction_ratio_dev", Math.Abs(mm - mp) / Math.Max(mp, 1e-4), 0.05);
             }
         }
     }

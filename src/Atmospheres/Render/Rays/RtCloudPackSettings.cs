@@ -61,8 +61,8 @@ namespace ReDefinition.Atmospheres
         }
     }
 
-    // When the rays see the own layers. The own pack stands in for the cloud layers of the renderer that casts the decks' shadow (CloudShadowSwitches.Caster),
-    // so that the rays never see a deck twice: under cloudSource Ours the pack is the own one, under Volumetric or Both the TVC layer of the main mod's
+    // When the rays see the own layers. The own pack stands in for the cloud layers of the renderer that casts the cloud layers' shadow (CloudShadowSwitches.Caster),
+    // so that the rays never see a cloud layer twice: under cloudSource Ours the pack is the own one, under Volumetric or Both the TVC layer of the main mod's
     // RtEveClouds stays the rays' only cloud and the own pack is not built.
     internal static class RtOwnCloudsPlan
     {

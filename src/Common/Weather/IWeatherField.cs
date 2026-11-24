@@ -38,7 +38,7 @@ namespace ReDefinition.Core
         WindSpeed = 8,
         // What the ground is under the sky (E40 L3): 0 over open sea, 0.5 over lowland, up to 1 over high ground (terrain 3000 m and more above the sea). Static per body.
         Surface = 9,
-        // The new sky (package B; no reader yet). The share of the sky the heap family (cumulus and cumulonimbus) covers, 0 to 1; with StratiformAmount it splits Coverage.
+        // The new sky (package B; no reader yet). The share of the sky the cumuliform family (cumulus and cumulonimbus) covers, 0 to 1; with StratiformAmount it splits Coverage.
         ConvectiveAmount = 10,
         // The convective base (lifting condensation level) and the convective top, as shares of the body's troposphere, 0 to 1.
         ConvectiveBase = 11,
@@ -46,7 +46,7 @@ namespace ReDefinition.Core
         // The generator's instability index, 0 to 1, and its large-scale uplift, 0 to 1.4.
         Instability = 13,
         Uplift = 14,
-        // The share of the sky the sheet clouds cover (deck and layered background), 0 to 1; ConvectiveAmount + StratiformAmount = Coverage.
+        // The share of the sky the stratiform clouds cover (the low stratiform layer and the layered background), 0 to 1; ConvectiveAmount + StratiformAmount = Coverage.
         StratiformAmount = 15,
         // The relative humidity at the low, middle and high level of the troposphere (SkyColumn.RhLow / RhMid / RhHigh), 0 to 1.
         HumidityLow = 16,
@@ -56,8 +56,8 @@ namespace ReDefinition.Core
         Descent = 19,
         // How far a storm cell carries the column toward the tropopause, 0 to 1 (energy, life stage and footprint of the strongest cell over the column; 0 outside every cell).
         CellReach = 20,
-        // The share of the sky the deck of the dynamic lift and the fronts covers, 0 to 1; a part of StratiformAmount.
-        DeckAmount = 21,
+        // The share of the sky the low stratiform layer of the dynamic lift and the fronts covers, 0 to 1; a part of StratiformAmount.
+        LowStratiformAmount = 21,
         // The top of the mixed layer (the stable layer) as a share of the troposphere, 0 to 1.
         StableShare = 22
     }

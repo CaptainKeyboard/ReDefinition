@@ -20,7 +20,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             neutral.LightFactors(0.3, out d, out a);
             Assert.AreEqual(1.0, d, 1e-9);
             Assert.AreEqual(1.0, a, 1e-9);
-            var t = new CloudTypeDef("T", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f })) { BaseLight = 0.6f, HeadLight = 1.2f, BaseAmbient = 0.8f, HeadAmbient = 1f };
+            var t = new CloudTypeDef("T", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f })) { BaseLight = 0.6f, TopLight = 1.2f, BaseAmbient = 0.8f, TopAmbient = 1f };
             t.LightFactors(0.0, out d, out a);
             Assert.AreEqual(0.6, d, 1e-6);
             Assert.AreEqual(0.8, a, 1e-6);
@@ -65,22 +65,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void ThePerTypeLightKeysReadFromTheTypeNodeAndDefaultToNeutral()
         {
-            string typed = "TYPE{name = T;baseShare = 0;topShare = 1;baseLight = 0.5;headLight = 1.3;baseAmbient = 0.7;headAmbient = 0.9;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}}";
+            string typed = "TYPE{name = T;baseShare = 0;topShare = 1;baseLight = 0.5;topLight = 1.3;baseAmbient = 0.7;topAmbient = 0.9;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}}";
             string plain = "TYPE{name = P;baseShare = 0;topShare = 1;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}}";
             BodyParseResult r = CloudLayerSchemaTests.Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;" + typed + plain + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudTypeSpec t = r.Climate.Clouds.Layers[0].Types[0], p = r.Climate.Clouds.Layers[0].Types[1];
             Assert.AreEqual(0.5f, t.BaseLight, 1e-6f);
-            Assert.AreEqual(1.3f, t.HeadLight, 1e-6f);
+            Assert.AreEqual(1.3f, t.TopLight, 1e-6f);
             Assert.AreEqual(0.7f, t.BaseAmbient, 1e-6f);
-            Assert.AreEqual(0.9f, t.HeadAmbient, 1e-6f);
+            Assert.AreEqual(0.9f, t.TopAmbient, 1e-6f);
             Assert.AreEqual(1f, p.BaseLight);
-            Assert.AreEqual(1f, p.HeadLight);
+            Assert.AreEqual(1f, p.TopLight);
             Assert.AreEqual(1f, p.BaseAmbient);
-            Assert.AreEqual(1f, p.HeadAmbient);
+            Assert.AreEqual(1f, p.TopAmbient);
             CloudTypeDef built = t.Build();
             Assert.AreEqual(0.5f, built.BaseLight, 1e-6f);
-            Assert.AreEqual(0.9f, built.HeadAmbient, 1e-6f);
+            Assert.AreEqual(0.9f, built.TopAmbient, 1e-6f);
         }
 
         [TestMethod]
@@ -92,29 +92,29 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (string name in new[] { "Cumulonimbus calvus", "Cumulonimbus incus" })
                 Assert.AreEqual(1f, layers.SelectMany(l => l.Types).Single(x => x.Name == name).BaseLight, name + " base light");
             foreach (string name in new[] { "Cumulonimbus calvus", "Cumulonimbus incus" })
-                Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).HeadLight > 1.1f, name + " has a bright head");
+                Assert.IsTrue(layers.SelectMany(l => l.Types).Single(x => x.Name == name).TopLight > 1.1f, name + " has a bright head");
             // E40 LM2: the cell diffusion has the sun's incidence on a cloud's surface (light_mc_cell.py), so the cumulus layer's types carry no factor on the direct light any more
             // (E40 ML light had 1.25, the congestus head 1.5), and every lit layer of Kerbin has a cell width.
             foreach (string name in new[] { "Stratocumulus", "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus", "Altocumulus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
                 Assert.AreEqual(1f, t.BaseLight, name + " base light");
-                Assert.AreEqual(1f, t.HeadLight, name + " head light");
+                Assert.AreEqual(1f, t.TopLight, name + " top light");
             }
             foreach (CloudLayerSpec l in layers.Where(l => l.Kind == LayerKind.Weather))
                 Assert.IsTrue(l.LightCellWidth > 0f, l.Name + " has a cell width");
-            // The decks of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
-            foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbus" })
+            // The low stratiform layers of stratus and nimbostratus (rain and snow) have no factor: their light follows the two-stream anchors without one (E40 look round 2).
+            foreach (string name in new[] { "Stratus", "Nimbostratus", "Snow stratus", "Snow nimbostratus" })
             {
                 CloudTypeSpec t = layers.SelectMany(l => l.Types).Single(x => x.Name == name);
                 Assert.AreEqual(1f, t.BaseLight, name + " base light");
-                Assert.AreEqual(1f, t.HeadLight, name + " head light");
+                Assert.AreEqual(1f, t.TopLight, name + " top light");
                 Assert.AreEqual(1f, t.BaseAmbient, name + " base ambient");
-                Assert.AreEqual(1f, t.HeadAmbient, name + " head ambient");
+                Assert.AreEqual(1f, t.TopAmbient, name + " top ambient");
             }
-            foreach (CloudLayerSpec deck in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
+            foreach (CloudLayerSpec layer in layers.Where(l => l.Name.StartsWith("Kerbin-weather")))
             {
-                Assert.AreEqual(1f, deck.LightAmbient, deck.Name + " light ambient");
+                Assert.AreEqual(1f, layer.LightAmbient, layer.Name + " light ambient");
             }
         }
 
@@ -143,7 +143,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheNominalCloudAltitudeIsTheLowerQuarterOfTheLayer()
         {
-            Assert.AreEqual(525f, CloudOutputStage.NominalCloudAltitudeM(0f, 2100f), 1e-3f, "the rain deck");
+            Assert.AreEqual(525f, CloudOutputStage.NominalCloudAltitudeM(0f, 2100f), 1e-3f, "the low stratiform rain layer");
             Assert.AreEqual(3125f, CloudOutputStage.NominalCloudAltitudeM(1700f, 5700f), 1e-3f, "the cumulus layer");
             Assert.AreEqual(1700f, CloudOutputStage.NominalCloudAltitudeM(1700f, -5f), 1e-3f, "a negative thickness counts as none");
         }

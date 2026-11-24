@@ -4,11 +4,11 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Atmospheres
 {
-    // What one composite needs besides the frame: where the camera looks, which mode draws, the depth, the tuning and the veil colours.
+    // What one composite needs besides the frame: where the camera looks, which mode draws, the depth, the tuning and the extinction colours.
     internal struct PrecipDraw
     {
-        // True for the composite after the upscaler (render-size depth, the veil colour relative to the image); false for the Scene
-        // composite (hardware depth test, the veil colour in scene units).
+        // True for the composite after the upscaler (render-size depth, the extinction colour relative to the image); false for the Scene
+        // composite (hardware depth test, the extinction colour in scene units).
         public bool Host;
         // The weight of this composite in a cross-fade, 0 to 1.
         public float Weight;
@@ -27,14 +27,14 @@ namespace ReDefinition.Atmospheres
         // The distance from the camera down to the ground, for the splashes.
         public float GroundDistance;
         public int Seed;
-        public Color VeilGroundColour, VeilSkyColour;
+        public Color ExtinctionGroundColour, ExtinctionSkyColour;
         public float SkyGreyStartDeg, SkyGreyFullDeg;
-        // The share of the storm grade, the veil's luminance gain (fogBrightness), the dt for the luminance smoothing.
+        // The share of the storm grade, the extinction's luminance gain (visibilityExtinctionBrightness), the dt for the luminance smoothing.
         public float Grade, LumaGain, Dt;
         public PrecipTuning Tuning;
     }
 
-    // Records the draws of the precipitation into a command buffer: the veil, the three layers of billboards, the splashes and, in Host
+    // Records the draws of the precipitation into a command buffer: the extinction, the three layers of billboards, the splashes and, in Host
     // mode, the capture of the image's luminance. Engine only (no game type), so the weather player draws with the same class the mod
     // does. Owns its material, its sheet and its small targets; Dispose frees them.
     internal sealed class PrecipPass : IDisposable
@@ -110,7 +110,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Records the capture of the image's luminance: the whole picture into 16 x 16 pixels, its smallest mip mixed into the previous
-        // value. The next veil reads the result. The caller sets the render target again afterwards.
+        // value. The next extinction reads the result. The caller sets the render target again afterwards.
         internal void RecordLuma(CommandBuffer cmd, RenderTargetIdentifier source, float dt, float tauSeconds)
         {
             EnsureLuma();
@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres
             lumaFlip = !lumaFlip;
         }
 
-        // Records the veil, the layers and the splashes of a frame. The render target is the caller's (Scene: the camera's with its
+        // Records the extinction, the layers and the splashes of a frame. The render target is the caller's (Scene: the camera's with its
         // depth; Host: the caller sets the upscaled image first).
         internal void Record(CommandBuffer cmd, ref PrecipFrame frame, ref PrecipDraw draw)
         {
@@ -142,17 +142,17 @@ namespace ReDefinition.Atmospheres
 
             Vector4 target = new Vector4(draw.TargetWidth, draw.TargetHeight, draw.DepthFlipY ? 1f : 0f, draw.Host && draw.Depth != null ? 1f : 0f);
 
-            // The veil first, so that the flakes are not washed out by it.
-            if (frame.VeilGround > 0.001f || frame.VeilSky > 0.001f)
+            // The extinction first, so that the hydrometeors are not washed out by it.
+            if (frame.ExtinctionGround > 0.001f || frame.ExtinctionSky > 0.001f)
             {
                 block.Clear();
                 Common(block, ref draw, target);
-                block.SetVector("_PrecipVeilA", new Vector4(
-                    PrecipMath.VeilShare(frame.VeilGround, weight), PrecipMath.VeilShare(Mathf.Max(frame.VeilSky, frame.VeilGround), weight),
+                block.SetVector("_PrecipExtinctionA", new Vector4(
+                    PrecipMath.ExtinctionShare(frame.ExtinctionGround, weight), PrecipMath.ExtinctionShare(Mathf.Max(frame.ExtinctionSky, frame.ExtinctionGround), weight),
                     Mathf.Sin(draw.SkyGreyStartDeg * Mathf.Deg2Rad), Mathf.Sin(Mathf.Max(draw.SkyGreyFullDeg, draw.SkyGreyStartDeg + 0.01f) * Mathf.Deg2Rad)));
-                block.SetVector("_PrecipVeilGround", draw.VeilGroundColour);
-                block.SetVector("_PrecipVeilSky", draw.VeilSkyColour);
-                block.SetVector("_PrecipVeilGrade", new Vector4(draw.Grade, tuning.VeilLumaFloor, draw.Host ? 1f : 0f, draw.LumaGain * tuning.VeilLumaGain));
+                block.SetVector("_PrecipExtinctionGround", draw.ExtinctionGroundColour);
+                block.SetVector("_PrecipExtinctionSky", draw.ExtinctionSkyColour);
+                block.SetVector("_PrecipExtinctionGrade", new Vector4(draw.Grade, tuning.ExtinctionLumaFloor, draw.Host ? 1f : 0f, draw.LumaGain * tuning.ExtinctionLumaGain));
                 block.SetVector("_PrecipColour", new Vector4(1f, 1f, 1f, 1f));
                 cmd.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1, block);
             }
@@ -186,7 +186,7 @@ namespace ReDefinition.Atmospheres
             block.SetVector("_PrecipCamBox", new Vector4(
                 Frac((float)(draw.CamE / layer.BoxW)), Frac((float)(draw.CamU / layer.BoxH)), Frac((float)(draw.CamN / layer.BoxW)), draw.TimeMod60));
             block.SetVector("_PrecipVel", new Vector4(frame.VelE, frame.VelU, frame.VelN, frame.Look.Sway));
-            float gain = draw.Host ? tuning.HostFlakeGain : 1f;
+            float gain = draw.Host ? tuning.HostHydrometeorGain : 1f;
             block.SetVector("_PrecipColour", new Vector4(frame.Colour0 * frame.Light * gain, frame.Colour1 * frame.Light * gain, frame.Colour2 * frame.Light * gain, weight));
             block.SetVector("_PrecipLook", new Vector4(frame.Look.Stretch, tuning.FloorPx, draw.Host ? tuning.HostMinContrast : tuning.SceneMinContrast, (float)frame.Look.Sheet));
             cmd.DrawProcedural(Matrix4x4.identity, material, 1, MeshTopology.Triangles, 6, layer.Count, block);

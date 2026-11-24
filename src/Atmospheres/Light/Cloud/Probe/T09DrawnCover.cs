@@ -14,7 +14,7 @@ namespace ReDefinition.Atmospheres
     // Cover = the mean over the rays that meet a layer (the share of the view's sky that is cloud); LayerFraction = those rays' share of the picture, so Cover x LayerFraction
     // is the estimate of the picture's cloud share (T09.view.<view>.picture_cloud_share is the measured one).
     // What it does not see: the noise inside a layer (the map value is the layer's area share, not the opaque share), the layer's thickness and the slant through it,
-    // haze, terrain and the camera's 100 to 150 m behind the vessel.
+    // aerial perspective, terrain and the camera's 100 to 150 m behind the vessel.
     internal static class T09DrawnCover
     {
         // The grids: the estimate after the maps settled, and the forecast that ranks the candidate times (a coarser grid: it is evaluated for every time and heading).

@@ -289,7 +289,7 @@ def selftest():
     pj["uniforms"]["vectors"]["_OutP"] = [1, 0.4545, 0.75, 1]
     cloud[..., :3] = 0.75
     assert np.allclose(composite(cloud, scene, pj)[..., :3], 0.75, atol=1e-5)
-    assert TAG.match("pin-ground-haze0-u1486800-perfNpic2560dlssqpin4-20261120120000").group("label") == "ground-haze0"
+    assert TAG.match("pin-ground-aerial0-u1486800-perfNpic2560dlssqpin4-20261120120000").group("label") == "ground-aerial0"
     assert TAG.match("pin-sky3-u1486800-perfNpic2560dlssqpin4-20261120120000").group("label") == "sky3"
     print("selftest passed")
     return 0

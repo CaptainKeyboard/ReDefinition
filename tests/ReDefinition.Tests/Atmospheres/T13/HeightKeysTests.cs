@@ -297,7 +297,7 @@ namespace ReDefinition.Tests
         }
 
         // A layer of 1500 m to 3000 m with one type from its inner altitude to its outer one at an erosion of 0.5 (the reference of heightRaggedM).
-        private static CloudLayerDef Deck()
+        private static CloudLayerDef LowStratiform()
         {
             var type = new CloudTypeDef("t", 0f, 1f, new Curve(new[] { 0f, 1f }, new[] { 1f, 1f }), 0.5f);
             return new CloudLayerDef("l", 1, 1500f, 3000f, new List<CloudTypeDef> { type }, 0.01f) { Coverage = 0.5f, EdgeSoftness = 1e-4f };
@@ -306,7 +306,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheRaggedKeyMovesTheBaseByTheKeysMetresAndMinThicknessIsTheThinnestCloud()
         {
-            CloudLayerDef layer = Deck();
+            CloudLayerDef layer = LowStratiform();
             var table = new LayerTypeTable(layer);
             double Density(string keys, double altitude, LocalHeights heights, double ragged)
             {

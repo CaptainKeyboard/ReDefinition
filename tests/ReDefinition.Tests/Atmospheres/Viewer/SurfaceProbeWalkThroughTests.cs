@@ -66,7 +66,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             r.Probe.FogReader = () =>
             {
                 Tuning.BeginFrame(beginFrame++);   // an override takes effect at the next frame
-                bool old = !Tuning.Flag("driver.forcedLevelOwnsFog", true);
+                bool old = !Tuning.Flag("driver.forcedLevelOwnsVisibility", true);
                 bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects && old;
                 return new FogReading { On = on, Mode = 3, Density = on ? 0.00012f : 0f, Colour = new Color(0.7f, 0.75f, 0.8f), Held = on ? 0.00012f : 0f, Asked = on ? 0.00012f : 0f, Level = 0f, VisibilityM = on ? 14000f : 20000f };
             };
@@ -140,7 +140,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsTrue(AtmospheresSettings.OwnClouds && !AtmospheresSettings.GroundCover, "the switches are back as they were");
             Assert.IsTrue(AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects, "the switches are back on");
             Tuning.BeginFrame(100000);
-            Assert.IsTrue(Tuning.Flag("driver.forcedLevelOwnsFog", true), "the fog rule's override is cleared");
+            Assert.IsTrue(Tuning.Flag("driver.forcedLevelOwnsVisibility", true), "the visibility rule's override is cleared");
         }
 
         [TestMethod]

@@ -44,7 +44,7 @@ namespace ReDefinition.Atmospheres
             return none;
         }
 
-        // The numbers the sky's colour needs from the same node (E40 H1 haze): m_mieG, averageGroundReflectance and the configPoints' altitude / skyExposure pairs. A key that is missing or not a
+        // The numbers the sky's colour needs from the same node (E40 H1 aerial perspective): m_mieG, averageGroundReflectance and the configPoints' altitude / skyExposure pairs. A key that is missing or not a
         // number leaves the air's default (CloudHorizonSky.DefaultMieG, DefaultGroundAlbedo, DefaultSkyExposure) for that value.
         internal static void ReadSky(ConfigNode atmo, ref CloudBridgeAir.Air air)
         {

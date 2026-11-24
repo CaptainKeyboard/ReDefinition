@@ -6,7 +6,7 @@
     python tools/weather_metrics/e40surf.py --report                                                   (the table of the last run, deltas against the base)
 
 The base view is e40pp's replay of the game's frame (label 'player (parity checked ...)' for the views that pass the check); each variant changes ONE factor of its job and nothing
-else: the same camera, sun, maps, haze, display stage and march. Each frame is laid over the game's own frame without clouds (e40pp.compose) and measured by
+else: the same camera, sun, maps, aerial perspective, display stage and march. Each frame is laid over the game's own frame without clouds (e40pp.compose) and measured by
 surface_visibility.measure on the cloud pixels (the same mask for every variant of a view: the base's).
 """
 import argparse
@@ -58,8 +58,8 @@ def scaler(name, factor):
     return f
 
 
-def v_haze(job):
-    job["far"]["haze"] = 0
+def v_aerial(job):
+    job["far"]["aerialPerspective"] = 0
 
 
 def v_lm2off(job):
@@ -122,7 +122,7 @@ def v_sharp(job):
 
 VARIANTS = {
     "base": ("the replay as e40pp makes it", None),
-    "haze0": ("(a) the far haze off (far.haze 0)", v_haze),
+    "aerial0": ("(a) the aerial perspective off (far.aerialPerspective 0)", v_aerial),
     "lm2off": ("(b) the cell diffusion of LM2 off (layers' lightCellWidth 0: the slab diffusion term)", v_lm2off),
     "ambhalf": ("(b) the ambient light (top and bottom) halved", v_ambhalf),
     "ambzero": ("(b) no ambient light", v_ambzero),

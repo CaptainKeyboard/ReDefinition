@@ -6,27 +6,27 @@
 // disc whose radius follows the share (CellVisibleRadius: a table from a Monte Carlo of this very lattice, so the discs cover the share).
 //
 // Each disc is a cloud's body (CellEnvelope), drawn as Schneider draws his clouds in Nubis (SIGGRAPH 2022 and 2023: a body with a sharp surface, its share rising within a thin band inside it,
-// the billows moving that surface): a half ellipsoid over the type's flat base whose depth in metres the billow noise moves in three sizes, the heads on the heads in the same proportion.
+// the bulges moving that surface): a half ellipsoid over the type's flat base whose depth in metres the bulge noise moves in three sizes, the heads on the heads in the same proportion.
 //
 // The code is the project's own. A jittered lattice for cell placement is the common Worley construction (S. Worley, "A Cellular Texture Basis Function", SIGGRAPH 1996).
 #ifndef REDEFINITION_CLOUD_CELLS
 #define REDEFINITION_CLOUD_CELLS
 
-// The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the billows move the body's surface, as a share of its shorter
-// semi-axis (cfg cellBillow); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer billow octaves (cellFine; 0: not read); w flags: 1 the march
-// leaps over the space beyond the billows' reach (CellShellGap, cloud.cellTrace), 2 unused, 4 the march steps finely
+// The body of a single cloud per layer (CloudLayerDef's cell keys, the viewer's overrides through CloudLookTuning): x how far the bulges move the body's surface, as a share of its shorter
+// semi-axis (cfg cellBulge); y the width in m of the band the share rises over at the surface (cellBand); z the gain of the finer bulge octaves (cellFine; 0: not read); w flags: 1 the march
+// leaps over the space beyond the bulges' reach (CellShellGap, cloud.cellTrace), 2 unused, 4 the march steps finely
 // inside that reach, where the surface can lie (cloud.cellShell, CELL_SHELL_STEP_MIN).
 float4 _CellE[4];
 // The body's core profile (a global, set by CellCoreProfile.Apply for the layer pass and the cloud shadow alike): x the depth of the rise in shares of the body's shorter semi-axis (0: off),
 // y the share at the surface.
 float4 _CellK;
-// The sky drawn from the weather map (MapSkyRegions.SheetTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's sheet types are drawn connected, y the type value
-// of the low sheet type (Stratocumulus), z the one of the high sheet type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a sheet type, the
-// map's own value is drawn instead of single clouds (wMap 1): a connected deck over the area the map gives; one type step away the lattice draws alone.
+// The sky drawn from the weather map (MapSkyRegions.StratiformTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's stratiform types are drawn connected, y the type value
+// of the low stratiform type (Stratocumulus), z the one of the high stratiform type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a stratiform type, the
+// map's own value is drawn instead of single clouds (wMap 1): a connected cloud layer over the area the map gives; one type step away the lattice draws alone.
 float4 _CellS[4];
 
-// The weight of the connected sheet at a type value (0: the lattice alone): 1 at a sheet type, falling linearly to 0 one type step away.
-float CellSheetWeight(int li, float typeValue)
+// The weight of the connected sheet at a type value (0: the lattice alone): 1 at a stratiform type, falling linearly to 0 one type step away.
+float CellStratiformWeight(int li, float typeValue)
 {
     float4 s = _CellS[li];
     if (s.x < 0.5) return 0.0;
@@ -97,7 +97,7 @@ float CellUnit(uint h)
 // The profile (0..1) of the nearest disc at the map place uv (u: longitude with the layer's shift, any value; v: 0 north to 1 south), for the pitch (m), the radius of the layer's middle rm (m),
 // the share f and the layer's seed. size: the size factor of that disc's cell (1 where there is none); xBest: the distance to its centre over its profile radius rBest (m). reachM: a distance in
 // m over which no disc begins (0 inside one; the march leaps over it, as over the map's empty reach).
-// gCellBodyX (set by the caller, 0: not asked): the widest a body reaches from its centre in profile radii (CELL_EDGE_X times 1 plus the billows' swing); gCellOther returns the least horizontal
+// gCellBodyX (set by the caller, 0: not asked): the widest a body reaches from its centre in profile radii (CELL_EDGE_X times 1 plus the bulges' swing); gCellOther returns the least horizontal
 // distance in m from the point to where the body of a disc other than the nearest one can begin (the march's cap on CellShellGap; the twin does not need it, it is not an output of the profile).
 static float gCellBodyX = 0.0;
 static float gCellOther = 1e9;
@@ -166,24 +166,24 @@ static float gCellX = -1.0;
 static float gCellCore = 0.0;
 static float gCellW = 1.0;
 static float gCellR = 0.0;
-// The depth of the last CellBody's point below the outer side of the shell the billows can move the surface within (m, negative outside the shell; it changes by at most 1 per m), and whether a
+// The depth of the last CellBody's point below the outer side of the shell the bulges can move the surface within (m, negative outside the shell; it changes by at most 1 per m), and whether a
 // body was read there (the caller resets it).
 static float gBodyFar = 0.0;
 static bool gBodyRead = false;
 
 // The layer map's value at a point with the cells, for the coverage bounds and the far view. The disc's profile p is placed on the layer's threshold (p 0.5 at the threshold, 0 half a unit below
 // it), and inside the disc it rises to the cloud's core strength: the map's excess over the threshold (how much the region convects: a fair sky's clouds stay low, a stormy region's grow) times
-// the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed deck above a share of 0.8, where
-// the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean; and a sheet type of the map-driven
-// sky, sheetW from CellSheetWeight, 0 otherwise).
-float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float sheetW, out float reachM, out float wMap)
+// the cell's size factor (the wide clouds are the tall ones; a field holds many low clouds and a few towers). wMap: the share of the map's own value (a closed cloud layer above a share of 0.8, where
+// the discs merge; and the far view, where the march's spacing passes a quarter of the pitch: the cells would alias, the map's value has their mean; and a stratiform type of the map-driven
+// sky, stratiformW from CellStratiformWeight, 0 otherwise).
+float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, float edge, float amount, float foot, uint seed, float stratiformW, out float reachM, out float wMap)
 {
     float f = CellShare(cov, coverage, edge, amount);
     float size, xBest, rBest;
     float p = CellProfile(uv, pitch, rm, f, seed, size, reachM, xBest, rBest);
     float core = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * size;
     float e = p > 0.5 ? (2.0 * p - 1.0) * core : p - 0.5;
-    wMap = max(max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0), saturate(sheetW));
+    wMap = max(max(saturate((f - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * pitch) / (0.5 * pitch)) : 0.0), saturate(stratiformW));
     gCellX = xBest;
     gCellR = rBest;
     gCellCore = core;
@@ -191,9 +191,9 @@ float CellCover(float cov, float2 uv, float pitch, float rm, float coverage, flo
     return lerp(1.0 - coverage + e, cov, wMap);
 }
 
-// The finer billow octaves of a single cloud's body: the heap field (the shape volume's green channel, preset billow) read at 0.37 and 0.137 of its period at the lattice's true vertical scale
-// (as the heap lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
-float2 CellFineBillows(int li, float3 pc)
+// The finer bulge octaves of a single cloud's body: the cumuliform field (the shape volume's green channel, preset bulge) read at 0.37 and 0.137 of its period at the lattice's true vertical scale
+// (as the cumuliform lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
+float2 CellFineBulges(int li, float3 pc)
 {
     float scale = _LayerD[li].y > 0 ? 1.0 / _LayerD[li].y : 250.0;
     float3 q = NoiseLookupBase(li, pc, scale, 0);
@@ -207,10 +207,10 @@ float2 CellFineBillows(int li, float3 pc)
 
 // The body of a single cloud at a point: its share, 0 outside and 1 inside, rising over the band at its surface. The body is a half ellipsoid over the type's flat base: horizontal semi-axis the
 // disc's visible radius (CELL_EDGE_X of its profile radius gCellR, where the radius table puts the edge), vertical the cloud's own height (a share of the type's height typeHeightM from the core
-// strength). Its depth below the surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the billows: the first octave (billow: the
+// strength). Its depth below the surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the bulges: the first octave (bulge: the
 // layer's blended noise rank, 0..1) by up to _CellE.x of that semi-axis, the finer ones (fine, centred on 0) in proportion to their size, so the heads on the heads are smaller in the same
 // ratio (the cumulus's fractal surface). h: the height share of the type at the point.
-float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
+float CellBody(int li, float h, float bulge, float2 fine, float typeHeightM)
 {
     float4 e = _CellE[li];
     float top = clamp(gCellCore / 0.5, 0.15, 1.0);
@@ -219,8 +219,8 @@ float CellBody(int li, float h, float billow, float2 fine, float typeHeightM)
     float axis = min(semiR, semiH);
     float qBase = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
     float band = CellBand(li);
-    float q =qBase + e.x * axis * (billow - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
-    // The shell: the billows move the surface by at most e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone bounds the distance to it: the ellipsoid's
+    float q =qBase + e.x * axis * (bulge - 0.5 + e.z * (0.37 * fine.x + 0.137 * fine.y));
+    // The shell: the bulges move the surface by at most e.x axis (0.5 + 0.5 e.z (0.37 + 0.137)) outwards, so beyond that the body's own term alone bounds the distance to it: the ellipsoid's
     // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
     gBodyRead = true;
@@ -239,7 +239,7 @@ float CellShellGap(int li)
     return max(-gBodyFar - 0.5 * CellBand(li), 0.0);
 }
 
-// The widest reach of a body from its disc's centre in profile radii for the layer (gCellBodyX): the horizontal semi-axis CELL_EDGE_X times the radial coordinate where the billows' largest outward
+// The widest reach of a body from its disc's centre in profile radii for the layer (gCellBodyX): the horizontal semi-axis CELL_EDGE_X times the radial coordinate where the bulges' largest outward
 // swing still reaches the band, e.x (0.5 + e.z (0.37 + 0.137) / 2) of the shorter semi-axis, bounded by the horizontal one; the band's half width is the caller's.
 float CellBodyReachX(int li)
 {
@@ -255,7 +255,7 @@ float4 _FieldC[8];
 
 // A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
-// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the deck) and where the march's spacing (foot, 0: none) is
+// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the closed cloud layer) and where the march's spacing (foot, 0: none) is
 // wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by
 // the hand-over weight, as CellCover blends the lattice's discs, so there is no edge where the hand-over begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell
 // read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point;

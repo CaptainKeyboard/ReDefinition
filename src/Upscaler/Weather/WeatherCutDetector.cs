@@ -4,7 +4,7 @@ namespace ReDefinition.Upscaler
 {
     // Finds the frames at which the weather jumps instead of moving: the precipitation level changes by more than
     // CutLevelStep in one frame, or the body the weather belongs to changes. Such a frame drops the temporal history
-    // (Frame.RequestHistoryReset("weather cut")): flakes, veil and fog of the old state would otherwise smear into the new one.
+    // (Frame.RequestHistoryReset("weather cut")): hydrometeors, precipitation extinction and visibility extinction of the old state would otherwise smear into the new one.
     // Pure state; the caller passes what WeatherHooks.View holds.
     internal sealed class WeatherCutDetector
     {

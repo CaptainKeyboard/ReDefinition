@@ -9,7 +9,7 @@ The scene (SunColourScene of tests/WeatherPlayer/Assets/Runner/SunColourScene.cs
   new   the pass's colour (CloudSunAir: the camera's air divided out, the colour capped at the white sun) and the shader's air above each sample (two components)
 
 Pictures (into .local/work/series-pictures/E40): e40-sc-<view>-<old|new>.png (display values over the job's backdrop), e40-sc-<view>-pair.png (old | new side by side) and the rows
-of the deck's median colour (blue over red) under the two, so that the claim "a low camera no longer reddens every cloud and a high camera no longer whitens a low deck" has numbers.
+of the cloud region's median colour (blue over red) under the two, so that the claim "a low camera no longer reddens every cloud and a high camera no longer whitens a low stratiform layer" has numbers.
 """
 import json
 import os
@@ -28,7 +28,7 @@ VIEWS = ("ground", "above")
 VARIANTS = ("old", "new")
 
 
-def deck_colour(m, view):
+def cloud_colour(m, view):
     """Median display colour of the pixels the cloud covers by more than half (alpha), and its blue over red."""
     a = m[..., 3]
     rgb = gn.full_display(m, view)
@@ -56,14 +56,14 @@ def collect(ctx):
             rgb = gn.full_display(m, view)
             gn.save_png(os.path.join(out_dir, "%s-%s-%s.png" % (PREFIX, view, variant)), rgb)
             pics.append(rgb)
-            got = deck_colour(m, view)
+            got = cloud_colour(m, view)
             if got is None:
                 lines.append("   %-6s %-4s: no cloud pixels" % (view, variant))
                 continue
             med, br, share = got
             row[variant] = dict(median=[float(x) for x in med], blue_over_red=br, share=share)
             metrics.append(Metric.info("e40sc.%s.%s.blue_over_red" % (view, variant), br))
-            lines.append("   %-6s %-4s: deck median %.3f %.3f %.3f, blue over red %.3f, cloud share %.3f" % ((view, variant) + tuple(med) + (br, share)))
+            lines.append("   %-6s %-4s: cloud median %.3f %.3f %.3f, blue over red %.3f, cloud share %.3f" % ((view, variant) + tuple(med) + (br, share)))
         if len(pics) == 2:
             gn.save_png(os.path.join(out_dir, "%s-%s-pair.png" % (PREFIX, view)), np.concatenate(pics, axis=1))
         results[view] = row

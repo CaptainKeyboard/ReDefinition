@@ -159,21 +159,21 @@ namespace ReDefinition.Tests.Atmospheres.E43
         public void TheLayerMapIsTheCoverageOfTheLayerAndFollowsTheSwitches()
         {
             GeneratorField field = FieldFixture.Field();
-            var deck = new WeatherMap();
+            var low = new WeatherMap();
             var surface = new WeatherMap();
-            Assert.IsTrue(field.GetLayerCoverage(Body, 3.0e6, 2000.0, deck));
+            Assert.IsTrue(field.GetLayerCoverage(Body, 3.0e6, 2000.0, low));
             Assert.IsTrue(field.GetMap(Body, WeatherMapKind.Coverage, 3.0e6, surface));
-            Assert.AreEqual(surface.Width, deck.Width);
-            Assert.AreEqual(surface.Height, deck.Height);
-            Assert.IsTrue(deck.Values.All(v => v >= 0f && v <= 1.0001f));
-            Assert.IsTrue(deck.Values.Max() > 0.2f);
+            Assert.AreEqual(surface.Width, low.Width);
+            Assert.AreEqual(surface.Height, low.Height);
+            Assert.IsTrue(low.Values.All(v => v >= 0f && v <= 1.0001f));
+            Assert.IsTrue(low.Values.Max() > 0.2f);
             var high = new WeatherMap();
             Assert.IsTrue(field.GetLayerCoverage(Body, 3.0e6, 9000.0, high));
             double differ = 0.0;
-            for (int i = 0; i < deck.Values.Length; i++) differ += Math.Abs(deck.Values[i] - high.Values[i]);
-            Assert.IsTrue(differ / deck.Values.Length > 0.005, "two heights, two maps: " + differ / deck.Values.Length);
-            Assert.IsFalse(field.GetLayerCoverage(Body + 1, 3.0e6, 2000.0, deck));
-            Assert.IsFalse(field.GetLayerCoverage(Body, double.NaN, 2000.0, deck));
+            for (int i = 0; i < low.Values.Length; i++) differ += Math.Abs(low.Values[i] - high.Values[i]);
+            Assert.IsTrue(differ / low.Values.Length > 0.005, "two heights, two maps: " + differ / low.Values.Length);
+            Assert.IsFalse(field.GetLayerCoverage(Body + 1, 3.0e6, 2000.0, low));
+            Assert.IsFalse(field.GetLayerCoverage(Body, double.NaN, 2000.0, low));
         }
     }
 }

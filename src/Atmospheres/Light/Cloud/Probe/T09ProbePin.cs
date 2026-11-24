@@ -98,7 +98,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // -t09PinViews: the views of the pinned capture by name (Views: ground, inside, above, sky3, ...), turned by -t09HeadingOffset; the ground view alone without it.
-        // A view of its own: name=agl:pitch:heading:cameraDist (metres and degrees; M2c, 2026-11-23: a view below the low deck's base, which every series view is
+        // A view of its own: name=agl:pitch:heading:cameraDist (metres and degrees; M2c, 2026-11-23: a view below the low stratiform layer's base, which every series view is
         // inside of, e.g. low=40:25:90:30).
         private List<View> PinViews(out string problem)
         {
@@ -230,7 +230,7 @@ namespace ReDefinition.Atmospheres
         private static bool PinLimitChangesMaps(PinLimit limit)
         {
             foreach (PinSwitch s in limit.Switches)
-                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneSheetRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneDeckBase || PinChangesHeightScale(s))) return true;
+                if (s.Kind == 't' && (s.Key == MapSkyRegions.TuneStratiformRule || s.Key == MapSkyRegions.TuneDepthRule || s.Key == MapSkyRegions.TuneLowStratiformBase || PinChangesHeightScale(s))) return true;
             return false;
         }
 
@@ -543,7 +543,7 @@ namespace ReDefinition.Atmospheres
                                                          + step.ToString("0.0000", CultureInfo.InvariantCulture) + " s; the sun's direction " + sunSpreadDeg.ToString("0.00000", CultureInfo.InvariantCulture)
                                                          + " degrees, the planet's centre " + centreSpreadM.ToString("0.000", CultureInfo.InvariantCulture) + " m")) yield break;
 
-            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else sheet rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky.*).
+            // The sky the pass draws in this capture: the last map round's state (-1 today's chain, else stratiform rule x 10 + depth rule) must be the keys' (cloud.weatherMapSky.*).
             PinEmit("map_sky", own.LastRoundMapSky);
             PinEmit("map_sky_rounds", own.MapSkyRounds);
             string skyWhy;

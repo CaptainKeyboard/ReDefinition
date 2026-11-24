@@ -61,8 +61,8 @@ namespace ReDefinition.Atmospheres
             internal const string PrecipAsh = "precipAsh";
             internal const string PrecipMethane = "precipMethane";
             internal const string StormCullDistance = "stormCullDistance";
-            internal const string FogBrightness = "fogBrightness";
-            internal const string VeilStrength = "veilStrength";
+            internal const string VisibilityExtinctionBrightness = "visibilityExtinctionBrightness";
+            internal const string PrecipExtinctionStrength = "precipExtinctionStrength";
             internal const string BlizzardVisibilityM = "blizzardVisibilityM";
             internal const string SkyDimming = "skyDimming";
             // Light in the medium, aurora, frost
@@ -288,7 +288,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Int("genSeed", 1, int.MinValue, int.MaxValue, S, "Weather Seed", SIM),
 
                 // Volume
-                SettingDef.Bool("volumePass", true, V, "Volumetric Clouds And Curtains", MASTER, RV),
+                SettingDef.Bool("volumePass", true, V, "Volumetric Clouds And Praecipitatios", MASTER, RV),
                 SettingDef.Float("volumeResolution", 1.0, 0.25, 1.0, V, "Volume Resolution", VOL, RV),
                 SettingDef.Int("volumeSteps", 28, 16, 48, V, "Volume Steps", VOL, RV),
                 SettingDef.Choice("volumeCompose", typeof(VolumeCompose), VolumeCompose.Scene, V, "Volume Composition", VOL, RV),
@@ -303,8 +303,8 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("precipAsh", true, P, "Draw Ash", PR),
                 SettingDef.Bool("precipMethane", true, P, "Draw Methane", PR),
                 SettingDef.Bool("stormCullDistance", false, P, "Cull Distant Terrain In Storms", MASTER, RP),
-                SettingDef.Float("fogBrightness", 1.0, 0.25, 2.0, P, "Fog Brightness", MASTER),
-                SettingDef.Float("veilStrength", 0.85, 0.0, 0.95, P, "Veil Strength", MASTER),
+                SettingDef.Float("visibilityExtinctionBrightness", 1.0, 0.25, 2.0, P, "Visibility Extinction Brightness", MASTER),
+                SettingDef.Float("precipExtinctionStrength", 0.85, 0.0, 0.95, P, "Precipitation Extinction", MASTER),
                 SettingDef.Float("blizzardVisibilityM", 60.0, 20.0, 500.0, P, "Blizzard Visibility", MASTER),
                 SettingDef.Float("skyDimming", 0.6, 0.0, 1.0, P, "Sky Darkening", MASTER),
 

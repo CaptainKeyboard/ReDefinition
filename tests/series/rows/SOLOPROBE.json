@@ -94,21 +94,21 @@
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.cirrostratus_share", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.cirrostratus_row_span", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
 
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Stratus is in the rain-deck layer." },
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_pose_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near (elevation 45 from 90 m: the camera 19 m above the ground, under the deck's base at 210 m)." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Stratus is in the low stratiform rain layer." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_pose_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near (elevation 45 from 90 m: the camera 19 m above the ground, under the layer's base at 210 m)." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_background_clear_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near." },
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_isolated_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the pass's layer mask is the deck's bit, its forced map 1, the deck rule off, every other layer 0, no forced rain." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_isolated_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the pass's layer mask is the layer's bit, its forced map 1, the low stratiform rule off, every other layer 0, no forced rain." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_picture_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near." },
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_share_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: a closed deck seen from a vessel 90 m over the ground (camera 19 m up) at 45 degrees: 0.70 to 1.0 of the frame." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_share_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: a closed stratus layer seen from a vessel 90 m over the ground (camera 19 m up) at 45 degrees: 0.70 to 1.0 of the frame." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_share", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.stratus_row_span", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
 
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Nimbostratus is in the rain-deck layer." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Nimbostratus is in the low stratiform rain layer." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_pose_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as stratus (the base at 105 m)." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_background_clear_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_isolated_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as stratus." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_picture_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: as cb_near." },
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_share_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: a closed, thick deck: 0.85 to 1.0 of the frame." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_share_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: a closed, thick nimbostratus layer: 0.85 to 1.0 of the frame." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_share", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.nimbostratus_row_span", "min": 0, "max": 1, "unit": "share", "required": false, "note": "INFORMATION." },
 
@@ -152,7 +152,7 @@
 
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.views_all_run_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: all 11 views reached their solo picture and its measurement." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.sun_fixed_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the sun's elevation at the end of the series is within 1 degree of the one it was set to (the time stayed frozen; unfrozen the sun moves 1 degree in 60 s)." },
-    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.restore_options_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: after the viewer's close no override of cloud.soloLayer, cloud.cellKm, cloud.coverCombine, cloud.motionScale or a layer's map, type or deck rule is left and forceLevel and forceType are as before." },
+    { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.restore_options_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: after the viewer's close no override of cloud.soloLayer, cloud.cellKm, cloud.coverCombine, cloud.motionScale or a layer's map, type or low stratiform rule is left and forceLevel and forceType are as before." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.vessel_intact_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the vessel has the same parts and no vessel is added to the scene (no debris) after the twelve placements and the viewer's close, counted from the moment the vessel was loaded and unpacked. Fails: a placement tore the vessel apart." },
     { "series": "K-S1", "section": "SOLOPROBE", "start": "solo", "metric": "SOLO.elapsed_s", "max": 900, "unit": "s", "required": false, "note": "INFORMATION: the scenario's real seconds (the limit of the probe is 900)." }
   ]

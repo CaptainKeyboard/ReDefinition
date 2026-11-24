@@ -12,7 +12,7 @@
 A job is the pin capture's job (the game's frame, light, march, reconstruction and noise settings) with one situation's maps and one camera. The situation's weather is moved onto
 the capture's place (KSC) by a rotation of the sphere, so the game's camera, sun and terrain depth stay as they were. The two arms differ only in the layer maps and the height
 maps' root offset: today = the module's chain (tests SkyMapsExplore), weather map = WeatherMapSky (cloud.weatherMapSky 1). Both arms have no height variation of today's height
-model (neutral height maps; the game's are made in the game from the field and are not in the dump); the weather-map arm moves the heap layers' base by its root offset.
+model (neutral height maps; the game's are made in the game from the field and are not in the dump); the weather-map arm moves the cumuliform layers' base by its root offset.
 """
 import argparse
 import glob
@@ -103,7 +103,7 @@ def uts_of(dump):
 
 
 def columns(dump, ut):
-    c = {k: f32(dump, ut, k) for k in ("cover", "heap", "sheet", "deck", "base", "top", "rhLow", "rhMid", "rhHigh", "precip", "reach", "stable", "warm", "cold", "inst")}
+    c = {k: f32(dump, ut, k) for k in ("cover", "cumuliform", "sheet", "lowstratiform", "base", "top", "rhLow", "rhMid", "rhHigh", "precip", "reach", "stable", "warm", "cold", "inst")}
     c["depth"] = np.maximum(c["top"] - c["base"], 0.0)
     c["all3"] = (c["rhLow"] >= SATURATED) & (c["rhMid"] >= SATURATED) & (c["rhHigh"] >= SATURATED)
     return c
@@ -113,11 +113,11 @@ def columns(dump, ut):
 # The situations
 # ------------------------------------------------------------------------------------------------------------------------------
 CLASSES = {
-    "a": "fair-weather shallow cumulus (heap >= 0.05, no cell, depth 1 m to 2 km, not all levels saturated, precipitation < 0.1 mm/h)",
-    "b": "broad sheet, overcast (cover >= 0.8, sheet >= 0.75, heap < 0.1, no cell, not all levels saturated)",
+    "a": "fair-weather shallow cumulus (cumuliform >= 0.05, no cell, depth 1 m to 2 km, not all levels saturated, precipitation < 0.1 mm/h)",
+    "b": "broad sheet, overcast (cover >= 0.8, sheet >= 0.75, cumuliform < 0.1, no cell, not all levels saturated)",
     "c": "front with all three levels saturated (warm or cold front nearness >= 0.3)",
     "d": "storm cell (CellReach01 > 0.3, the highest top of all)",
-    "e": "heap water without depth (heap >= 0.05, depth < 1 m, no cell)",
+    "e": "cumuliform water without depth (cumuliform >= 0.05, depth < 1 m, no cell)",
     "f": "the pinned M0 place (KSC, ut 1486800)",
 }
 
@@ -126,11 +126,11 @@ def masks(c):
     lat = 90.0 - (np.arange(MAP_H) + 0.5) * 180.0 / MAP_H
     ok = np.abs(lat)[:, None] < 65.0
     m = {
-        "a": (c["heap"] >= 0.05) & (c["reach"] <= 0) & (c["depth"] >= 1) & (c["depth"] <= 2000) & ~c["all3"] & (c["precip"] < 0.1),
-        "b": (c["cover"] >= 0.8) & (c["sheet"] >= 0.75) & (c["heap"] < 0.1) & (c["reach"] <= 0) & ~c["all3"],
+        "a": (c["cumuliform"] >= 0.05) & (c["reach"] <= 0) & (c["depth"] >= 1) & (c["depth"] <= 2000) & ~c["all3"] & (c["precip"] < 0.1),
+        "b": (c["cover"] >= 0.8) & (c["sheet"] >= 0.75) & (c["cumuliform"] < 0.1) & (c["reach"] <= 0) & ~c["all3"],
         "c": c["all3"] & ((c["warm"] >= 0.3) | (c["cold"] >= 0.3)),
         "d": c["reach"] > 0.3,
-        "e": (c["heap"] >= 0.05) & (c["depth"] < 1) & (c["reach"] <= 0),
+        "e": (c["cumuliform"] >= 0.05) & (c["depth"] < 1) & (c["reach"] <= 0),
     }
     return {k: v & ok for k, v in m.items()}
 
@@ -150,7 +150,7 @@ def pick(dump):
             if k == "d":
                 score = np.where(mk, c["top"], -1.0)
             else:
-                weight = {"a": c["heap"], "b": c["sheet"], "c": c["sheet"], "e": c["heap"]}[k]
+                weight = {"a": c["cumuliform"], "b": c["sheet"], "c": c["sheet"], "e": c["cumuliform"]}[k]
                 score = np.where(mk, box_mean(mk) + 0.1 * box_mean(weight * mk), -1.0)
             j, i = np.unravel_index(int(np.argmax(score)), score.shape)
             s = float(score[j, i])
@@ -168,10 +168,10 @@ def pick(dump):
         j, i = source_index(s["lat"], s["lon"])
         jm, im = _ksc_texel()
         jj, ii = j[jm, im], i[jm, im]
-        s["column"] = {k: float(c[k][jj, ii]) for k in ("cover", "heap", "sheet", "deck", "base", "top", "depth", "rhLow", "rhMid", "rhHigh", "precip", "reach", "warm", "cold", "stable")}
+        s["column"] = {k: float(c[k][jj, ii]) for k in ("cover", "cumuliform", "sheet", "lowstratiform", "base", "top", "depth", "rhLow", "rhMid", "rhHigh", "precip", "reach", "warm", "cold", "stable")}
         # The neighbourhood the views see most of (+-3 texels, about +-22 km at the equator): means.
         win = (slice(jm - 3, jm + 4), slice(im - 3, im + 4))
-        s["around"] = {k: float(np.mean(c[k][j, i][win])) for k in ("cover", "heap", "sheet", "base", "top", "depth")}
+        s["around"] = {k: float(np.mean(c[k][j, i][win])) for k in ("cover", "cumuliform", "sheet", "base", "top", "depth")}
     return out
 
 
@@ -264,9 +264,9 @@ def prepare(dump):
         json.dump(dict(dump=os.path.abspath(dump), situations=sits), f, indent=1)
     for s in sits:
         c, a = s["column"], s["around"]
-        print("%s ut %-8d lat %7.2f lon %8.2f  cover %.2f heap %.2f sheet %.2f base %5.0f top %5.0f reach %.2f rh %.2f/%.2f/%.2f  around: cover %.2f heap %.2f sheet %.2f depth %.0f  %s"
-              % (s["key"], s["ut"], s["lat"], s["lon"], c["cover"], c["heap"], c["sheet"], c["base"], c["top"], c["reach"], c["rhLow"], c["rhMid"], c["rhHigh"],
-                 a["cover"], a["heap"], a["sheet"], a["depth"], s["what"]))
+        print("%s ut %-8d lat %7.2f lon %8.2f  cover %.2f cumuliform %.2f sheet %.2f base %5.0f top %5.0f reach %.2f rh %.2f/%.2f/%.2f  around: cover %.2f cumuliform %.2f sheet %.2f depth %.0f  %s"
+              % (s["key"], s["ut"], s["lat"], s["lon"], c["cover"], c["cumuliform"], c["sheet"], c["base"], c["top"], c["reach"], c["rhLow"], c["rhMid"], c["rhHigh"],
+                 a["cover"], a["cumuliform"], a["sheet"], a["depth"], s["what"]))
     write_jobs(dump, sits, COST_IN, COST_SIZE)
     write_jobs(dump, sits, PIC_IN, PIC_SIZE)
     print("jobs: %s, %s" % (COST_IN, PIC_IN))
@@ -293,7 +293,7 @@ def collect_pic(ctx):
 
 register_series("wm1-cost", [Stage("cost", ["-mode", "scene", "-scene", "wm-cost", "-in", COST_IN, "-rounds", str(ROUNDS)], size=COST_SIZE, proxy=True, timeout=1500)],
                 collect_cost, exclusive=True, who="wm1-cost")
-# The layers' share of the cost: leave-one-out layer masks (bit i = layer i: 0 rain deck, 1 cumulus, 2 cumulonimbus, 3 cirrus) on the cases whose ratio moved most.
+# The layers' share of the cost: leave-one-out layer masks (bit i = layer i: 0 low stratiform rain layer, 1 cumulus, 2 cumulonimbus, 3 cirrus) on the cases whose ratio moved most.
 ATTR_JOBS = ",".join("wm-%s-%s-%s" % (k, v, arm) for k, v in (("d", "ground"), ("a", "above"), ("e", "above"), ("f", "above"), ("b", "down"), ("f", "down"), ("c", "ground"))
                      for arm in ARMS)
 register_series("wm1-attr", [Stage("cost", ["-mode", "scene", "-scene", "wm-cost", "-in", COST_IN, "-rounds", "2", "-only", ATTR_JOBS, "-masks", "0,14,13,11,7"],
@@ -316,7 +316,7 @@ def cost_runs():
 
 M1_SAMPLE = os.path.join(MAIN, ".local", "work", "m1-kerbin-shares", "kerbin-sky-seed1-sample-every8th-time.csv.gz")
 # The rest of the columns (no situation's class) and the measured situation each part is counted with in the central estimate (an assumption, printed with the result).
-REST_LIKE = {"r_all3_nofront": "c", "r_cell_weak": "d", "r_heap_small_or_rain": "f", "r_sheet_only": "b", "r_clear": None}
+REST_LIKE = {"r_all3_nofront": "c", "r_cell_weak": "d", "r_cumuliform_small_or_rain": "f", "r_sheet_only": "b", "r_clear": None}
 
 
 def shares():
@@ -324,7 +324,7 @@ def shares():
     import gzip
     with gzip.open(M1_SAMPLE, "rt") as f:
         head = f.readline().strip().split(",")
-        cols = ("cover", "precip", "base", "top", "heap", "sheet", "rhLow", "rhMid", "rhHigh", "warm", "cold", "reach")
+        cols = ("cover", "precip", "base", "top", "cumuliform", "sheet", "rhLow", "rhMid", "rhHigh", "warm", "cold", "reach")
         data = np.loadtxt(f, delimiter=",", usecols=[head.index(k) for k in cols])
     c = dict(zip(cols, data.T))
     depth = np.maximum(c["top"] - c["base"], 0)
@@ -332,10 +332,10 @@ def shares():
     left = np.ones(len(depth), bool)
     out = {}
     for name, m in (("d", c["reach"] > 0.3), ("c", all3 & ((c["warm"] >= 0.3) | (c["cold"] >= 0.3))),
-                    ("b", (c["cover"] >= 0.8) & (c["sheet"] >= 0.75) & (c["heap"] < 0.1) & (c["reach"] <= 0) & ~all3),
-                    ("a", (c["heap"] >= 0.05) & (c["reach"] <= 0) & (depth >= 1) & (depth <= 2000) & ~all3 & (c["precip"] < 0.1)),
-                    ("e", (c["heap"] >= 0.05) & (depth < 1) & (c["reach"] <= 0)), ("r_all3_nofront", all3), ("r_cell_weak", c["reach"] > 0),
-                    ("r_heap_small_or_rain", c["heap"] > 0), ("r_sheet_only", c["sheet"] > 0), ("r_clear", np.ones(len(depth), bool))):
+                    ("b", (c["cover"] >= 0.8) & (c["sheet"] >= 0.75) & (c["cumuliform"] < 0.1) & (c["reach"] <= 0) & ~all3),
+                    ("a", (c["cumuliform"] >= 0.05) & (c["reach"] <= 0) & (depth >= 1) & (depth <= 2000) & ~all3 & (c["precip"] < 0.1)),
+                    ("e", (c["cumuliform"] >= 0.05) & (depth < 1) & (c["reach"] <= 0)), ("r_all3_nofront", all3), ("r_cell_weak", c["reach"] > 0),
+                    ("r_cumuliform_small_or_rain", c["cumuliform"] > 0), ("r_sheet_only", c["sheet"] > 0), ("r_clear", np.ones(len(depth), bool))):
         m = m & left
         out[name] = float(m.mean())
         left &= ~m
@@ -487,7 +487,7 @@ def local_frame(job):
 
 
 def patch(dump, s, job, path, half_km=200.0, px=400):
-    """The moved weather map round the camera's place, seen from above (north up), as the views see it: cover, heap, sheet, base, top."""
+    """The moved weather map round the camera's place, seen from above (north up), as the views see it: cover, cumuliform, sheet, base, top."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -504,7 +504,7 @@ def patch(dump, s, job, path, half_km=200.0, px=400):
     jj = np.clip(((90.0 - lat) / 180.0 * MAP_H).astype(int), 0, MAP_H - 1)
     ii = np.clip(((lon + 180.0) / 360.0 * MAP_W).astype(int) % MAP_W, 0, MAP_W - 1)
     sj, si = j[jj, ii], i[jj, ii]
-    panels = [("Bedeckung (Anteil des Himmels)", c["cover"], 0, 1, "Blues_r"), ("Haufenwolken-Anteil", c["heap"], 0, 1, "Blues_r"),
+    panels = [("Bedeckung (Anteil des Himmels)", c["cover"], 0, 1, "Blues_r"), ("Haufenwolken-Anteil", c["cumuliform"], 0, 1, "Blues_r"),
               ("Schichtwolken-Anteil", c["sheet"], 0, 1, "Blues_r"), ("Konvektive Untergrenze (m)", c["base"], 0, 4000, "viridis"),
               ("Konvektive Obergrenze (m)", c["top"], 0, 11000, "viridis"), ("Gesaettigte Hoehen (1 tief, 2 mittel, 4 hoch)",
                ((c["rhLow"] >= SATURATED) * 1 + (c["rhMid"] >= SATURATED) * 2 + (c["rhHigh"] >= SATURATED) * 4).astype(float), 0, 7, "tab10")]
@@ -524,7 +524,7 @@ def patch(dump, s, job, path, half_km=200.0, px=400):
     v = s["column"]
     fig.suptitle("%s - Wetterkarte am Kameraort (ut %d, Herkunft %.2f / %.2f Grad), Kreuz = Kamera, Pfeil = Blickrichtung, Rechteck = Bild senkrecht von 15 km\n"
                  "Spalte am Ort: Bedeckung %.2f, Haufen %.2f, Schicht %.2f, Untergrenze %.0f m, Obergrenze %.0f m, Zellreichweite %.2f, rF tief/mittel/hoch %.2f/%.2f/%.2f, Niederschlag %.2f mm/h"
-                 % (SIT_DE[s["key"]], s["ut"], s["lat"], s["lon"], v["cover"], v["heap"], v["sheet"], v["base"], v["top"], v["reach"], v["rhLow"], v["rhMid"], v["rhHigh"], v["precip"]),
+                 % (SIT_DE[s["key"]], s["ut"], s["lat"], s["lon"], v["cover"], v["cumuliform"], v["sheet"], v["base"], v["top"], v["reach"], v["rhLow"], v["rhMid"], v["rhHigh"], v["precip"]),
                  fontsize=13)
     fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.savefig(path)
@@ -559,7 +559,7 @@ def pictures(run):
                 v = s["column"]
                 lines = ["WM1 %s, %s, %s" % (SIT_DE[s["key"]], VIEW_DE[view], ARM_DE[arm]),
                          "Spalte: Bedeckung %.2f, Haufen %.2f, Schicht %.2f, Untergrenze %.0f m, Obergrenze %.0f m; Wolkenanteil im Bild %.2f" % (
-                             v["cover"], v["heap"], v["sheet"], v["base"], v["top"], float((a > 0.05).mean())),
+                             v["cover"], v["cumuliform"], v["sheet"], v["base"], v["top"], float((a > 0.05).mean())),
                          "Weather Player 2560x1440, Einstellungen der Spielaufnahme (pin u2247600), Sonne der Aufnahme; Hintergrund schematisch, kein Spielbild"]
                 name = "WM1-%s-%s-%s-%s.png" % (s["key"], {"a": "schoenwetter-cumulus", "b": "bedeckt-schicht", "c": "front-alle-hoehen", "d": "gewitterzelle",
                                                            "e": "haufenwasser-ohne-tiefe", "f": "m0-ort-ksc"}[s["key"]], view, {"today": "heute", "wm": "wetterkarte"}[arm])
@@ -580,7 +580,7 @@ def report_attr():
                 if r["metric"].startswith("wmcost.marchr"):
                     _, _, rest = r["metric"].split(".", 2)
                     per.setdefault(rest, []).append(r["value"])
-    names = {14: "deck", 13: "cumulus", 11: "cb", 7: "cirrus"}
+    names = {14: "lowstratiform", 13: "cumulus", 11: "cb", 7: "cirrus"}
     lines = ["WM1 attribution: march ms with all layers, and how much each layer costs (all minus that layer left out); median of the rounds"]
     for jid in ATTR_JOBS.split(","):
         for light in ("lit", "nolight"):

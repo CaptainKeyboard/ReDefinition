@@ -21,7 +21,7 @@ namespace ReDefinition.WeatherPlayer
         public float[] profile;
         // The soft water content's numbers of the type and its light response by height (E40; the cfg keys of the same names): the defaults are the type's own.
         public float baseGain = 0.3f, riseShare = 0.5f, densityScale = 1f;
-        public float baseLight = 1f, headLight = 1f, baseAmbient = 1f, headAmbient = 1f;
+        public float baseLight = 1f, topLight = 1f, baseAmbient = 1f, topAmbient = 1f;
         // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
         public float[] lift;
         // The cfg's own keys of PROFILE and LIFT (height, value; empty: none): where given, the curves are built from them as the game builds them (BodyRuleReaders.ProfileCurve),
@@ -33,9 +33,9 @@ namespace ReDefinition.WeatherPlayer
         public float topClose = -1f;
         // How much a tower of the type feeds an anvil (E40 CB; the cfg key outflow).
         public float outflow;
-        // The type's heap volume, rim exponent and cavity (CLOUDR1; the cfg keys heap, edgePower, cavity): as the game's type has them, so the replay draws the types the game draws
-        // (before CELLS the jobs set them for a whole layer through the tuning keys cloud.heap.layer.<name>, which also gave stratocumulus and altocumulus the heap).
-        public string heap = "none";
+        // The type's cumuliform volume, rim exponent and cavity (CLOUDR1; the cfg keys cumuliform, edgePower, cavity): as the game's type has them, so the replay draws the types the game draws
+        // (before CELLS the jobs set them for a whole layer through the tuning keys cloud.cumuliform.layer.<name>, which also gave stratocumulus and altocumulus the cumuliform).
+        public string cumuliform = "none";
         public float edgePower, cavity;
     }
 
@@ -67,16 +67,16 @@ namespace ReDefinition.WeatherPlayer
         public float lightCellWidth;
         // The pitch of the layer's cloud cells in m (CELLS; the cfg key cellPitch; 0: none).
         public float cellPitch;
-        // The body of a single cloud (the cfg keys cellBillow, cellBand, cellFine; below 0: the defaults of CloudLayerDef).
-        public float cellBillow = -1f, cellBand = -1f, cellFine = -1f;
-        // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key fibreStretch; 1: isotropic).
-        public float fibreStretch = 1f;
+        // The body of a single cloud (the cfg keys cellBulge, cellBand, cellFine; below 0: the defaults of CloudLayerDef).
+        public float cellBulge = -1f, cellBand = -1f, cellFine = -1f;
+        // How much longer the noise features are along the body's axis (E40 L2 D1; the cfg key filamentStretch; 1: isotropic).
+        public float filamentStretch = 1f;
         // The vertical scale of the layer's noise lattice (E40 L5 shape; the cfg key verticalScale; 0: the job's noise sphere scale).
         public float verticalScale;
-        // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the fibre axis numbers (the cfg keys fibreMinWindMs and fibreTurnSeconds)
+        // The smoothing of the shape noise in noise scales (E40 L6 shape; the cfg key shapeSmoothing; 0: none), the filament axis numbers (the cfg keys filamentMinWindMs and filamentTurnSeconds)
         // and the numbers of the tops that follow the updraft (the cfg keys topReach, topRefMs and topFullMs; 0 reach: the body's own numbers).
         public float shapeSmoothing;
-        public float fibreMinWindMs = 0.5f, fibreTurnSeconds = 20f;
+        public float filamentMinWindMs = 0.5f, filamentTurnSeconds = 20f;
         public float topReach, topRefMs = 1.2f, topFullMs = 6f;
         // The anvil of the layer's towers (E40 CB; the cfg keys anvilType, anvilSeconds, anvilUpdraftMs, anvilScale; anvilType -1: none) and the shear of the anvil's level against
         // the steering level (rad/s eastward; the game takes it from the generator, CloudDriftRadS): the setup draws the anvils into the job's maps with AnvilMap.
@@ -84,9 +84,9 @@ namespace ReDefinition.WeatherPlayer
         // A factor on the type map's values before the anvils are drawn (1: none): a game dump of the cumulonimbus layer from before E40 CB has the precipitation level 0 to 1 as its type, which
         // the table with the anvil sheet reads at rainType (0.5) and below.
         public float typeScale = 1f;
-        // The layer's wind in world space (m/s; E40 L5 shape): the fibres lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
+        // The layer's wind in world space (m/s; E40 L5 shape): the filaments lie along its direction (the pole where there is none). The pattern does not drift by it (drift is the distance).
         public float[] wind;
-        // E40 PP64: the fibre axis the game's layer had in the frame (world space; it turns towards the wind over fibreTurnSeconds, so it is not always the wind's direction): empty: the wind's direction.
+        // E40 PP64: the filament axis the game's layer had in the frame (world space; it turns towards the wind over filamentTurnSeconds, so it is not always the wind's direction): empty: the wind's direction.
         public float[] axis;
         // E40 PP64: 1 where the job's maps already hold the anvils the game drew (a probe dump). The setup then keeps anvilType, which the layer's cover threshold reads (the anvil's type is
         // left out of the water content the cover is calibrated on), and draws no anvil again.
@@ -125,14 +125,14 @@ namespace ReDefinition.WeatherPlayer
         public float flowTime;
     }
 
-    // The far view of a job (package T06): the aerial perspective (off unless haze is 1) with the air's coefficients and the in-scattered colour, and
+    // The far view of a job (package T06): the aerial perspective (off unless aerialPerspective is 1) with the air's coefficients and the in-scattered colour, and
     // the shape noise's distance LOD (off unless shapeMean is 1). A job without this object leaves both off.
     [Serializable]
     public sealed class LayersJobFar
     {
-        public int haze, shapeMean, policy, minSamples;
+        public int aerialPerspective, shapeMean, policy, minSamples;
         // refine: the finest step of the entry above the band as a share of the grid step (0: the settings' default).
-        public float refine, hazeStrength = 1f, mie = 4.44e-6f, rayleighHeight = 8000f, mieHeight = 1200f, lodStart = 1f, lodEnd = 3f;
+        public float refine, aerialPerspectiveStrength = 1f, mie = 4.44e-6f, rayleighHeight = 8000f, mieHeight = 1200f, lodStart = 1f, lodEnd = 3f;
         // inscatterNear: the in-scatter colour over a short path (E40 T1 tint); absent: the same as inscatter.
         public float[] rayleigh, inscatter, inscatterNear;
     }

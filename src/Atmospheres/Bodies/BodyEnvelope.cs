@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
         // The radius range in metres (small moons to scaled-up systems; a 10x scale like RSS is outside).
         internal const double MinRadiusM = 50000.0;
         internal const double MaxRadiusM = 2500000.0;
-        // The atmosphere depth in metres (a thin shell has no room for decks) and the surface pressure in kPa.
+        // The atmosphere depth in metres (a thin shell has no room for cloud layers) and the surface pressure in kPa.
         internal const double MinAtmosphereDepthM = 10000.0;
         internal const double MaxAtmosphereDepthM = 1000000.0;
         internal const double MaxSurfacePressureKPa = 20000.0;

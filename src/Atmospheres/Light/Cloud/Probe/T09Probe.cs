@@ -163,7 +163,7 @@ namespace ReDefinition.Atmospheres
                     {
                         SetSetting(AtmospheresSettings.Keys.SkyDimming, 0.0);
                         SetSetting(AtmospheresSettings.Keys.PrecipDensity, 0.0);
-                        SetSetting(AtmospheresSettings.Keys.FogBrightness, 0.0);
+                        SetSetting(AtmospheresSettings.Keys.VisibilityExtinctionBrightness, 0.0);
                     }
                     break;
                 case "recon2":
@@ -715,7 +715,7 @@ namespace ReDefinition.Atmospheres
                 Emit(prefix + "shadow_disc_taps", s.DiscTaps);
             }
             Emit(prefix + "shadow_quality_setting", AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality));
-            // The sky the last map round drew (-1: the old layer maps; else the weather map's, sheet rule x 10 + depth rule) and whether it and its heights are the keys'.
+            // The sky the last map round drew (-1: the old layer maps; else the weather map's, stratiform rule x 10 + depth rule) and whether it and its heights are the keys'.
             if (own != null)
             {
                 string skyWhy;
@@ -990,7 +990,7 @@ namespace ReDefinition.Atmospheres
         // --- The clock --------------------------------------------------------------------------------------------------------------------
 
         private string utFailure;
-        // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed deck).
+        // The cover the clock aims at (the field's at 3 km): a covered sky that is not a closed sheet either (K-T2d start 45: 0.67 gave discrete cumulus, 0.47 a closed cloud layer).
         private const double CoverTarget = 0.65;
         private bool utNarrow;
         // -t09TvcCover: TVC's own cover over the site at the chosen time (NaN where not asked for), and the frames EVE's layers get to follow a jump of the clock.

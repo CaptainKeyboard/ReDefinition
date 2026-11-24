@@ -95,8 +95,8 @@ namespace ReDefinition.Core
     internal sealed class WeatherView
     {
         public bool Active;
-        public float Level, SunTransmission = 1f, VisibilityM = 1e5f, FogDensity;
-        public UnityEngine.Color FogColour = UnityEngine.Color.white;
+        public float Level, SunTransmission = 1f, VisibilityM = 1e5f, VisibilityExtinctionDensity;
+        public UnityEngine.Color VisibilityExtinctionColour = UnityEngine.Color.white;
         public bool IsStale(int frameCount) { return true; }
     }
 

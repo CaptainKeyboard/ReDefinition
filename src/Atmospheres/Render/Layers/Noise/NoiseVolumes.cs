@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
         internal const double DetailPeriodScales = 4.0;
         // The untiling displacement: amplitude and lattice cell of the value noise, in noise scales.
         // Amplitude over cell is the nominal gradient of the displacement (0.46; it was 8 / 7 = 1.14, which folded the lookup over itself in 31 % of
-        // the volume and smeared the deck). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
+        // the volume and smeared the cloud layer). Measured (noise_model.py, 20000 points): spectral norm of the displacement's Jacobian p99 1.74, folded
         // share 3.9 %, p99 stretch 2.5 (before: 4.3, 31 %, 4.8).
         // Stream T: 3 / 20 would lower the grain measure of the look sheet's storm cell (hf 0.040 to 0.028) but fails the repetition check
         // (tile lag 0.33 over seeds against 0.12) and the spectrum band 3 (slope 2.88 against 2.6), so 6.5 / 14 stays.
@@ -162,7 +162,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The octave weights of the detail volume for a Hurst exponent: 2^(-H k) for the octave k of doubled frequency (the cascade of the heap volume continued down to the detail's finest cell); 0
+        // The octave weights of the detail volume for a Hurst exponent: 2^(-H k) for the octave k of doubled frequency (the cascade of the cumuliform volume continued down to the detail's finest cell); 0
         // (the default): the compiled NoiseModel.DetailWorleyWeights, whose finest octave is the heaviest.
         internal static double[] DetailWeights(double hurst)
         {
@@ -172,7 +172,7 @@ namespace ReDefinition.Atmospheres
             return w;
         }
 
-        // The detail volume, n^3 bytes (R8). hurst above 0 (cloud.heap.detail): the octaves fall off as 2^(-H k) like the heap's, so the erosion continues the cascade (CLOUDR1).
+        // The detail volume, n^3 bytes (R8). hurst above 0 (cloud.cumuliform.detail): the octaves fall off as 2^(-H k) like the cumuliform's, so the erosion continues the cascade (CLOUDR1).
         internal static byte[] Detail(int n, uint seed, double hurst = 0.0)
         {
             double[] weights = DetailWeights(hurst);

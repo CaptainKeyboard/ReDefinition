@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres
             return n;
         }
 
-        // Holds the noise still at fixed values: every layer's drift and rise 0, the flow clock 0, the fibre axis at its wind's direction (the axis otherwise turns towards the wind
+        // Holds the noise still at fixed values: every layer's drift and rise 0, the flow clock 0, the filament axis at its wind's direction (the axis otherwise turns towards the wind
         // over real time, so two starts would hold it at different angles); the probe also sets cloud.motionScale 0, so Advance adds nothing.
         internal bool PinNoise()
         {

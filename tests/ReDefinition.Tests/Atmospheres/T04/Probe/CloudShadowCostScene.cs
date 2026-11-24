@@ -131,14 +131,14 @@ namespace ReDefinition.WeatherPlayer
             renderer.Dispose();
         }
 
-        // A stack of one to three thick decks at 2, 5 and 9 km.
+        // A stack of one to three thick cloud layers at 2, 5 and 9 km.
         private static LayerStackSource Stack(int layers, bool noise = false)
         {
             var source = new LayerStackSource(0, R, true);
             float[] bases = { 2000f, 5000f, 9000f };
             for (int i = 0; i < layers; i++)
             {
-                var def = new CloudLayerDef("deck" + i, i, bases[i], bases[i] + 300f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 6f / 300f)
+                var def = new CloudLayerDef("layer" + i, i, bases[i], bases[i] + 300f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 6f / 300f)
                 {
                     Coverage = 0.5f,
                     EdgeSoftness = 0.2f,

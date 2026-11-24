@@ -16,7 +16,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
     //      at shift 0 and between 0.25 and 0.65 at shift -0.15; tau >= 4.6 not above the first; the lowest elevation band (0 to 5 degrees) at least as closed as the band above 20.
     //   O2 frame values: the coverage a layer's uploaded numbers carry is EffectiveCoverage: L0 0.50 -> 0.35, L1 0.35 -> 0.20, L2 0.12 -> 0 (clamped), L3 0.30 -> 0.15 at shift -0.15,
     //      identical for the layer pass and the cloud shadows (both read the one getter) and for the CPU twin; the stamp that makes the renderer upload again rises.
-    //   O3 rain deck at the high pick (map 0.859, type 0.229): the camera at 264 m lies INSIDE the blend of Fog and Stratus (96 to 594 m): tau >= 4.6 over at least 0.95 of the sky,
+    //   O3 low stratiform rain layer at the high pick (map 0.859, type 0.229): the camera at 264 m lies INSIDE the blend of Fog and Stratus (96 to 594 m): tau >= 4.6 over at least 0.95 of the sky,
     //      so a pass that draws nothing is a defect of the pass. At the low pick (map 0.4056, type 0, Fog 0 to 210 m): the camera is above the Fog: closed share under 0.05
     //      (the old model said 0.34).
     [TestClass]
@@ -270,14 +270,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheRainDeckAtTheHighPickEnclosesTheCameraAndAtTheLowPickLiesBelowIt()
+        public void TheRainLowStratiformAtTheHighPickEnclosesTheCameraAndAtTheLowPickLiesBelowIt()
         {
             Clear();
             CloudLayerDef rain = CloudLookFixtures.Rain();
             double[] bands;
             double[] high = Shares(rain, 0, 0.859, 0.229, 0f, 4, out bands);
             double[] low = Shares(rain, 0, 0.4056, 0.0, 0f, 4, out bands);
-            Report("O3.rain deck (L0) closed(tau>=0.92 / >=4.6): high pick map 0.859 type 0.229 = " + high[0].ToString("0.000") + " / " + high[1].ToString("0.000")
+            Report("O3.low stratiform rain layer (L0) closed(tau>=0.92 / >=4.6): high pick map 0.859 type 0.229 = " + high[0].ToString("0.000") + " / " + high[1].ToString("0.000")
                    + "; low pick map 0.4056 type 0 = " + low[0].ToString("0.000") + " / " + low[1].ToString("0.000") + "; measured in the game 0.000 and 0.0003; old model 1.00 and 0.34");
             Assert.IsTrue(high[1] >= 0.95, "tau >= 4.6 over the sky at the high pick: " + high[1]);
             Assert.IsTrue(low[0] < 0.05, "the camera is above the Fog at the low pick: " + low[0]);

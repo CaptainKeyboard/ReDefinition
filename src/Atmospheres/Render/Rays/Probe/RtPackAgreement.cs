@@ -98,12 +98,12 @@ namespace ReDefinition.Atmospheres
             return c.Reference.LayerOpticalDepth(layer, x, y, z, sx, sy, sz, double.MaxValue) * c.Source.LayerAt(layer).ShadowStrength;
         }
 
-        // The five places of the brief round (lat0, lon0): under a broken field, at an edge, under a deck, behind a layer pair, at the terminator. Each is the
+        // The five places of the brief round (lat0, lon0): under a broken field, at an edge, under a closed cloud layer, behind a layer pair, at the terminator. Each is the
         // place of its kind nearest to (lat0, lon0) on a lattice of +-halfSpanDeg at stepDeg, where the shadow is neither 0 nor 1. A kind with no place is
         // named in `missing` (comma separated) and absent from the list. A kind is:
         //   p1 broken field: the reference factor between 0.3 and 0.7;
         //   p2 edge: between 0.35 and 0.65, and a place 0.6 degrees to the west or east with a factor that differs by more than 0.4;
-        //   p3 deck: between 0.02 and 0.5, and the places 0.4 degrees round it all between 0.02 and 0.6;
+        //   p3 closed layer: between 0.02 and 0.5, and the places 0.4 degrees round it all between 0.02 and 0.6;
         //   p4 layer pair: between 0.02 and 0.9, and two layers each with a share of the optical depth along the sun ray (strength applied) of 0.1 or more;
         //   p5 terminator: the sun at 6 degrees, the factor between 0.05 and 0.95.
         internal static List<RtAgreementPlace> Pick(ICloudLayerSource source, LayerTypeTable[] tables, RtCloudPack pack, double lat0, double lon0, double halfSpanDeg,
@@ -141,16 +141,16 @@ namespace ReDefinition.Atmospheres
                     }
                     if (t >= 0.02 && t <= 0.5 && distance < best[2])
                     {
-                        bool deck = true;
-                        for (int k = 0; k < 8 && deck; k++)
+                        bool closedLayer = true;
+                        for (int k = 0; k < 8 && closedLayer; k++)
                         {
                             double a = k * Math.PI / 4.0, around = RefAt(c, lat + 0.4 * Math.Cos(a), lon + 0.4 * Math.Sin(a), elevationDeg);
-                            if (around < 0.02 || around > 0.6) deck = false;
+                            if (around < 0.02 || around > 0.6) closedLayer = false;
                         }
-                        if (deck)
+                        if (closedLayer)
                         {
                             best[2] = distance;
-                            found[2] = At(c, "p3 deck", lat, lon, elevationDeg);
+                            found[2] = At(c, "p3 closed layer", lat, lon, elevationDeg);
                         }
                     }
                     if (t >= 0.02 && t <= 0.9 && distance < best[3])

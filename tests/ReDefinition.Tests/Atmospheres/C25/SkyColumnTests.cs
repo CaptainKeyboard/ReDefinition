@@ -108,7 +108,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             {
                 SkyColumn s = Derive(p, w);
                 Assert.IsTrue(s.SurfaceHumidity < 1.0, "surface humidity " + s.SurfaceHumidity);
-                Assert.IsTrue(s.BaseM > 0.0, "base " + s.BaseM + " (a base at the ground is fog, which is the deck rule's)");
+                Assert.IsTrue(s.BaseM > 0.0, "base " + s.BaseM + " (a base at the ground is fog, which is the low stratiform rule's)");
                 bases.Add(s.BaseM);
                 columns++;
             }
@@ -147,7 +147,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 Assert.AreEqual(sa.RhLow, sb.RhLow, 1e-9);
                 Assert.AreEqual(sa.RhMid, sb.RhMid, 1e-9);
                 Assert.AreEqual(sa.RhHigh, sb.RhHigh, 1e-9);
-                Assert.AreEqual(sa.HeapAmount, sb.HeapAmount, 1e-12);
+                Assert.AreEqual(sa.CumuliformAmount, sb.CumuliformAmount, 1e-12);
                 if (sa.TopM > sa.BaseM + 100.0) deep++;
             }
             Assert.IsTrue(deep > 100, "columns with convection: " + deep);
@@ -163,9 +163,9 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 SkyColumn s = Derive(p, w);
                 Assert.IsTrue(s.BaseM > 0.0 && s.BaseM <= s.TopM && s.TopM <= p.TropopauseM, "base " + s.BaseM + " top " + s.TopM);
                 Assert.IsTrue(s.StableShare >= p.SkyStableShareMin && s.StableShare <= p.SkyStableShare + 1e-12, "stable " + s.StableShare);
-                Assert.IsTrue(s.HeapAmount >= 0.0 && s.SheetAmount >= -1e-12 && s.DeckAmount >= 0.0 && s.DeckAmount <= s.SheetAmount + 1e-12);
-                Assert.AreEqual(w.Coverage, s.HeapAmount + s.SheetAmount, 1e-12, "heap plus sheet is the column's cover");
-                Assert.IsTrue(s.HeapAmount + s.SheetAmount <= 1.0 + 1e-12);
+                Assert.IsTrue(s.CumuliformAmount >= 0.0 && s.StratiformAmount >= -1e-12 && s.LowStratiformAmount >= 0.0 && s.LowStratiformAmount <= s.StratiformAmount + 1e-12);
+                Assert.AreEqual(w.Coverage, s.CumuliformAmount + s.StratiformAmount, 1e-12, "cumuliform plus sheet is the column's cover");
+                Assert.IsTrue(s.CumuliformAmount + s.StratiformAmount <= 1.0 + 1e-12);
                 foreach (double rh in new[] { s.RhLow, s.RhMid, s.RhHigh, s.SurfaceHumidity }) Assert.IsTrue(rh >= 0.0 && rh <= 1.0, "rh " + rh);
                 foreach (double f in new[] { s.WarmFront01, s.ColdFront01, s.FrontAmp01, s.FrontSurfaceShare }) Assert.IsTrue(f >= 0.0 && f <= 1.0, "front " + f);
                 Assert.IsTrue(w.CellReach01 >= 0.0 && w.CellReach01 <= 1.0);
@@ -192,7 +192,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             {
                 SkyColumn s = Derive(p, w);
                 add("base m", s.BaseM); add("stable m", s.StableM); add("top m", s.TopM); add("shallow depth m", s.TopM - s.BaseM); add("surface RH", s.SurfaceHumidity);
-                add("heap", s.HeapAmount); add("sheet", s.SheetAmount); add("RH low", s.RhLow); add("RH mid", s.RhMid); add("RH high", s.RhHigh);
+                add("cumuliform", s.CumuliformAmount); add("sheet", s.StratiformAmount); add("RH low", s.RhLow); add("RH mid", s.RhMid); add("RH high", s.RhHigh);
             }
             Console.WriteLine("Kerbin: tropopause " + p.TropopauseM.ToString("0") + " m; quartiles:");
             foreach (KeyValuePair<string, List<double>> kv in lists)
@@ -269,42 +269,42 @@ namespace ReDefinition.Tests.Atmospheres.C25
             SkyColumn c = Derive(p, w);
             Assert.IsTrue(c.TopShare <= p.SkyStableShare + 1e-12, "top share " + c.TopShare);
             Assert.AreEqual(1.0, c.Ascent01, 1e-12);
-            // the deck turns the background off as cumulus, continuously
-            double heapPrev = -1.0;
-            for (double deck = 1.0; deck >= 0.0; deck -= 0.01)
+            // the low stratiform layer turns the background off as cumulus, continuously
+            double cumuliformPrev = -1.0;
+            for (double lowStratiform = 1.0; lowStratiform >= 0.0; lowStratiform -= 0.01)
             {
-                w = new Weather { SurfaceTempK = 295.0, MoistureSource = 1.0, MoistureIndex = 0.6, Heating01 = 1.0, Instability = 0.7, CloudBackground = 0.3, CloudDynamic = deck };
-                w.Coverage = 1.0 - Math.Exp(-3.0 * (0.3 + deck));
-                double heap = Derive(p, w).HeapAmount;
-                Assert.IsTrue(heap >= heapPrev - 1e-12 && (heapPrev < 0.0 || heap - heapPrev < 0.02), "deck water " + deck);
-                heapPrev = heap;
+                w = new Weather { SurfaceTempK = 295.0, MoistureSource = 1.0, MoistureIndex = 0.6, Heating01 = 1.0, Instability = 0.7, CloudBackground = 0.3, CloudDynamic = lowStratiform };
+                w.Coverage = 1.0 - Math.Exp(-3.0 * (0.3 + lowStratiform));
+                double cumuliform = Derive(p, w).CumuliformAmount;
+                Assert.IsTrue(cumuliform >= cumuliformPrev - 1e-12 && (cumuliformPrev < 0.0 || cumuliform - cumuliformPrev < 0.02), "low stratiform water " + lowStratiform);
+                cumuliformPrev = cumuliform;
             }
         }
 
         [TestMethod]
-        public void TheHeapAmountIsTheHeapFamilysShareOfTheSky()
+        public void TheCumuliformAmountIsTheCumuliformFamilysShareOfTheSky()
         {
             BodyParams p = BodyParams.KerbinLike();
-            // no heap water and a stable column: no heap clouds
+            // no cumuliform water and a stable column: no cumuliform clouds
             var w = new Weather { SurfaceTempK = 290.0, MoistureSource = 1.0, MoistureIndex = 0.6, Heating01 = 1.0, Descent01 = 0.3, Instability = 0.0, CloudBackground = 0.2, CloudDynamic = 0.3 };
             w.Coverage = 1.0 - Math.Exp(-3.0 * 0.5);
             SkyColumn s = Derive(p, w);
-            Assert.AreEqual(0.0, s.HeapAmount, 1e-15);
-            Assert.AreEqual(w.Coverage, s.SheetAmount, 1e-12);
-            // monotonic in the convective water; heap + sheet = cover <= 1
+            Assert.AreEqual(0.0, s.CumuliformAmount, 1e-15);
+            Assert.AreEqual(w.Coverage, s.StratiformAmount, 1e-12);
+            // monotonic in the convective water; cumuliform + sheet = cover <= 1
             double prev = -1.0;
             for (double c = 0.0; c <= 2.0; c += 0.05)
             {
                 w.CloudConvective = c;
                 w.Coverage = 1.0 - Math.Exp(-3.0 * Math.Min(1.5, 0.5 + c));
                 s = Derive(p, w);
-                Assert.IsTrue(s.HeapAmount > prev || (c == 0.0 && s.HeapAmount == 0.0), "convective water " + c);
-                Assert.IsTrue(s.HeapAmount + s.SheetAmount <= 1.0 + 1e-12);
-                prev = s.HeapAmount;
+                Assert.IsTrue(s.CumuliformAmount > prev || (c == 0.0 && s.CumuliformAmount == 0.0), "convective water " + c);
+                Assert.IsTrue(s.CumuliformAmount + s.StratiformAmount <= 1.0 + 1e-12);
+                prev = s.CumuliformAmount;
             }
-            // only heap water: the whole cover is heap
+            // only cumuliform water: the whole cover is cumuliform
             w = new Weather { SurfaceTempK = 290.0, MoistureSource = 1.0, MoistureIndex = 0.6, Heating01 = 1.0, CloudConvective = 0.4, Coverage = 1.0 - Math.Exp(-1.2) };
-            Assert.AreEqual(w.Coverage, Derive(p, w).HeapAmount, 1e-12);
+            Assert.AreEqual(w.Coverage, Derive(p, w).CumuliformAmount, 1e-12);
         }
 
         [TestMethod]
@@ -348,7 +348,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                     if (k > 0)
                     {
                         Assert.IsTrue(Math.Abs(s.RhLow - before.RhLow) < 0.03 && Math.Abs(s.RhMid - before.RhMid) < 0.03 && Math.Abs(s.RhHigh - before.RhHigh) < 0.03, latDeg + " step " + k);
-                        Assert.IsTrue(Math.Abs(s.TopShare - before.TopShare) < 0.03 && Math.Abs(s.BaseShare - before.BaseShare) < 0.01 && Math.Abs(s.HeapAmount - before.HeapAmount) < 0.03, latDeg + " step " + k);
+                        Assert.IsTrue(Math.Abs(s.TopShare - before.TopShare) < 0.03 && Math.Abs(s.BaseShare - before.BaseShare) < 0.01 && Math.Abs(s.CumuliformAmount - before.CumuliformAmount) < 0.03, latDeg + " step " + k);
                     }
                     before = s;
                 }
@@ -411,7 +411,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
         public void NeighbouringColumnsDifferLittleWhereNoCellStands()
         {
             // The convective cells are smaller than a map texel (radius 3.4 to 6 km against 7.4 km), so a texel at a cell's centre and its neighbour differ in cover, and with it in
-            // the heap share and the top, as the Coverage map does already. Everywhere else every new quantity changes from texel to texel by no more than the cover does.
+            // the cumuliform share and the top, as the Coverage map does already. Everywhere else every new quantity changes from texel to texel by no more than the cover does.
             GeneratorState state = FieldFixture.Field().StateOf(Body);
             BodyParams p = state.Parameters;
             const int W = GeneratorMaps.Width, H = GeneratorMaps.Height;
@@ -427,7 +427,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 }
             var quantities = new Dictionary<string, Func<int, double>>
             {
-                { "cover", k => cols[k].Coverage }, { "heap", k => sky[k].HeapAmount }, { "sheet", k => sky[k].SheetAmount }, { "base share", k => sky[k].BaseShare },
+                { "cover", k => cols[k].Coverage }, { "cumuliform", k => sky[k].CumuliformAmount }, { "sheet", k => sky[k].StratiformAmount }, { "base share", k => sky[k].BaseShare },
                 { "top share", k => sky[k].TopShare }, { "stable share", k => sky[k].StableShare }, { "rh low", k => sky[k].RhLow }, { "rh mid", k => sky[k].RhMid },
                 { "rh high", k => sky[k].RhHigh }, { "warm front", k => sky[k].WarmFront01 }, { "cold front", k => sky[k].ColdFront01 }, { "surface rh", k => sky[k].SurfaceHumidity }
             };
@@ -455,12 +455,12 @@ namespace ReDefinition.Tests.Atmospheres.C25
                         + " conv " + cols[k].CloudConvective.ToString("0.000") + " inst " + cols[k].Instability.ToString("0.000") + " sat " + cols[k].LiftSat01.ToString("0.000")
                         + " desc " + cols[k].Descent01.ToString("0.000") + " up " + cols[k].Uplift.ToString("0.000") + " heat " + cols[k].Heating01.ToString("0.000")
                         + " | base " + sky[k].BaseShare.ToString("0.000") + " stable " + sky[k].StableShare.ToString("0.000") + " top " + sky[k].TopShare.ToString("0.000")
-                        + " heap " + sky[k].HeapAmount.ToString("0.000") + " rh " + sky[k].RhLow.ToString("0.00") + "/" + sky[k].RhMid.ToString("0.00") + "/" + sky[k].RhHigh.ToString("0.00")
+                        + " cumuliform " + sky[k].CumuliformAmount.ToString("0.000") + " rh " + sky[k].RhLow.ToString("0.00") + "/" + sky[k].RhMid.ToString("0.00") + "/" + sky[k].RhHigh.ToString("0.00")
                         + " fronts " + sky[k].WarmFront01.ToString("0.00") + "/" + sky[k].ColdFront01.ToString("0.00") + "/" + sky[k].FrontSurfaceShare.ToString("0.00"));
             }
             // The humidity of a level blends between regimes (mixed layer or free air, below or above the frontal surface, before or after the stratiform rain onset) whose edges
             // move with the field's own steepest inputs (the frontal uplift, the rain onset over RainSoftness): smooth, but steeper than the cover; bounded well below a full jump.
-            // The heap and sheet shares split the cover by the background's cumulus share, which follows the instability and the deck: a little steeper than the cover.
+            // The cumuliform and sheet shares split the cover by the background's cumulus share, which follows the instability and the low stratiform layer: a little steeper than the cover.
             foreach (KeyValuePair<string, double> kv in worst)
                 Assert.IsTrue(kv.Value <= (kv.Key.StartsWith("rh ") ? 0.35 : Math.Max(worst["cover"], 0.2)) + 1e-9, kv.Key + " " + kv.Value);
         }
@@ -536,7 +536,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             var skyKinds = new[]
             {
                 WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop, WeatherMapKind.Instability, WeatherMapKind.Uplift,
-                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.DeckAmount,
+                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.LowStratiformAmount,
                 WeatherMapKind.StableShare
             };
             var maps = new Dictionary<WeatherMapKind, float[]>();
@@ -545,17 +545,17 @@ namespace ReDefinition.Tests.Atmospheres.C25
                 Assert.IsTrue(sky.GetMap(Body, k, ut, map), k.ToString());
                 maps[k] = (float[])map.Values.Clone();
             }
-            float[] heap = maps[WeatherMapKind.ConvectiveAmount], sheet = maps[WeatherMapKind.StratiformAmount], cover = maps[WeatherMapKind.Coverage];
+            float[] cumuliform = maps[WeatherMapKind.ConvectiveAmount], sheet = maps[WeatherMapKind.StratiformAmount], cover = maps[WeatherMapKind.Coverage];
             float[] baseMap = maps[WeatherMapKind.ConvectiveBase], top = maps[WeatherMapKind.ConvectiveTop];
-            for (int i = 0; i < heap.Length; i++)
+            for (int i = 0; i < cumuliform.Length; i++)
             {
-                Assert.IsTrue(heap[i] >= 0f && sheet[i] >= -1e-6f && Math.Abs(heap[i] + sheet[i] - cover[i]) < 1e-5f, "heap + sheet = cover at " + i);
+                Assert.IsTrue(cumuliform[i] >= 0f && sheet[i] >= -1e-6f && Math.Abs(cumuliform[i] + sheet[i] - cover[i]) < 1e-5f, "cumuliform + sheet = cover at " + i);
                 Assert.IsTrue(baseMap[i] > 0f && baseMap[i] <= top[i] && top[i] <= 1f);
             }
-            Assert.IsTrue(heap.Max() > 0.05f && top.Max() > 0.5f, "convection somewhere: heap " + heap.Max() + ", top " + top.Max());
+            Assert.IsTrue(cumuliform.Max() > 0.05f && top.Max() > 0.5f, "convection somewhere: cumuliform " + cumuliform.Max() + ", top " + top.Max());
 
             // in space: the new maps step between neighbouring texels about as much as the cover map does (cells smaller than a texel and fronts make the cover's sharpest edges;
-            // a cell moves the split between heap and sheet as well as the cover; NeighbouringColumnsDifferLittleWhereNoCellStands checks the rest)
+            // a cell moves the split between cumuliform and sheet as well as the cover; NeighbouringColumnsDifferLittleWhereNoCellStands checks the rest)
             float coverStep = LargestStep(cover);
             foreach (WeatherMapKind k in skyKinds)
             {
@@ -583,13 +583,13 @@ namespace ReDefinition.Tests.Atmospheres.C25
 
         // The maps of kinds 16 to 22 are the column quantities at the texel's centre (the same samples as the other sky maps), each in its range.
         [TestMethod]
-        public void TheLevelHumidityDescentReachDeckAndStableMapsAreTheColumnsQuantities()
+        public void TheLevelHumidityDescentReachLowStratiformAndStableMapsAreTheColumnsQuantities()
         {
             const double ut = 4.0e6;
             GeneratorField field = FieldFixture.Field();
             var kinds = new[]
             {
-                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.DeckAmount,
+                WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.CellReach, WeatherMapKind.LowStratiformAmount,
                 WeatherMapKind.StableShare, WeatherMapKind.StratiformAmount
             };
             var maps = new Dictionary<WeatherMapKind, float[]>();
@@ -619,7 +619,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
                     Assert.AreEqual((float)s.RhHigh, maps[WeatherMapKind.HumidityHigh][k], "high at " + k);
                     Assert.AreEqual((float)w.Descent01, maps[WeatherMapKind.Descent][k], "descent at " + k);
                     Assert.AreEqual((float)w.CellReach01, maps[WeatherMapKind.CellReach][k], "reach at " + k);
-                    Assert.AreEqual((float)s.DeckAmount, maps[WeatherMapKind.DeckAmount][k], "deck at " + k);
+                    Assert.AreEqual((float)s.LowStratiformAmount, maps[WeatherMapKind.LowStratiformAmount][k], "low stratiform at " + k);
                     Assert.AreEqual((float)s.StableShare, maps[WeatherMapKind.StableShare][k], "stable at " + k);
                     checkedTexels++;
                 }
@@ -627,7 +627,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
             for (int k = 0; k < W * H; k++)
             {
                 foreach (WeatherMapKind kind in kinds) Assert.IsTrue(maps[kind][k] >= -1e-6f && maps[kind][k] <= 1f + 1e-6f, kind + " at " + k + ": " + maps[kind][k]);
-                Assert.IsTrue(maps[WeatherMapKind.DeckAmount][k] <= maps[WeatherMapKind.StratiformAmount][k] + 1e-5f, "the deck is a part of the sheet at " + k);
+                Assert.IsTrue(maps[WeatherMapKind.LowStratiformAmount][k] <= maps[WeatherMapKind.StratiformAmount][k] + 1e-5f, "the low stratiform layer is a part of the sheet at " + k);
                 if (maps[WeatherMapKind.CellReach][k] > 0f) inCell++;
             }
             Console.WriteLine("checked " + checkedTexels + " texels against the columns; texels with a cell's reach " + inCell);

@@ -4,9 +4,9 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
-    // The billow detail keys (package PUFF, cloud.billow.*): neutral at their defaults, and the CPU twin of the keys that act on the erosion detail.
+    // The bulge detail keys (package PUFF, cloud.bulge.*): neutral at their defaults, and the CPU twin of the keys that act on the erosion detail.
     [TestClass]
-    public class BillowDetailTests
+    public class BulgeDetailTests
     {
         private static NoiseVolumeSet set;
 
@@ -60,20 +60,20 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheKeysAreNeutralAtTheirDefaults()
         {
-            Assert.AreEqual(0f, CloudLookTuning.BillowLight);
-            Assert.AreEqual(1f, CloudLookTuning.BillowContrast);
-            Assert.AreEqual(0f, CloudLookTuning.BillowTop);
-            Assert.AreEqual(0.4f, CloudLookTuning.BillowFine(0.4f));
-            Assert.AreEqual(-1f, CloudLookTuning.BillowFine(-1f));
-            Assert.AreEqual(2.37f, CloudLookTuning.BillowFineFreq(2.37f));
-            Assert.AreEqual(0f, CloudLookTuning.BillowFineFreq(0f));
+            Assert.AreEqual(0f, CloudLookTuning.BulgeLight);
+            Assert.AreEqual(1f, CloudLookTuning.BulgeContrast);
+            Assert.AreEqual(0f, CloudLookTuning.BulgeTop);
+            Assert.AreEqual(0.4f, CloudLookTuning.BulgeFine(0.4f));
+            Assert.AreEqual(-1f, CloudLookTuning.BulgeFine(-1f));
+            Assert.AreEqual(2.37f, CloudLookTuning.BulgeFineFreq(2.37f));
+            Assert.AreEqual(0f, CloudLookTuning.BulgeFineFreq(0f));
         }
 
         [TestMethod]
         public void ANeutralContrastAndAnUnsetFineOctaveGiveTheModelAsItWas()
         {
             NoiseLayerParams a = Params(), b = Params();
-            b.BillowContrastDelta = 0.0;
+            b.BulgeContrastDelta = 0.0;
             b.FineWeight = NoiseModel.FineDetailWeight;
             b.FineFrequency = NoiseModel.FineDetailFrequency;
             double[] x = Shares(a), y = Shares(b);
@@ -84,8 +84,8 @@ namespace ReDefinition.Tests
         public void MoreContrastSpreadsTheErodedShareAndLessNarrowsIt()
         {
             NoiseLayerParams p = Params(), more = Params(), less = Params();
-            more.BillowContrastDelta = 1.0;
-            less.BillowContrastDelta = -0.5;
+            more.BulgeContrastDelta = 1.0;
+            less.BulgeContrastDelta = -0.5;
             double s0 = Spread(Eaten(p)), s1 = Spread(Eaten(more)), s2 = Spread(Eaten(less));
             Assert.IsTrue(s1 > s0, "more contrast " + s1 + " against " + s0);
             Assert.IsTrue(s2 < s0, "less contrast " + s2 + " against " + s0);
@@ -115,8 +115,8 @@ namespace ReDefinition.Tests
                 lines.Add(string.Format("fine weight {0}: d mean {1:F3} std {2:F3} p5 {3:F3} p25 {4:F3} p50 {5:F3} p75 {6:F3} p95 {7:F3}", weight, Mean(d), Spread(d), d[300], d[1500], d[3000], d[4500], d[5700]));
                 for (int k = 0; k < 4; k++)
                 {
-                    p.BillowContrastDelta = k * 0.5;
-                    lines.Add(string.Format("  contrast {0}: share eaten std {1:F3}", 1.0 + p.BillowContrastDelta, Spread(Eaten(p))));
+                    p.BulgeContrastDelta = k * 0.5;
+                    lines.Add(string.Format("  contrast {0}: share eaten std {1:F3}", 1.0 + p.BulgeContrastDelta, Spread(Eaten(p))));
                 }
             }
             System.IO.File.WriteAllLines(path, lines);

@@ -14,6 +14,12 @@ namespace ReDefinition.Atmospheres
     {
         private readonly FrameComposer composer = new FrameComposer();
         private readonly LightWriter light = new LightWriter();
+
+        // The start parameter -atmoNoPrecipExtinction: this run draws no precipitation extinction (owner 2026-11-23: the cloud tests need a free view; the extinction stays on in every run
+        // without it, as the visibility extinction with -atmoNoVisibilityExtinction). Read once: the command line does not change while the game runs.
+        internal const string NoPrecipExtinctionArgument = "-atmoNoPrecipExtinction";
+        internal static readonly bool NoPrecipExtinctionByArgument = CommandLine.Has(NoPrecipExtinctionArgument, true);
+        private bool loggedNoPrecipExtinction;
         private bool broken;
         private int bodyIndex = -1;
         private double lastUt = double.NaN;
@@ -129,14 +135,19 @@ namespace ReDefinition.Atmospheres
             input.CloudMapsVersion = CloudMapsState.Version;
             input.CloudLayerName = CloudMapsState.LayerName;
             input.OpticalDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
-            input.FogColour = climate.Look.FogColour;
-            input.VeilGroundColour = climate.Look.VeilGroundColour;
-            input.VeilSkyColour = climate.Look.VeilSkyColour;
+            input.VisibilityExtinctionColour = climate.Look.VisibilityExtinctionColour;
+            input.PrecipExtinctionGroundColour = climate.Look.PrecipExtinctionGroundColour;
+            input.PrecipExtinctionSkyColour = climate.Look.PrecipExtinctionSkyColour;
             input.ShowerPulse = Tuning.Flag("driver.showerPulse", true);
             input.FreezingRain = Tuning.Flag("driver.freezingRain", false);
             float forced = AtmospheresSettings.ForceLevel;
             input.LevelOverride = forced >= 0f ? forced : -1f;
-            input.VeilScale = AtmospheresSettings.VeilStrength / 0.85f;
+            input.PrecipExtinctionScale = NoPrecipExtinctionByArgument ? 0f : AtmospheresSettings.PrecipExtinctionStrength / 0.85f;
+            if (NoPrecipExtinctionByArgument && !loggedNoPrecipExtinction)
+            {
+                loggedNoPrecipExtinction = true;
+                AtmospheresLog.Say("precipitation extinction: off for this run (start parameter " + NoPrecipExtinctionArgument + ")");
+            }
             input.VisibilityTopScale = AtmospheresSettings.BlizzardVisibilityM / 60f;
             input.DarkeningScale = AtmospheresSettings.SkyDimming / 0.6f;
             input.TypeByTemperature = AtmospheresSettings.TypeByTemperature;

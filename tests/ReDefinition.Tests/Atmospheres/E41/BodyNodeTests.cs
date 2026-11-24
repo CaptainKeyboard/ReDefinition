@@ -80,10 +80,10 @@ namespace ReDefinition.Tests.Atmospheres.E41
             Assert.IsFalse(c.Frost.Enabled);
             Assert.AreEqual(SeasonClockKind.Orbit, c.Seasons.Clock);
             Assert.IsFalse(c.Seasons.EccentricSeason, "the perihelion gate waits for the owner (Q7)");
-            // Ochre: red above green above blue in the fog and the veils.
-            Assert.IsTrue(c.Look.FogColour.r > c.Look.FogColour.g && c.Look.FogColour.g > c.Look.FogColour.b);
-            Assert.IsTrue(c.Look.VeilGroundColour.r > c.Look.VeilGroundColour.b);
-            Assert.IsTrue(c.Look.VeilSkyColour.r > c.Look.VeilSkyColour.b);
+            // Ochre: red above green above blue in the fog and the precipitation extinction.
+            Assert.IsTrue(c.Look.VisibilityExtinctionColour.r > c.Look.VisibilityExtinctionColour.g && c.Look.VisibilityExtinctionColour.g > c.Look.VisibilityExtinctionColour.b);
+            Assert.IsTrue(c.Look.PrecipExtinctionGroundColour.r > c.Look.PrecipExtinctionGroundColour.b);
+            Assert.IsTrue(c.Look.PrecipExtinctionSkyColour.r > c.Look.PrecipExtinctionSkyColour.b);
             Assert.AreEqual(0, c.Clouds.WeatherLayers.Count, "the layers with a dust type are found by role");
             Assert.IsTrue(c.Clouds.DustTypeNames.Contains("Dust"));
         }

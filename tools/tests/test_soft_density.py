@@ -10,8 +10,8 @@ from tools.weather_metrics import noise_model as nm
 
 
 class SoftLayerNumbers(unittest.TestCase):
-    def test_rain_deck_numbers(self):
-        # Kerbin's rain deck (coverage 0.5, edge 0.2, amount 0.3) with the water content 0.3 at the outline, the owner's softness 0.5 and the layer's scale 1.5:
+    def test_low_stratiform_rain_layer_numbers(self):
+        # Kerbin's low stratiform rain layer (coverage 0.5, edge 0.2, amount 0.3) with the water content 0.3 at the outline, the owner's softness 0.5 and the layer's scale 1.5:
         # w = 0.75, coverage' = 0.5 + 0.1 + (0.3 - 0.5) 0.3 0.75, edge' = 0.3 x 0.75, K = (1 - 0.5 - 0.1 - 0.15) + 0.3 x 0.3 x 0.75.
         cov, edge, k = nm.soft_layer_numbers(0.5, 0.2, 0.3, 0.3, 0.5, 1.5)
         self.assertAlmostEqual(cov, 0.555, places=9)

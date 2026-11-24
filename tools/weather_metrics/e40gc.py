@@ -9,7 +9,7 @@ The pass is the product's (the soft water content with the owner's softness, Sof
 at 1707 x 960 for the cost and 1708 x 960 for the pictures. The views:
 
   ground, above   the cumulus layer alone (the scene of the e40-gb series: map 0.665, the layer's first type), the camera at 264 m looking 18 degrees up / at 8364 m looking 25 down
-  l4ground, l4above   the four layers of Clouds-Kerbin.cfg in fair weather with the same cameras: rain deck empty (map 0), cumulus map 0.45 with the type 0.25 (humilis), cumulonimbus map 0.15,
+  l4ground, l4above   the four layers of Clouds-Kerbin.cfg in fair weather with the same cameras: low stratiform rain layer empty (map 0), cumulus map 0.45 with the type 0.25 (humilis), cumulonimbus map 0.15,
                   cirrus map 0.35 (the numbers of the cfg, B3's light and soft keys). A constructed fair-weather sky, not a frame of the game.
   l4empty         the same four layers with every map at 0 (the ground camera): nothing to see, what a clear sky costs
 

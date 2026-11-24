@@ -90,7 +90,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
         }
 
-        // A key whose layer name stands between a prefix and a suffix (cloud.heap.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
+        // A key whose layer name stands between a prefix and a suffix (cloud.cumuliform.layer.<name>.edgePower): the suffix is empty for the keys that end with the name.
         internal CloudLayerKey(string prefix, string suffix, float compiledDefault, string note, KeySection section, KeyLiveness liveness, KeyMarker marker, bool flag,
                                float min = float.NaN, float max = float.NaN)
         {
@@ -217,7 +217,7 @@ namespace ReDefinition.Atmospheres.Viewer
         }
     }
 
-    // A per-layer key's value in a preset: the key's prefix (cloud.heap.layer.) and suffix (empty for a key that ends with the name), the end of the names of the layers it is set on
+    // A per-layer key's value in a preset: the key's prefix (cloud.cumuliform.layer.) and suffix (empty for a key that ends with the name), the end of the names of the layers it is set on
     // (case ignored; empty: every layer) and the value.
     internal sealed class PresetLayerValue
     {
@@ -276,14 +276,14 @@ namespace ReDefinition.Atmospheres.Viewer
             F(OwnCloudModule.TuneAfterScatterer, true, KeyLiveness.Second, note: "read once a second (OwnCloudModule.OnPreRender); the buffers move behind Scatterer's scattering within a second"),
             N(OwnCloudModule.TuneCameraEvent, 0f, note: "0 BeforeForwardAlpha, 1 AfterForwardAlpha, 2 BeforeImageEffects; buffers move"),
             N(CloudMotion.TuneScale, CloudMotion.DefaultScale, note: "cloud speed, 0 to 50"),
-            // The haze (OwnCloudModule.FillFrame, ResolveAir).
-            N(CloudHazePlan.TuneAirSource, -1f, note: "-1 auto, re-read when it changes"),
-            N(CloudHazePlan.TuneColour, 0f),
-            N(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare),
-            N(CloudHazePlan.TuneR, CloudHazePlan.DefaultDisplayColour.r),
-            N(CloudHazePlan.TuneG, CloudHazePlan.DefaultDisplayColour.g),
-            N(CloudHazePlan.TuneB, CloudHazePlan.DefaultDisplayColour.b),
-            N(CloudHazePlan.TuneSky, 1f),
+            // The aerial perspective (OwnCloudModule.FillFrame, ResolveAir).
+            N(AerialPerspectivePlan.TuneAirSource, -1f, note: "-1 auto, re-read when it changes"),
+            N(AerialPerspectivePlan.TuneColour, 0f),
+            N(AerialPerspectivePlan.TuneShare, CloudBridgeAir.HorizonShare),
+            N(AerialPerspectivePlan.TuneR, AerialPerspectivePlan.DefaultDisplayColour.r),
+            N(AerialPerspectivePlan.TuneG, AerialPerspectivePlan.DefaultDisplayColour.g),
+            N(AerialPerspectivePlan.TuneB, AerialPerspectivePlan.DefaultDisplayColour.b),
+            N(AerialPerspectivePlan.TuneSky, 1f),
             // The look knobs (CloudLookTuning, CloudCoverShift, CloudSoftDensity).
             N(CloudLookTuning.TuneSigma, 1f, KeyLiveness.Change),
             N(CloudLookTuning.TuneSoftness, 1f, KeyLiveness.Change),
@@ -291,21 +291,21 @@ namespace ReDefinition.Atmospheres.Viewer
             N(CloudLookTuning.TuneCoverCombine, CloudLookTuning.DefaultCoverCombine, KeyLiveness.Change, "a map round follows"),
             N(CloudLookTuning.TuneFadeFar, 0f, KeyLiveness.Change),
             N(CloudLookTuning.TuneFadeNearShare, 0.5f, KeyLiveness.Change),
-            N(CloudLookTuning.TuneFarHaze, -1f, KeyLiveness.Change, "-1 setting, 0 off, 1 on, 2 auto"),
-            N(CloudLookTuning.TuneHazeStrength, 1f, KeyLiveness.Change),
+            N(CloudLookTuning.TuneAerialPerspective, -1f, KeyLiveness.Change, "-1 setting, 0 off, 1 on, 2 auto"),
+            N(CloudLookTuning.TuneAerialPerspectiveStrength, 1f, KeyLiveness.Change),
             N(CloudLookTuning.TuneSoloLayer, 0f, KeyLiveness.FrameHistory, "solo: the 1-based layer drawn alone, 0 every layer"),
             N(CloudLookTuning.TuneCellKm, 0f, KeyLiveness.Change, "a forced map as one cell: e-folding radius in km, 0 a constant map"),
             N(CloudLookTuning.TuneCellLat, 0f, KeyLiveness.Change, "centre of the forced cell, degrees"),
             N(CloudLookTuning.TuneCellLon, 0f, KeyLiveness.Change, "centre of the forced cell, degrees"),
             N(CloudCoverShift.TuneShift, 0f, KeyLiveness.Change),
             N(CloudCoverShift.TuneShiftRain, 0f, KeyLiveness.Change),
-            // The billow detail (CloudLookTuning; read in LayerNoise.Bind every frame).
-            N(CloudLookTuning.TuneBillowLight, 0f, KeyLiveness.FrameHistory, "billow shading of the direct light, 0 off"),
-            N(CloudLookTuning.TuneBillowContrast, 1f, KeyLiveness.FrameHistory, "contrast of the erosion detail about its mean"),
-            N(CloudLookTuning.TuneBillowTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
-            N(CloudLookTuning.TuneBillowFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
-            N(CloudLookTuning.TuneBillowFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
-            // The keys of the new cloud model (heap, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
+            // The bulge detail (CloudLookTuning; read in LayerNoise.Bind every frame).
+            N(CloudLookTuning.TuneBulgeLight, 0f, KeyLiveness.FrameHistory, "bulge shading of the direct light, 0 off"),
+            N(CloudLookTuning.TuneBulgeContrast, 1f, KeyLiveness.FrameHistory, "contrast of the erosion detail about its mean"),
+            N(CloudLookTuning.TuneBulgeTop, 0f, KeyLiveness.FrameHistory, "erosion gain toward the cloud's top"),
+            N(CloudLookTuning.TuneBulgeFine, -1f, KeyLiveness.FrameHistory, "weight of the fine octave, -1 compiled"),
+            N(CloudLookTuning.TuneBulgeFineFreq, -1f, KeyLiveness.FrameHistory, "frequency of the fine octave, -1 compiled"),
+            // The keys of the new cloud model (cumuliform, edgePower, cavity, noise blend) are registered by CloudModelKeys (a CloudKeySource), not listed here.
             // The march's cost controls (OwnCloudOptions.Apply(LayerFrame)).
             F(CloudDevVariant.TuneForce, false, KeyLiveness.Frame, "the cloud shaders' test variant (CLOUD_DEV) on whatever the values: a cost comparison measures both sides on the same shader"),
             F(OwnCloudOptions.TuneCoverageBound, Frame0.CoverageBound),
@@ -328,8 +328,8 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
-            N(OwnCloudOptions.TuneSheetRolls, OwnCloudOptions.SheetRollsDefault, KeyLiveness.Frame, "M2c: the sheet types' rolls across the wind (stratus undulatus), share of their depth; 0 off"),
-            N(OwnCloudOptions.TuneRollLengthShare, OwnCloudOptions.RollLengthShareDefault, KeyLiveness.Frame, "M2c: the roll length as a share of the layer's depth"),
+            N(OwnCloudOptions.TuneUndulatus, OwnCloudOptions.UndulatusDefault, KeyLiveness.Frame, "M2c: the stratiform types' undulations across the wind (variety undulatus), share of their depth; 0 off"),
+            N(OwnCloudOptions.TuneUndulatusWavelengthShare, OwnCloudOptions.UndulatusWavelengthShareDefault, KeyLiveness.Frame, "M2c: the undulatus wavelength as a share of the layer's depth"),
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
             N(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault, KeyLiveness.FrameHistory),
             N(OwnCloudOptions.TuneReconResolution, OwnCloudOptions.ReconResolutionDefault, KeyLiveness.FrameHistory),
@@ -384,9 +384,9 @@ namespace ReDefinition.Atmospheres.Viewer
             new CloudLayerKey(CloudLookTuning.TuneMapOverride, -1f, "constant map value, -1 the field's", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneTypeOverride, -1f, "constant type value, -1 none", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneTypeFair, -1f, "fair-weather type, -1 none", -1f, 1f),
-            new CloudLayerKey(CloudLookTuning.TuneDeckRule, -1f, "-1 cfg, 0 off, 1 on", -1f, 1f),
-            new CloudLayerKey(CloudLookTuning.TuneDeckPrecip, -1f, "deck rule's precipitation, -1 the field's", -1f, 1f),
-            new CloudLayerKey(CloudLookTuning.TuneDeckFog, -1f, "deck rule's fog share, -1 the field's", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneLowStratiformRule, -1f, "-1 cfg, 0 off, 1 on", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneLowStratiformPrecip, -1f, "low stratiform rule's precipitation, -1 the field's", -1f, 1f),
+            new CloudLayerKey(CloudLookTuning.TuneLowStratiformFog, -1f, "low stratiform rule's fog share, -1 the field's", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneLayerShift, 0f, "coverage shift of the layer", -1f, 1f),
             new CloudLayerKey(CloudLookTuning.TuneSigma + ".", 1f, "sigma factor of the layer"),
             new CloudLayerKey(CloudLookTuning.TuneSoftness + ".", 1f, "softness factor of the layer"),

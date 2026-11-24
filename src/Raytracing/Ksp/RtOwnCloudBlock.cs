@@ -6,7 +6,7 @@ namespace ReDefinition.Raytracing
     // The own cloud layers of ReDefinition Atmospheres for the rays (RtCommon.hlsli: OwnCloudTau, CloudTransmittance, CloudOverSky in the own mode): the
     // packet's cloud block (Raytracing.h, RtFramePacket.clouds) from the view the atmospheres publish (RayCloudSeam.View, ReDefinition.Common), with
     // the view's texture as RT_INPUT_CLOUDS. Taken instead of EVE's layer (RtEveClouds) wherever the view is fresh for the scene's body, so that the
-    // rays never see a deck twice; the atmospheres publish only under cloudSource Ours and while the rays ask (RayCloudSeam.Ask).
+    // rays never see a cloud layer twice; the atmospheres publish only under cloudSource Ours and while the rays ask (RayCloudSeam.Ask).
     //
     // The block in the own mode (RT_OWN_CLOUDS_*):
     //   0-11  rows 0-2 of the camera-relative world to the map frame: the body's centre at the origin, x towards longitude 0, y towards longitude

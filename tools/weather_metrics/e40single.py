@@ -4,7 +4,7 @@
     python tools/build_weather_player.py --series e40-single --no-build
     python tools/weather_metrics/e40single.py --pictures <folder> [--root <player output folder>] [--photo <the reference photograph>]
 
-The job is the cumulus layer of the game-start-64 view `tyhumg` (its type table, light, haze and march are the product's) with everything else removed: the other layers are dropped, there is
+The job is the cumulus layer of the game-start-64 view `tyhumg` (its type table, light, aerial perspective and march are the product's) with everything else removed: the other layers are dropped, there is
 no height variation (the flat base the photograph has), the cover map is one soft disc of the cell's diameter and the type map is one constant (mediocris 128, congestus 191 over the
 layer's five types). The map is finer than the game's (4096 x 2048: a texel of 0.9 km; the game's 512 x 256 texel is 7.4 km, wider than the cell). The layer's coverage threshold is 0.5
 (0.35 in the product) so that the disc's core is solid; the edge of the disc is ragged by the shape noise. The camera stands 30 m over the sea at the stated distance behind the cell, looking at
@@ -60,50 +60,50 @@ SCENES = {
 CEILING_SCENES = ("m1d6", "m2d6", "m3d6", "c1d11", "m1d6b")
 
 # look -> (change of the job or None, march). New packages add their looks here.
-HEAP = puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35)
+CUMULIFORM = puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35)
 LOOKS = {
     "base": (None, e40pp.MARCH),
-    "heap": (HEAP, puff.NG96),
+    "cumuliform": (CUMULIFORM, puff.NG96),
     "ceilb": (puff.v_nosmooth, puff.CEIL),
-    "ceil": (puff.compose(puff.v_nosmooth, HEAP), puff.CEIL),
-    # the artifact diagnosis (bright ellipses, holes): one factor of the heap look taken away at a time, at the production march with 96 grid points
-    "h_nocav": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE), puff.NG96),
-    "h_noedge": (puff.tune_cumulus(puff.HEAP1 + puff.CAV35), puff.NG96),
-    "h_w0": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), puff.NG96),
-    "h_wL": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.heap.warp", -1.0)]), puff.NG96),
-    # CLOUDR2 P2: the GPU tile blend (cloud.noise.blend) instead of the untiling displacement, on the heap look and on the shape volume alone
-    "blend": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), puff.NG96),
+    "ceil": (puff.compose(puff.v_nosmooth, CUMULIFORM), puff.CEIL),
+    # the artifact diagnosis (bright ellipses, holes): one factor of the cumuliform look taken away at a time, at the production march with 96 grid points
+    "h_nocav": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE), puff.NG96),
+    "h_noedge": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.CAV35), puff.NG96),
+    "h_w0": (puff.compose(CUMULIFORM, lambda job: job.setdefault("noise", {}).__setitem__("noUntile", 1)), puff.NG96),
+    "h_wL": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.cumuliform.warp", -1.0)]), puff.NG96),
+    # CLOUDR2 P2: the GPU tile blend (cloud.noise.blend) instead of the untiling displacement, on the cumuliform look and on the shape volume alone
+    "blend": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), puff.NG96),
     "blendb": (puff.tune_cumulus([("cloud.noise.blend", 1.0)]), e40pp.MARCH),
-    "blendc": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.CEIL),
-    # CLOUDR2 P3: the sun march's first taps read the eroded density (cloud.light.erosion), on the blended heap look
-    "lite1": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 1.0)]), puff.NG96),
-    "lite2": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)]), puff.NG96),
-    "lite3": (puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 3.0)]), puff.NG96),
-    # CLOUDR2 shapes: the types' shape smoothing (1.5 noise scales for mediocris = 375 m, 3 for congestus) is a mip level of the volume, so it removes every head below it; the heap types would
+    "blendc": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.CEIL),
+    # CLOUDR2 P3: the sun march's first taps read the eroded density (cloud.light.erosion), on the blended cumuliform look
+    "lite1": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 1.0)]), puff.NG96),
+    "lite2": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)]), puff.NG96),
+    "lite3": (puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 3.0)]), puff.NG96),
+    # CLOUDR2 shapes: the types' shape smoothing (1.5 noise scales for mediocris = 375 m, 3 for congestus) is a mip level of the volume, so it removes every head below it; the cumuliform types would
     # not carry it. The same looks with the smoothing 0 at the production march.
-    "bns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
-    # CLOUDR3 task 4 (congestus towers): the cavity strength and the rim exponent of the cumulus layer around the bench's (cavity 0.35, edgePower 0.5), on the blended heap look without smoothing
-    "cg_c0": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.0)])), puff.NG96),
-    "cg_c15": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.15)])), puff.NG96),
-    "cg_c70": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.7)])), puff.NG96),
-    "cg_e10": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + [("cloud.edgePower.layer.", 1.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
-    "cg_e20": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + [("cloud.edgePower.layer.", 2.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
-    # CLOUDR3 task 3 (warm light): the same look without the pass's distance haze (job far.haze 0), to read the colour of the sun's light on the heads without the blue air between the camera and the cloud
-    "bnh": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), lambda job: job.setdefault("far", {}).__setitem__("haze", 0)), puff.NG96),
-    "lns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)])), puff.NG96),
-    "h_nolod": (puff.compose(HEAP, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
-    "h_ero0": (puff.compose(HEAP, puff.v_ero0), puff.NG96),
+    "bns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    # CLOUDR3 task 4 (congestus towers): the cavity strength and the rim exponent of the cumulus layer around the bench's (cavity 0.35, edgePower 0.5), on the blended cumuliform look without smoothing
+    "cg_c0": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.0)])), puff.NG96),
+    "cg_c15": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.15)])), puff.NG96),
+    "cg_c70": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + [("cloud.noise.blend", 1.0), ("cloud.cavity.layer.", 0.7)])), puff.NG96),
+    "cg_e10": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + [("cloud.edgePower.layer.", 1.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    "cg_e20": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + [("cloud.edgePower.layer.", 2.0)] + puff.CAV35 + [("cloud.noise.blend", 1.0)])), puff.NG96),
+    # CLOUDR3 task 3 (warm light): the same look without the pass's aerial perspective (job far.aerialPerspective 0), to read the colour of the sun's light on the heads without the blue air between the camera and the cloud
+    "bnh": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)]), lambda job: job.setdefault("far", {}).__setitem__("aerialPerspective", 0)), puff.NG96),
+    "lns": (puff.compose(puff.v_nosmooth, puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0), ("cloud.light.erosion", 2.0)])), puff.NG96),
+    "h_nolod": (puff.compose(CUMULIFORM, lambda job: job.setdefault("noise", {}).__setitem__("noLod", 1)), puff.NG96),
+    "h_ero0": (puff.compose(CUMULIFORM, puff.v_ero0), puff.NG96),
 }
 LOOK_SCENES = {"bnh": ("m1d6", "c1d11"), "cg_c0": ("c1d11", "c2d11"), "cg_c15": ("c1d11", "c2d11"), "cg_c70": ("c1d11", "c2d11"), "cg_e10": ("c1d11", "c2d11"), "cg_e20": ("c1d11", "c2d11"),"bns":("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"), "lns": ("m1d6", "m2d6", "m3d6", "c1d11", "c2d11"),"lite1": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite2": ("m1d6", "m2d6", "m3d6", "c1d11"), "lite3": ("m1d6", "m2d6", "m3d6", "c1d11"),"blendb": ("m1d6", "m2d6", "m3d6"), "blendc": ("m1d6", "m2d6", "m3d6", "c1d11"),"h_nocav": ("m1d6", "m2d6"), "h_noedge": ("m1d6", "m2d6"), "h_w0": ("m1d6", "m2d6"), "h_wL": ("m1d6", "m2d6"), "h_nolod": ("m1d6", "m2d6"), "h_ero0": ("m1d6", "m2d6")}
 
 
-# CLOUDR3 task 2: the real-time options on the blended heap look (cavity 0.35, edgePower 0.5): the march target's size over the frame (r33 .. r100, the reconstruction of the product), the grid
+# CLOUDR3 task 2: the real-time options on the blended cumuliform look (cavity 0.35, edgePower 0.5): the march target's size over the frame (r33 .. r100, the reconstruction of the product), the grid
 # points of a span (ng48 is the product's, ng96, ng128), the Catmull-Rom history (chm) and the types' shape smoothing (sm: today's, the others none). One march string per option, so one player
 # start per option. The field view (the game-start view tyhuma with all its layers, the soft-cost scene) is added by prepare() for the same options.
 def rt_option(res, grid, chm=False, smooth=False):
-    heap = puff.tune_cumulus(puff.HEAP1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])
+    cumuliform = puff.tune_cumulus(puff.CUMULIFORM1 + puff.EDGE + puff.CAV35 + [("cloud.noise.blend", 1.0)])
     march = "seq1+lq2+ng%d+r%d+lp100%s" % (grid, res, "+chm" if chm else "")
-    return (heap if smooth else puff.compose(puff.v_nosmooth, heap)), march
+    return (cumuliform if smooth else puff.compose(puff.v_nosmooth, cumuliform)), march
 
 
 RT_OPTIONS = {
@@ -386,7 +386,7 @@ register_series("e40-single", stage_list(), collect, exclusive=False, who="e40-s
 
 
 # The GPU time of the pass for one cell in several looks (soft-cost scene: march | resolve | composite, median of 40 frames, proxy timestamps; a timing run takes the GPU exclusively).
-COST_LOOKS = ("base", "heap", "blend", "blendb", "lite2", "bns", "lns") + tuple(RT_OPTIONS)
+COST_LOOKS = ("base", "cumuliform", "blend", "blendb", "lite2", "bns", "lns") + tuple(RT_OPTIONS)
 COST_SCENES = ("m1d6", "c1d11", "field")
 
 

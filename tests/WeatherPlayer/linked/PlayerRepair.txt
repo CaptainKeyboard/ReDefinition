@@ -1,4 +1,4 @@
 # The weather player did not build on origin/main after T18 and HKEYS: the shared stubs (tests/RaytracingPlayer GameStubs.cs, linked by B11) define WeatherView and PlannerHooks since T18 (C22 no
-# longer links the real WeatherView; the precipitation frame's FlakeLayer is a stub in Assets/Runner/PlayerStubs.cs, as is ForeignAssumption, which the stubs' PlannerHooks names), and HeightTuning
+# longer links the real WeatherView; the precipitation frame's HydrometeorLayer is a stub in Assets/Runner/PlayerStubs.cs, as is ForeignAssumption, which the stubs' PlannerHooks names), and HeightTuning
 # reads CloudHeightRules since HKEYS.
 src/Atmospheres/Bodies/Schema/CloudHeightRules.cs

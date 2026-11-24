@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The runtime shift of the layers' coverage threshold (CloudCoverShift, tuning cloud.coverageShift and cloud.coverageShiftRain): default 0 changes nothing, the shift reaches every
-    // reader through CloudLayerDef.EffectiveCoverage, the group key acts on the rain deck only, and the model's expected numbers for the K-T2d variants.
+    // reader through CloudLayerDef.EffectiveCoverage, the group key acts on the low stratiform rain layer only, and the model's expected numbers for the K-T2d variants.
     [TestClass]
     public class CloudCoverShiftTests
     {
@@ -129,7 +129,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheModelsExpectedClosedSharesOfTheK_T2dVariants()
         {
-            // The numbers written into tests/series/K-T2d.json before the run: Stratus of the rain deck, ground view (slant 3.24), coverage 0.5 / 0.42 / 0.35.
+            // The numbers written into tests/series/K-T2d.json before the run: Stratus of the low stratiform rain layer, ground view (slant 3.24), coverage 0.5 / 0.42 / 0.35.
             double[] map = { 0.473, 0.514, 0.60 };
             double[] c50 = { 0.71, 0.85, 1.00 }, c42 = { 0.44, 0.58, 0.87 }, c35 = { 0.21, 0.35, 0.63 };
             for (int i = 0; i < map.Length; i++)
@@ -138,7 +138,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(c42[i], CloudCoverModel.RainStratusClosed(map[i], -0.08, 3.24), 0.03, "0.42 at " + map[i]);
                 Assert.AreEqual(c35[i], CloudCoverModel.RainStratusClosed(map[i], -0.15, 3.24), 0.03, "0.35 at " + map[i]);
             }
-            // At the zenith the deck is thinner to look through: less is closed.
+            // At the zenith the cloud layer is thinner to look through: less is closed.
             Assert.IsTrue(CloudCoverModel.RainStratusClosed(0.473, 0.0, 1.0) < CloudCoverModel.RainStratusClosed(0.473, 0.0, 3.24));
             // The coverage that closes half the sky at map 0.5 is 0.41 to 0.43 for the ground view: a shift of -0.08 is the file's answer to the owner's question.
             double half = CloudCoverModel.RainStratusClosed(0.5, -0.08, 3.24);
@@ -151,7 +151,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             const int w = 80, h = 60;
             var baseline = new Color[w * h];
             for (int i = 0; i < baseline.Length; i++) baseline[i] = new Color(0.2f, 0.4f, 0.9f, 1f);
-            // The sky above the horizon at v 0.4: the left half a closed beige deck of the sky's own luminance whose brightness varies by 15 percent across it (K-T2d start 48's
+            // The sky above the horizon at v 0.4: the left half a closed beige cloud layer of the sky's own luminance whose brightness varies by 15 percent across it (K-T2d start 48's
             // ground-low sheet), a quarter of it a thin veil (change 0.05), the rest clear.
             var picture = (Color[])baseline.Clone();
             for (int y = 0; y < h; y++)
@@ -168,8 +168,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
             T09Readout.Reading off = T09Readout.Measure(baseline, w, h, 0.4, null);
             T09Readout.Reading r = T09Readout.Measure(picture, w, h, 0.4, off);
-            Assert.AreEqual(0.5, r.SkyClosedShare, 0.03, "half of the sky is the closed deck; the veil is changed but not closed");
-            Assert.IsTrue(r.SkyDeckShare < 0.4, "the luminance rule of the deck misses part of a beige sheet over a sky of the same luminance: " + r.SkyDeckShare);
+            Assert.AreEqual(0.5, r.SkyClosedShare, 0.03, "half of the sky is the closed cloud layer; the veil is changed but not closed");
+            Assert.IsTrue(r.SkyCloudShare < 0.4, "the luminance rule of the cloud region misses part of a beige sheet over a sky of the same luminance: " + r.SkyCloudShare);
             Assert.AreEqual(0.5, r.GroundClosedShare, 0.03, "the picture is the same below the horizon");
             T09Readout.Reading clear = T09Readout.Measure(baseline, w, h, 0.4, off);
             Assert.AreEqual(0.0, clear.SkyClosedShare, 1e-9, "no change, nothing closed");

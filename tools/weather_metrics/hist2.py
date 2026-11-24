@@ -42,7 +42,7 @@ OUT_DEFAULT = os.path.join(MAIN, ".local", "work", "series-pictures", "HIST2")
 # The captures (K-T2 starts perfNpic2560dlssqpin1686 and perfNpic2560dlssqpin4, A4500, 2560x1440 DLSS Quality, render 1707x960): the job index is the order here.
 VIEWS = [
     ("ground", "pin-ground-u1686000-perfNpic2560dlssqpin1686-20261120132521"),      # front-lit cumulus from the pad, rocket and terrain in front
-    ("inside", "pin-inside-u1486800-perfNpic2560dlssqpin4-20261120121537"),         # between the layers at 4.6 km, a deck close above, cumulus below
+    ("inside", "pin-inside-u1486800-perfNpic2560dlssqpin4-20261120121537"),         # between the layers at 4.6 km, a cloud layer close above, cumulus below
     ("above", "pin-above-u1686000-perfNpic2560dlssqpin1686-20261120132601"),        # 8.4 km over the cumulus field, front-lit
     ("groundback", "pin-ground-u1486800-perfNpic2560dlssqpin4-20261120121446"),     # the M0 ground view, back-lit
 ]
@@ -59,7 +59,7 @@ CASES = {
     "fwdabove300": dict(view="above", vel=(300, 0, 0)),
     "side150": dict(view="inside", vel=(0, 150, 0)),
     "yaw30": dict(view="ground", yaw=30.0, windows=[(640, 1120)]),            # the rocket's edge (the disocclusion band)
-    "yawinside30": dict(view="inside", yaw=30.0, windows=[(600, 1120)]),      # the rocket's edge in front of the deck
+    "yawinside30": dict(view="inside", yaw=30.0, windows=[(600, 1120)]),      # the rocket's edge in front of the cloud layer
     "climb": dict(view="inside", vel=(150, 0, 120), start=(0, 0, 0)),
     "wind": dict(view="ground", wind=8.0),
     "still_back": dict(view="groundback"),

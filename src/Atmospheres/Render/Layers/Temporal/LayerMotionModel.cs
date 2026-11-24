@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
     // seen at a pixel was, taken layer by layer and blended by the share of the pixel's cloud each layer holds. It is the place the history of the reconstruction is read from
     // and the motion vector the upscalers and frame generation get for the cloud (current minus previous viewport position, y up).
     //
-    // Why layers: a pixel's cloud is not on the first layer's middle sphere. The cirrus deck at 8 km and the cumulus at 2 km move differently when the camera translates
+    // Why layers: a pixel's cloud is not on the first layer's middle sphere. The cirrus layer at 8 km and the cumulus at 2 km move differently when the camera translates
     // (5 m between two frames at 300 m/s is 0.8 px at 5 km and 2.1 px at 2 km at 1707 x 960 and a 60 degree field), so a vector or a history place taken from one sphere is wrong for
     // the other layer. The share of a layer in a pixel follows the layers in front: a layer that fills the pixel and is thick hides the ones behind it, a thin one lets them through
     // (the stochastic cover of a layer, the opacity of its column, the order along the ray).

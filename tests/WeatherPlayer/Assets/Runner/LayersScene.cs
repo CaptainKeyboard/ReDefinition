@@ -219,7 +219,7 @@ namespace ReDefinition.WeatherPlayer
             Vector3 up = origin.normalized;
             float s = Vector3.Dot(d, up);
             Color horizon = LayersSetup.Rgb(job.skyHorizon, new Color(0.62f, 0.68f, 0.76f)), zenith = LayersSetup.Rgb(job.skyZenith, new Color(0.26f, 0.42f, 0.75f));
-            // Below the local horizontal and above the planet's limb a ray sees the horizon's haze (the far view's jobs, package T06; the other jobs keep the
+            // Below the local horizontal and above the planet's limb a ray sees the horizon's aerial perspective (the far view's jobs, package T06; the other jobs keep the
             // darker band, which reads as a flat strip between the horizontal and the limb when the camera is high).
             Color sky = s >= 0f ? Color.Lerp(horizon, zenith, Mathf.Pow(Mathf.Clamp01(s), 0.5f)) : (job.far != null ? horizon : horizon * 0.5f);
             if (job.space != 0)
@@ -270,14 +270,14 @@ namespace ReDefinition.WeatherPlayer
                     float lit = Mathf.Max(0f, Vector3.Dot(n, LayersSetup.V(job.sun)));
                     float floor = job.space != 0 ? 0.02f : 0.25f;
                     Color ground = groundAlbedo * (floor + 0.9f * lit);
-                    if (job.far != null && job.far.haze != 0 && job.space == 0)
+                    if (job.far != null && job.far.aerialPerspective != 0 && job.space == 0)
                     {
                         // The air between the camera and the ground, with the far view's own model (package T06), so that the ground the clouds are
-                        // judged against has its haze too.
+                        // judged against has its aerial perspective too.
                         Vector3 rayleigh = job.far.rayleigh != null && job.far.rayleigh.Length >= 3 ? LayersSetup.V(job.far.rayleigh) : new Vector3(5.802e-6f, 13.558e-6f, 33.1e-6f);
                         double tr, tg, tb;
                         FarViewMath.AirTau(job.planetRadius, origin.x, origin.y, origin.z, d.x, d.y, d.z, -b - Mathf.Sqrt(disc), rayleigh.x, rayleigh.y, rayleigh.z,
-                                           job.far.mie, job.far.rayleighHeight, job.far.mieHeight, job.far.hazeStrength, out tr, out tg, out tb);
+                                           job.far.mie, job.far.rayleighHeight, job.far.mieHeight, job.far.aerialPerspectiveStrength, out tr, out tg, out tb);
                         Color fog = LayersSetup.Rgb(job.far.inscatter, new Color(0.62f, 0.68f, 0.76f));
                         ground = new Color(ground.r * Mathf.Exp((float)-tr) + fog.r * (1f - Mathf.Exp((float)-tr)), ground.g * Mathf.Exp((float)-tg) + fog.g * (1f - Mathf.Exp((float)-tg)),
                                            ground.b * Mathf.Exp((float)-tb) + fog.b * (1f - Mathf.Exp((float)-tb)));

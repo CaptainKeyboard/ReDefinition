@@ -1,7 +1,7 @@
 """The metrics every series can use, and the smoke series: the spike's slab scene at the 25 km view through the player, judged against
 the values the spike measured (.local/plans/spike-result.md, the 25 km rows and the camera turn of the slab at native resolution).
 
-Stages: stills (the clear frame and the slab with the curtain), turn (the camera turn 2 then 12 degrees a frame, native, slab on) and
+Stages: stills (the clear frame and the slab with the praecipitatio), turn (the camera turn 2 then 12 degrees a frame, native, slab on) and
 time (the proxy's GPU timestamps of the slab's passes). Eight or more named metrics come out: luma_mean, luma_ratio, diff_vs_clear,
 edge_contrast, local_contrast, ghost_move, ghost_still, trail_px, shimmer, mv_match, gpu_ms_pass and frame_ms.
 """
@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 import analyze_weather_player as awp  # noqa: E402
 from weather_metrics import Metric, Stage, register_series  # noqa: E402
 
-# The spike's known values (25 km, own slab and curtain; native camera turn with the slab). Rounded to the digits the spike printed,
+# The spike's known values (25 km, own slab and praecipitatio; native camera turn with the slab). Rounded to the digits the spike printed,
 # so the floor of a metric is half of its last printed digit.
 SPIKE = {
     "luma_ratio": (0.965, 0.0005),
@@ -39,7 +39,7 @@ REL = 0.10
 
 
 def still_figures(folder, view="far"):
-    """The sky-band figures of the view with the slab and the curtain against its clear frame (analyze_weather_player.metrics)."""
+    """The sky-band figures of the view with the slab and the praecipitatio against its clear frame (analyze_weather_player.metrics)."""
     clear = awp.load_player(folder, view + "_clear")
     both = awp.load_player(folder, view + "_both")
     if clear is None or both is None:

@@ -11,17 +11,17 @@ namespace ReDefinition.WeatherPlayer
 {
     // The weather player (tools/build_weather_player.py): a fake plain with a slope and a ridge under a fake overcast sky, a
     // storm cell of the size and place of the game's stored frames (radius 6 km, base 600 m above the ground), drawn by ReDefinition's
-    // own cloud slab and the storm curtain, and a camera at the four views of the spike (25 km, 8 km, inside the cell at the
+    // own cloud slab and the storm praecipitatio, and a camera at the four views of the spike (25 km, 8 km, inside the cell at the
     // ground, inside the slab). Its lines in the log start with WEATHERPLAYER. Modes (option -mode):
     //
-    //   stills  each view without the cell, with the curtain, with the slab, and with both, as 1280x720 frames (colour, depth,
+    //   stills  each view without the cell, with the praecipitatio, with the slab, and with both, as 1280x720 frames (colour, depth,
     //           motion) in -out, for tools/analyze_weather_player.py; with -sweep name=a,b,c the slab's field name takes each value
-    //   time    the GPU milliseconds of the slab's march, its composite and the curtain per view, with the steps and the slab's
+    //   time    the GPU milliseconds of the slab's march, its composite and the praecipitatio per view, with the steps and the slab's
     //           render scale varied, at the render size of DLSS Quality at 2560x1440 and at 2560x1440 itself
     //   turn    the camera turns at the 25 km view (2 degrees a frame, then 12) as the upscaler -upscale (native, fsr3, dlss, amd,
     //           xess) renders it at -scale, with its references; the analytic motion and depth of the slab are on unless -analytic 0
     //
-    // Common options: -view far|mid|inside|slabin, -set name=value;name=value (CellSettings), -slab 0|1, -curtain 0|1.
+    // Common options: -view far|mid|inside|slabin, -set name=value;name=value (CellSettings), -slab 0|1, -praecipitatio 0|1.
     public sealed class WeatherRunner : MonoBehaviour
     {
         private const int Width = 1280, Height = 720;
@@ -216,7 +216,7 @@ namespace ReDefinition.WeatherPlayer
             slab.Init(cam);
             if (slab.Problem != null) Log("FAIL  " + slab.Problem);
             slab.SlabOn = WeatherPass.Argument("-slab") != "0";
-            slab.CurtainOn = WeatherPass.Argument("-curtain") != "0";
+            slab.PraecipitatioOn = WeatherPass.Argument("-praecipitatio") != "0";
             ApplySet(WeatherPass.Argument("-set"));
             pass = cam.gameObject.AddComponent<WeatherPass>();
             pass.Init(cam, slab, output, upscaler, display, render);
@@ -277,10 +277,10 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // One capture: the view with the variant's switches, settled for a few frames, written as name_*.bin.
-        private IEnumerator Capture(string name, bool slabOn, bool curtainOn)
+        private IEnumerator Capture(string name, bool slabOn, bool praecipitatioOn)
         {
             slab.SlabOn = slabOn;
-            slab.CurtainOn = curtainOn;
+            slab.PraecipitatioOn = praecipitatioOn;
             pass.Reset();
             yield return Frames(6);
             pass.Capture = name;
@@ -310,7 +310,7 @@ namespace ReDefinition.WeatherPlayer
                 RenderSettings.fog = fog;
                 if (sweepName == null)
                 {
-                    yield return Capture(view + "_curtain", false, true);
+                    yield return Capture(view + "_praecipitatio", false, true);
                     yield return Capture(view + "_slab", true, false);
                     yield return Capture(view + "_both", true, true);
                 }
@@ -341,9 +341,9 @@ namespace ReDefinition.WeatherPlayer
             foreach (string view in only != null ? only.Split(',') : Views)
             {
                 SetView(view);
-                // The reference without any cell, then the curtain alone, then the slab at each setting.
+                // The reference without any cell, then the praecipitatio alone, then the slab at each setting.
                 yield return Measure(view, "base", false, false, segments);
-                yield return Measure(view, "curtain", false, true, segments);
+                yield return Measure(view, "praecipitatio", false, true, segments);
                 foreach (float scale in new[] { 1f, 0.5f })
                     foreach (float steps in new[] { 16f, 24f, 32f, 48f, 64f })
                     {
@@ -360,12 +360,12 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // Warms up, then averages 150 frames of the proxy's segments and prints them.
-        private IEnumerator Measure(string view, string label, bool slabOn, bool curtainOn, float[] segments)
+        private IEnumerator Measure(string view, string label, bool slabOn, bool praecipitatioOn, float[] segments)
         {
             slab.SlabOn = slabOn;
-            slab.CurtainOn = curtainOn;
+            slab.PraecipitatioOn = praecipitatioOn;
             yield return Frames(40);
-            double frame = 0, march = 0, composite = 0, curtain = 0;
+            double frame = 0, march = 0, composite = 0, praecipitatio = 0;
             int n = 0;
             while (n < 150)
             {
@@ -376,7 +376,7 @@ namespace ReDefinition.WeatherPlayer
                 frame += total;
                 if (segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart] >= 0f) march += segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart];
                 if (segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart] >= 0f) composite += segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart];
-                if (segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart] >= 0f) curtain += segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                if (segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart] >= 0f) praecipitatio += segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                 n++;
             }
             string size = "." + render.x + "x" + render.y;
@@ -387,14 +387,14 @@ namespace ReDefinition.WeatherPlayer
                 Metric("gpu_ms.slab_composite." + view + "." + label + size, (float)(composite / n), "-", "info");
                 Metric("gpu_ms.slab_total." + view + "." + label + size, (float)((march + composite) / n), "1.5", ((march + composite) / n) <= 1.5 ? "true" : "false");
             }
-            if (curtainOn) Metric("gpu_ms.curtain." + view + "." + label + size, (float)(curtain / n), "-", "info");
+            if (praecipitatioOn) Metric("gpu_ms.praecipitatio." + view + "." + label + size, (float)(praecipitatio / n), "-", "info");
         }
 
         // The camera turning at the view as the upscaler renders it, then the references of each pose.
         private IEnumerator Turn()
         {
             slab.SlabOn = WeatherPass.Argument("-slab") != "0";
-            slab.CurtainOn = WeatherPass.Argument("-curtain") != "0";
+            slab.PraecipitatioOn = WeatherPass.Argument("-praecipitatio") != "0";
             var path = new List<float>();
             float yaw = -26f;
             for (int i = 0; i < 6; i++) path.Add(yaw);

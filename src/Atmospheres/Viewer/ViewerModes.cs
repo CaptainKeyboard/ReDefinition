@@ -43,7 +43,7 @@ namespace ReDefinition.Atmospheres.Viewer
             new ViewerMode(AtmospheresSettings.Keys.CloudShadowQuality, KeyMarker.Live, "OwnCloudOptions.Apply(CloudShadowFrame) every frame"),
             new ViewerMode(AtmospheresSettings.Keys.CloudNoiseTier, KeyMarker.Live,
                 "OwnCloudModule applies the switches every frame; LayerNoise bakes the noise volumes of the new size on a worker, so the old ones draw for a few seconds"),
-            new ViewerMode(AtmospheresSettings.Keys.CloudFarHaze, KeyMarker.Live, "OwnCloudOptions far-haze plan every frame (cloud.farHaze overrides it)")
+            new ViewerMode(AtmospheresSettings.Keys.CloudAerialPerspective, KeyMarker.Live, "OwnCloudOptions aerial perspective plan every frame (cloud.aerialPerspective overrides it)")
         };
 
         // The setting keys of the modes, in order.

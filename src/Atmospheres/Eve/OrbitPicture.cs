@@ -42,7 +42,7 @@ namespace ReDefinition.Atmospheres
             return (coverage01 <= 0f ? 0f : coverage01 >= 1f ? 1f : coverage01) * OpacityAt(level01);
         }
 
-        // The grey of the picture's clouds: light for a thin deck, darker with the level.
+        // The grey of the picture's clouds: light for a thin cloud layer, darker with the level.
         internal static float GreyAt(float level01)
         {
             float t = level01 <= 0f ? 0f : level01 >= 1f ? 1f : level01;

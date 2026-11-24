@@ -70,12 +70,12 @@ namespace ReDefinition.Tests.Atmospheres.C20
             Settle(composer, view, 1f, 250f, ref frame, ref ut);
             LookValues top = PrecipitationLook.Evaluate(1f);
             Assert.AreEqual(top.VisibilityM, view.VisibilityM, 1f);
-            Assert.AreEqual(top.VeilAlpha, view.VeilGroundAlpha, 1e-4f);
-            Assert.AreEqual(top.FlakesPerS, view.FlakeRatePerS, 1f);
+            Assert.AreEqual(top.PrecipExtinctionAlpha, view.PrecipExtinctionGroundAlpha, 1e-4f);
+            Assert.AreEqual(top.HydrometeorsPerS, view.HydrometeorRatePerS, 1f);
             Assert.AreEqual(top.AmbientFactor, view.AmbientFactor, 1e-4f);
-            Assert.AreEqual(PrecipitationLook.FogDensity(top.VisibilityM), view.FogDensity, 1e-5f);
-            Assert.AreEqual(3, view.FlakeLayers.Length);
-            Assert.IsTrue(view.FlakeLayers[0].Width < view.FlakeLayers[2].Width);
+            Assert.AreEqual(PrecipitationLook.VisibilityExtinctionDensity(top.VisibilityM), view.VisibilityExtinctionDensity, 1e-5f);
+            Assert.AreEqual(3, view.HydrometeorLayers.Length);
+            Assert.IsTrue(view.HydrometeorLayers[0].Width < view.HydrometeorLayers[2].Width);
         }
 
         [TestMethod]
@@ -83,12 +83,12 @@ namespace ReDefinition.Tests.Atmospheres.C20
         {
             var composer = new FrameComposer();
             var view = new WeatherView();
-            // The field rains hard at the place (its visibility 150 m) while the viewer forces a clear sky: no fog.
+            // The field rains hard at the place (its visibility 150 m) while the viewer forces a clear sky: no visibility extinction.
             DriverInput forcedClear = Input(0.9f, 280f, 1);
             forcedClear.Sample.VisibilityM = 150f;
             forcedClear.LevelOverride = 0f;
             composer.Compose(ref forcedClear, view);
-            Assert.AreEqual(0f, view.FogDensity, 0f, "the field's visibility does not hold a fog under a forced clear sky");
+            Assert.AreEqual(0f, view.VisibilityExtinctionDensity, 0f, "the field's visibility does not hold a visibility extinction under a forced clear sky");
             Assert.AreEqual(PrecipitationLook.ClearVisibilityM, view.VisibilityM, 1f);
 
             // Without the force the field's visibility is the target as before.
@@ -96,7 +96,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
             DriverInput open = Input(0.9f, 280f, 1);
             open.Sample.VisibilityM = 150f;
             new FrameComposer().Compose(ref open, free);
-            Assert.IsTrue(free.FogDensity > PrecipitationLook.FogDensity(1000f));
+            Assert.IsTrue(free.VisibilityExtinctionDensity >PrecipitationLook.VisibilityExtinctionDensity(1000f));
         }
 
         [TestMethod]
@@ -167,7 +167,7 @@ namespace ReDefinition.Tests.Atmospheres.C20
             composer.Compose(ref high, view);
             Assert.AreEqual(0f, view.Level, 1e-6f);
             Assert.AreEqual(PrecipType.None, view.Type);
-            Assert.AreEqual(0f, view.FlakeRatePerS);
+            Assert.AreEqual(0f, view.HydrometeorRatePerS);
             Assert.AreEqual(0.5f, FrameComposer.HeightFactor(7000f, 4000f, 10000f), 1e-5f);
         }
 

@@ -537,14 +537,14 @@ namespace ReDefinition.Core
                 .Tested("f36a77d52162") // EVE 3.2.2.0, the volumetric build of 2026-10
                 .OnChange(WhenChanged.Fallback, "the rays leave EVE's clouds out");
 
-        // EVE's cloud deck as a vertical optical depth for the sun's share (RtEveClouds.OpticalDepth, CloudDensityEstimate): the
+        // EVE's cloud layer as a vertical optical depth for the sun's share (RtEveClouds.OpticalDepth, CloudDensityEstimate): the
         // volume's SampleCoverage, which returns the coverage times the cloud-type curve times the coverage and density time fades and
         // gives the cloud-type value through its out argument; the volume's list of cloud types, each with a Density, which is
         // interpolated between the two types the value lies between as EVE's own getCloudFrac does (private, repeated in
         // RtEveClouds.TypeDensityAt); and the fades read for the rays (MapFades, ViewFade): the 2D layer's shadow material's
         // cloudTimeFadeDensity and mapViewFade and the volume's scaled fade, which EVE sets on the material only.
         public static readonly ForeignAssumption EveOpticalDepth =
-            new ForeignAssumption("eve-optical-depth", "EVE", "EVE's cloud deck as an optical depth for the sun's share")
+            new ForeignAssumption("eve-optical-depth", "EVE", "EVE's cloud layer as an optical depth for the sun's share")
                 .Type(EveVolume).Type("Atmosphere.CloudType").Type("Atmosphere.Clouds2D")
                 .Method(EveVolume, "SampleCoverage")
                 .Calls(EveVolume, "get_CloudTypes")

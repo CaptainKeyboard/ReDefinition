@@ -228,7 +228,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             var taste = new HashSet<string>(StringComparer.Ordinal)
             {
                 "yearLengthFactor", "seasonMode", "lightWeatherFrequency", "heavyShare", "windStrength", "gustStrength", "precipDensity",
-                "fogBrightness", "veilStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
+                "visibilityExtinctionBrightness", "precipExtinctionStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
                 "weatherAudioVolume", "coverStrength", "coverDrift", "forecastUncertainty", "genSeed"
             };
             foreach (string key in TierRows.SetKeys) Assert.IsFalse(taste.Contains(key), key + " is taste");
@@ -247,7 +247,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             // The player's taste, set to values that are not the defaults.
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.LightWeatherFrequency, 1.7);
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.WindStrength, 0.4);
-            AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.VeilStrength, 0.5);
+            AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.PrecipExtinctionStrength, 0.5);
             AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             QualityProfile.Apply(QualityTier.Low);
             Dictionary<string, string> low = Dump();

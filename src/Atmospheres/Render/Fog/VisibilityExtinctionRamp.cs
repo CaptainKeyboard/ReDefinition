@@ -2,10 +2,10 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The values the fog writer puts into Unity's fog, one frame at a time: the view's density and colour followed with a limit on how
-    // fast they may move (nothing changes faster than a 12 % swing at 3 Hz), the gust of the fog density on top (at most 12 %, a
-    // period of 3 seconds or more), and the player's fogBrightness on the colour. Pure.
-    internal sealed class FogRamp
+    // The values the visibility extinction writer puts into Unity's fog, one frame at a time: the view's density and colour followed with a
+    // limit on how fast they may move (nothing changes faster than a 12 % swing at 3 Hz), the gust of the density on top (at most 12 %, a
+    // period of 3 seconds or more), and the player's visibilityExtinctionBrightness on the colour. Pure.
+    internal sealed class VisibilityExtinctionRamp
     {
         private float density;
         private float r, g, b;
@@ -35,15 +35,15 @@ namespace ReDefinition.Atmospheres
             clock = 0.0;
         }
 
-        // One frame on. targetDensity and the colour come from the view, level is the precipitation level (the gust of the fog grows
+        // One frame on. targetDensity and the colour come from the view, level is the precipitation level (the gust of the density grows
         // with it), gustPeriodS and gustAmplitude are the tuning of the gust, hertz the ramp limit, brightness the player's
-        // fogBrightness. The first call takes the target at once (a scene that starts in fog does not fade in from nothing).
+        // visibilityExtinctionBrightness. The first call takes the target at once (a scene that starts in low visibility does not fade in from nothing).
         internal void Step(float targetDensity, float tr, float tg, float tb, float level, float gustAmplitude, float gustPeriodS, float hertz,
             float brightness, float dt)
         {
             clock += Math.Max(dt, 0f);
-            float amplitude = Math.Min(Math.Max(level, 0f), 1f) * Math.Min(gustAmplitude, PrecipMath.FogAmplitudeMax);
-            float modulated = targetDensity * PrecipMath.FogFactor(clock, amplitude, gustPeriodS);
+            float amplitude = Math.Min(Math.Max(level, 0f), 1f) * Math.Min(gustAmplitude, PrecipMath.VisibilityGustAmplitudeMax);
+            float modulated = targetDensity * PrecipMath.VisibilityGustFactor(clock, amplitude, gustPeriodS);
             float k = Math.Max(brightness, 0f);
             if (!started)
             {
@@ -54,10 +54,10 @@ namespace ReDefinition.Atmospheres
                 b = tb * k;
                 return;
             }
-            density = PrecipMath.FogStep(density, modulated, hertz, dt);
-            r = PrecipMath.FogStep(r, tr * k, hertz, dt);
-            g = PrecipMath.FogStep(g, tg * k, hertz, dt);
-            b = PrecipMath.FogStep(b, tb * k, hertz, dt);
+            density = PrecipMath.VisibilityStep(density, modulated, hertz, dt);
+            r = PrecipMath.VisibilityStep(r, tr * k, hertz, dt);
+            g = PrecipMath.VisibilityStep(g, tg * k, hertz, dt);
+            b = PrecipMath.VisibilityStep(b, tb * k, hertz, dt);
         }
     }
 }

@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Atmospheres
 {
     // The scene's white balance (owner 2026-11-19, audit A2): the whole upscaled picture is divided by the sun's tint, through the host's after-upscaling hook,
-    // instead of the clouds alone (the layer pass's white point, _OutW) with a counter-correction on their haze (CloudHazePlan.ExemptFromWhitePoint).
+    // instead of the clouds alone (the layer pass's white point, _OutW) with a counter-correction on their aerial perspective (AerialPerspectivePlan.ExemptFromWhitePoint).
     // The cloud module hands the tint over every frame and asks Takes() whether the scene balances this frame: only then does it drop the clouds' own white
     // point, so the picture is balanced once, never twice and never not at all. Without the host (the main mod absent) or while its hook stays silent the
     // clouds keep their own white point as before.

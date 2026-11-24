@@ -4,15 +4,15 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
-    // CLOUDR1 P2 and P3: the heap volume (a cascade of heaps on heaps, rank-equalised, with its mips and its cavity channel) and the CPU twin that reads it. The golden numbers are made by
-    // tools/weather_metrics/noise_model.py (gen_heap_levels, heap_value; tools/tests/test_heap_model.py checks the same numbers there).
+    // CLOUDR1 P2 and P3: the cumuliform volume (a cascade of mounds on mounds, rank-equalised, with its mips and its cavity channel) and the CPU twin that reads it. The golden numbers are made by
+    // tools/weather_metrics/noise_model.py (gen_cumuliform_levels, cumuliform_value; tools/tests/test_cumuliform_model.py checks the same numbers there).
     [TestClass]
-    public class HeapVolumeTests
+    public class CumuliformVolumeTests
     {
-        private static HeapVolumeSet small, medium;
+        private static CumuliformVolumeSet small, medium;
 
-        private static HeapVolumeSet Small { get { return small ?? (small = HeapVolumeSet.Generate(16, 1u)); } }
-        private static HeapVolumeSet Medium { get { return medium ?? (medium = HeapVolumeSet.Generate(NoiseSizes.ForLevel(1).Shape, 1u)); } }
+        private static CumuliformVolumeSet Small { get { return small ?? (small = CumuliformVolumeSet.Generate(16, 1u)); } }
+        private static CumuliformVolumeSet Medium { get { return medium ?? (medium = CumuliformVolumeSet.Generate(NoiseSizes.ForLevel(1).Shape, 1u)); } }
 
         private static ulong Fnv1a(byte[] data)
         {
@@ -28,22 +28,22 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheOctavesFollowTheLevelSize()
         {
-            CollectionAssert.AreEqual(new[] { 2, 4, 8, 16 }, HeapModel.Octaves(64));
-            CollectionAssert.AreEqual(new[] { 2, 4, 8, 16, 32 }, HeapModel.Octaves(128));
-            CollectionAssert.AreEqual(new[] { 2, 4, 8 }, HeapModel.Octaves(32));
-            CollectionAssert.AreEqual(new[] { 2 }, HeapModel.Octaves(8));
-            CollectionAssert.AreEqual(new[] { 2 }, HeapModel.Octaves(2), "at least the first octave");
-            Assert.AreEqual(0, HeapModel.PresetOf("none"));
-            Assert.AreEqual(1, HeapModel.PresetOf("Billow"));
-            Assert.AreEqual(2, HeapModel.PresetOf("rough"));
-            Assert.AreEqual(0, HeapModel.PresetOf("nonsense"));
+            CollectionAssert.AreEqual(new[] { 2, 4, 8, 16 }, CumuliformModel.Octaves(64));
+            CollectionAssert.AreEqual(new[] { 2, 4, 8, 16, 32 }, CumuliformModel.Octaves(128));
+            CollectionAssert.AreEqual(new[] { 2, 4, 8 }, CumuliformModel.Octaves(32));
+            CollectionAssert.AreEqual(new[] { 2 }, CumuliformModel.Octaves(8));
+            CollectionAssert.AreEqual(new[] { 2 }, CumuliformModel.Octaves(2), "at least the first octave");
+            Assert.AreEqual(0, CumuliformModel.PresetOf("none"));
+            Assert.AreEqual(1, CumuliformModel.PresetOf("Bulge"));
+            Assert.AreEqual(2, CumuliformModel.PresetOf("rough"));
+            Assert.AreEqual(0, CumuliformModel.PresetOf("nonsense"));
         }
 
-        // The heap field's values are uniform (rank-equalised) at level 0 and at every analytic mip level, so a coverage threshold at 0.5 covers half the sky at any level.
+        // The cumuliform field's values are uniform (rank-equalised) at level 0 and at every analytic mip level, so a coverage threshold at 0.5 covers half the sky at any level.
         [TestMethod]
         public void TheFieldIsRankUniformAtEveryAnalyticLevel()
         {
-            HeapVolumeSet set = Medium;
+            CumuliformVolumeSet set = Medium;
             Assert.AreEqual(NoiseVolumeSet.MipLevels(set.N), set.Levels.Length);
             for (int m = 0; m < 4; m++)
             {
@@ -69,10 +69,10 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheGenerationIsDeterministicAndMatchesTheNumPyTwin()
         {
-            HeapVolumeSet again = HeapVolumeSet.Generate(16, 1u);
+            CumuliformVolumeSet again = CumuliformVolumeSet.Generate(16, 1u);
             for (int m = 0; m < Small.Levels.Length; m++) CollectionAssert.AreEqual(Small.Levels[m], again.Levels[m], "level " + m);
             Assert.AreEqual(5, Small.Levels.Length);
-            Assert.AreEqual(0xC8EA9DAD82F6101DUL, Fnv1a(Small.Levels[0]), "level 0 hash (noise_model.py gen_heap_levels)");
+            Assert.AreEqual(0xC8EA9DAD82F6101DUL, Fnv1a(Small.Levels[0]), "level 0 hash (noise_model.py gen_cumuliform_levels)");
             Assert.AreEqual(0x83D897480C7869F4UL, Fnv1a(Small.Levels[1]), "level 1 hash");
             byte[] l0 = Small.Levels[0];
             // voxel (x 7, y 5, z 3): index (3 * 16 + 5) * 16 + 7
@@ -98,13 +98,13 @@ namespace ReDefinition.Tests
             for (int preset = 1; preset <= 2; preset++)
                 for (int l = 0; l < 2; l++)
                 {
-                    // a smoothing of 2^1.5 / 2 noise scales asks for the mip level 1.5 of a 16-voxel volume (2 voxels per noise scale: the heap's period is 8 scales); the last analytic level
-                    // (8 voxels, level 1) is the coarsest the heap is read at, so the read is at level 1
+                    // a smoothing of 2^1.5 / 2 noise scales asks for the mip level 1.5 of a 16-voxel volume (2 voxels per noise scale: the cumuliform's period is 8 scales); the last analytic level
+                    // (8 voxels, level 1) is the coarsest the cumuliform is read at, so the read is at level 1
                     prm.SmoothingScales = l == 0 ? 0.0 : Math.Pow(2.0, 1.5) / 2.0;
                     for (int p = 0; p < 3; p++)
                     {
                         double cavity;
-                        double got = CloudShapeModel.HeapAt(Small, ref prm, preset, points[p][0], points[p][1], points[p][2], 0.0, out cavity);
+                        double got = CloudShapeModel.CumuliformAt(Small, ref prm, preset, points[p][0], points[p][1], points[p][2], 0.0, out cavity);
                         Assert.AreEqual(want[preset - 1, l, p], got, 1e-9, "preset " + preset + " lod " + l + " point " + p);
                         Assert.IsTrue(cavity >= 0.0 && cavity <= 1.0);
                     }
@@ -116,31 +116,31 @@ namespace ReDefinition.Tests
         public void TheFootprintRaisesTheMipLevelLikeTheShader()
         {
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
-            prm.HeapFootLod = true;
+            prm.CumuliformFootLod = true;
             double cav;
             double foot = 250.0 * 2.0;   // two noise scales at N = 64 over a period of 8 scales: 2 * 64 / 8 = 16 voxels -> level 4
-            double viaFoot = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
-            prm.HeapFootLod = false;
+            double viaFoot = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
+            prm.CumuliformFootLod = false;
             prm.SmoothingScales = foot / 250.0;
-            double viaLod = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            double viaLod = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
             Assert.AreEqual(viaLod, viaFoot, 1e-12);
             prm.SmoothingScales = 5.0 * 8.0 / Medium.N * 4.0;   // 2.5 scales = 20 voxels: coarser than the footprint
-            prm.HeapFootLod = true;
-            double smoothWins = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
-            prm.HeapFootLod = false;
-            Assert.AreEqual(CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav), smoothWins, 1e-12, "the coarser of the two wins");
+            prm.CumuliformFootLod = true;
+            double smoothWins = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, foot, out cav);
+            prm.CumuliformFootLod = false;
+            Assert.AreEqual(CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav), smoothWins, 1e-12, "the coarser of the two wins");
         }
 
-        // The cover share per type: with the heap the share of the sky a map value covers is the one of the shape volume, within 0.01 (both are rank-uniform), on the voxels themselves.
-        // The shape and the heap share one texture (the pass has no sampler register left): red is the shape volume's own byte at every level, green and blue the two heap presets, alpha the
+        // The cover share per type: with the cumuliform the share of the sky a map value covers is the one of the shape volume, within 0.01 (both are rank-uniform), on the voxels themselves.
+        // The shape and the cumuliform share one texture (the pass has no sampler register left): red is the shape volume's own byte at every level, green and blue the two cumuliform presets, alpha the
         // cavity of the first.
         [TestMethod]
-        public void TheShapeAndTheHeapShareOneTextureWithTheShapeInRed()
+        public void TheShapeAndTheCumuliformVolumeShareOneTextureWithTheShapeInRed()
         {
             NoiseVolumeSet shape = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(0), 1u);
-            HeapVolumeSet heap = HeapVolumeSet.Generate(shape.ShapeN, 1u);
-            byte[][] merged = HeapVolumes.MergeWithShape(shape.Shape, shape.ShapeMips, heap);
-            Assert.AreEqual(heap.Levels.Length, merged.Length);
+            CumuliformVolumeSet cumuliform = CumuliformVolumeSet.Generate(shape.ShapeN, 1u);
+            byte[][] merged = CumuliformVolumes.MergeWithShape(shape.Shape, shape.ShapeMips, cumuliform);
+            Assert.AreEqual(cumuliform.Levels.Length, merged.Length);
             for (int m = 0; m < merged.Length; m++)
             {
                 byte[] s = m == 0 ? shape.Shape : shape.ShapeMips[m - 1];
@@ -148,54 +148,54 @@ namespace ReDefinition.Tests
                 for (int i = 0; i < s.Length; i += 7)
                 {
                     Assert.AreEqual(s[i], merged[m][i * 4]);
-                    Assert.AreEqual(heap.Levels[m][i * 4], merged[m][i * 4 + 1]);
-                    Assert.AreEqual(heap.Levels[m][i * 4 + 1], merged[m][i * 4 + 2]);
-                    Assert.AreEqual(heap.Levels[m][i * 4 + 2], merged[m][i * 4 + 3]);
+                    Assert.AreEqual(cumuliform.Levels[m][i * 4], merged[m][i * 4 + 1]);
+                    Assert.AreEqual(cumuliform.Levels[m][i * 4 + 1], merged[m][i * 4 + 2]);
+                    Assert.AreEqual(cumuliform.Levels[m][i * 4 + 2], merged[m][i * 4 + 3]);
                 }
             }
         }
 
-        // The heap is never read below its last analytic level (8 voxels): the coarser levels are box means, not rank-uniform, and the far view's mean takes over there.
+        // The cumuliform is never read below its last analytic level (8 voxels): the coarser levels are box means, not rank-uniform, and the far view's mean takes over there.
         [TestMethod]
-        public void TheHeapIsNotReadBelowItsLastAnalyticLevel()
+        public void TheCumuliformVolumeIsNotReadBelowItsLastAnalyticLevel()
         {
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             double cav;
             prm.SmoothingScales = 100.0;
-            double coarse = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            double coarse = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
             prm.SmoothingScales = 2.0;   // 2 scales over a period of 8 at 64 voxels = 16 voxels -> level 4... capped at level 3 (8 voxels)
-            double capped = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            double capped = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
             prm.SmoothingScales = 1.0;   // 8 voxels -> level 3
-            double level3 = CloudShapeModel.HeapAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
+            double level3 = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, 1234.0, 987.0, 456.0, 0.0, out cav);
             Assert.AreEqual(level3, coarse, 1e-12);
             Assert.AreEqual(level3, capped, 1e-12);
         }
 
-        // The heap lookup takes the untiling displacement's radial part out and keeps HeapModel.WarpShare of the rest: the heap read is not stretched into columns.
+        // The cumuliform lookup takes the untiling displacement's radial part out and keeps CumuliformModel.WarpShare of the rest: the cumuliform read is not stretched into columns.
         [TestMethod]
-        public void TheHeapLookupKeepsOnlyAShareOfTheHorizontalDisplacement()
+        public void TheCumuliformLookupKeepsOnlyAShareOfTheHorizontalDisplacement()
         {
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             prm.ReferenceRadiusM = 601000.0;
-            prm.HeapWarpShare = HeapModel.WarpShare;
+            prm.CumuliformWarpShare = CumuliformModel.WarpShare;
             double[] p = { 601500.0, 4000.0, -2500.0 };
             double qx, qy, qz, dx, dy, dz, hx, hy, hz;
             CloudShapeModel.LookupPoint(ref prm, p[0], p[1], p[2], out qx, out qy, out qz, out dx, out dy, out dz);
             Assert.IsTrue(Math.Abs(dx) + Math.Abs(dy) + Math.Abs(dz) > 10.0, "the warp displaces the point");
-            CloudShapeModel.HeapLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
+            CloudShapeModel.CumuliformLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
             double r = Math.Sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]), ux = p[0] / r, uy = p[1] / r, uz = p[2] / r;
-            // The point without the warp is q - d; the heap's point differs from it by a vector with no radial part and WarpShare of d's horizontal part.
+            // The point without the warp is q - d; the cumuliform's point differs from it by a vector with no radial part and WarpShare of d's horizontal part.
             double ex = hx - (qx - dx), ey = hy - (qy - dy), ez = hz - (qz - dz);
             Assert.AreEqual(0.0, ex * ux + ey * uy + ez * uz, 1e-6, "no radial part");
             double along = dx * ux + dy * uy + dz * uz;
-            Assert.AreEqual(HeapModel.WarpShare * (dx - ux * along), ex, 1e-9);
-            Assert.AreEqual(HeapModel.WarpShare * (dy - uy * along), ey, 1e-9);
-            Assert.AreEqual(HeapModel.WarpShare * (dz - uz * along), ez, 1e-9);
+            Assert.AreEqual(CumuliformModel.WarpShare * (dx - ux * along), ex, 1e-9);
+            Assert.AreEqual(CumuliformModel.WarpShare * (dy - uy * along), ey, 1e-9);
+            Assert.AreEqual(CumuliformModel.WarpShare * (dz - uz * along), ez, 1e-9);
             // Without the warp the lookup is the plain point.
             prm.Untile = false;
             CloudShapeModel.LookupPoint(ref prm, p[0], p[1], p[2], out qx, out qy, out qz, out dx, out dy, out dz);
             Assert.AreEqual(0.0, dx + dy + dz, 0.0);
-            CloudShapeModel.HeapLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
+            CloudShapeModel.CumuliformLookup(ref prm, p[0], p[1], p[2], qx, qy, qz, dx, dy, dz, out hx, out hy, out hz);
             Assert.AreEqual(qx, hx, 1e-9);
             Assert.AreEqual(qy, hy, 1e-9);
             Assert.AreEqual(qz, hz, 1e-9);
@@ -210,55 +210,55 @@ namespace ReDefinition.Tests
                 foreach (double edge in new[] { 0.15, 0.5 })
                     for (int preset = 1; preset <= 2; preset++)
                     {
-                        double heapMean = 0.0, shapeMean = 0.0;
+                        double cumuliformMean = 0.0, shapeMean = 0.0;
                         for (int i = 0; i < count; i++)
                         {
-                            heapMean += ShareOf(Medium.Levels[0][i * 4 + preset - 1] / 255.0, cov, edge);
+                            cumuliformMean += ShareOf(Medium.Levels[0][i * 4 + preset - 1] / 255.0, cov, edge);
                             shapeMean += ShareOf(shape.Shape[i] / 255.0, cov, edge);
                         }
-                        Assert.AreEqual(shapeMean / count, heapMean / count, 0.01, "cover " + cov + " edge " + edge + " preset " + preset);
+                        Assert.AreEqual(shapeMean / count, cumuliformMean / count, 0.01, "cover " + cov + " edge " + edge + " preset " + preset);
                     }
             // The same through the CPU twin's Share (lookup warp, trilinear read) at scattered points.
             NoiseLayerParams prm = NoiseLayerParams.Default(500.0);
-            NoiseLayerParams heapPrm = prm;
-            heapPrm.HeapPreset = 1;
-            shape.Heap = Medium;
+            NoiseLayerParams cumuliformPrm = prm;
+            cumuliformPrm.CumuliformPreset = 1;
+            shape.Cumuliform = Medium;
             double a = 0.0, b = 0.0;
             const int samples = 40000;
             for (int i = 0; i < samples; i++)
             {
                 double x = (i * 7919.0) % 600000.0, y = (i * 104729.0) % 500000.0, z = 600000.0 + (i * 1237.0) % 50000.0;
                 a += CloudShapeModel.Share(shape, ref prm, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
-                b += CloudShapeModel.Share(shape, ref heapPrm, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
+                b += CloudShapeModel.Share(shape, ref cumuliformPrm, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
             }
             Assert.AreEqual(a / samples, b / samples, 0.03, "scattered points (finite sample, the lookup is smooth)");
         }
 
 
-        // cloud.heap.iso: with a layer's vertical scale below 1 the heap is read at the lattice's true vertical scale (the shape volume's compression is taken back), so the heaps are not
+        // cloud.cumuliform.iso: with a layer's vertical scale below 1 the cumuliform is read at the lattice's true vertical scale (the shape volume's compression is taken back), so the mounds are not
         // stretched into columns; without a vertical scale nothing changes, and at the layer's reference radius the compression is the identity.
         [TestMethod]
-        public void TheIsotropicHeapReadTakesTheVerticalScaleBack()
+        public void TheIsotropicCumuliformReadTakesTheVerticalScaleBack()
         {
             NoiseVolumeSet set = NoiseVolumeSet.Generate(NoiseSizes.ForLevel(1), 1u);
-            set.Heap = Medium;
+            set.Cumuliform = Medium;
             double r0 = 600000.0, ref0 = r0 + 1000.0;
             NoiseLayerParams flat = NoiseLayerParams.Default(250.0);
             flat.Untile = false;
-            flat.HeapPreset = 1;
+            flat.CumuliformPreset = 1;
             flat.ReferenceRadiusM = ref0;
             NoiseLayerParams vertical = flat;
             vertical.SphereScale = 0.35;
             NoiseLayerParams verticalIso = vertical;
-            verticalIso.HeapIso = true;
+            verticalIso.CumuliformIso = true;
             double differ = 0.0;
             for (int i = 0; i < 200; i++)
             {
                 double y = i % 7 == 0 ? 0.0 : i * 37.0, z = i % 7 == 0 ? 0.0 : i * 11.0, x = ref0 + (i % 7) * 400.0;
                 double a = CloudShapeModel.Share(set, ref flat, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
-                flat.HeapIso = true;
+                flat.CumuliformIso = true;
                 Assert.AreEqual(a, CloudShapeModel.Share(set, ref flat, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false), 1e-12, "no vertical scale: no change");
-                flat.HeapIso = false;
+                flat.CumuliformIso = false;
                 double plain = CloudShapeModel.Share(set, ref vertical, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false), iso = CloudShapeModel.Share(set, ref verticalIso, x, y, z, 0.5, 0.5, 0.15, 1.0, 0.0, false);
                 if (i % 7 == 0) Assert.AreEqual(plain, iso, 1e-6, "at the reference radius the compression is the identity");
                 differ += Math.Abs(plain - iso);
@@ -267,7 +267,7 @@ namespace ReDefinition.Tests
         }
 
 
-        // cloud.heap.detail: the erosion detail's octaves fall off as 2^(-H k), continuing the heap's cascade; 0 is the compiled volume.
+        // cloud.cumuliform.detail: the erosion detail's octaves fall off as 2^(-H k), continuing the cumuliform's cascade; 0 is the compiled volume.
         [TestMethod]
         public void TheDetailCascadeWeightsFollowTheHurstExponentAndDefaultToTheCompiledOnes()
         {
@@ -290,7 +290,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheBlendedMacroMatchesTheNumPyTwin()
         {
-            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Small };
+            NoiseVolumeSet set = new NoiseVolumeSet { Cumuliform = Small };
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             prm.Seed = 3;
             double[][] pts = { new[] { 1200.3, -800.7, 3400.1 }, new[] { -5000.0, 2500.5, 17.9 }, new[] { 333.3, 444.4, 555.5 }, new[] { 601000.0, 12345.0, -7777.0 } };
@@ -307,10 +307,10 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheBlendedMacroIsUniformHidesTheTileAndIsContinuous()
         {
-            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Medium };
+            NoiseVolumeSet set = new NoiseVolumeSet { Cumuliform = Medium };
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             prm.Seed = 3;
-            double periodM = HeapModel.PeriodScales * prm.ScaleM, cav;
+            double periodM = CumuliformModel.PeriodScales * prm.ScaleM, cav;
             const int count = 30000;
             var rng = new Random(5);
             var bins = new int[10];
@@ -325,8 +325,8 @@ namespace ReDefinition.Tests
                 a[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x, y, z, 0.0, out cav);
                 shifted[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x + periodM, y, z, 0.0, out cav);
                 unrelated[i] = CloudShapeModel.BlendedMacro(set, ref prm, 1, x + 0.37 * periodM, y, z, 0.0, out cav);
-                plain[i] = CloudShapeModel.HeapAt(Medium, ref prm, 1, x, y, z, 0.0, out cav);
-                plainShifted[i] = CloudShapeModel.HeapAt(Medium, ref prm, 1, x + periodM, y, z, 0.0, out cav);
+                plain[i] = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, x, y, z, 0.0, out cav);
+                plainShifted[i] = CloudShapeModel.CumuliformAt(Medium, ref prm, 1, x + periodM, y, z, 0.0, out cav);
                 bins[Math.Min(9, (int)(a[i] * 10.0))]++;
             }
             for (int b = 0; b < 10; b++) Assert.AreEqual(0.1, bins[b] / (double)count, 0.015, "rank histogram bin " + b);
@@ -348,7 +348,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheBlendedMacroKeepsTheCoverShare()
         {
-            NoiseVolumeSet set = new NoiseVolumeSet { Heap = Medium };
+            NoiseVolumeSet set = new NoiseVolumeSet { Cumuliform = Medium };
             NoiseLayerParams prm = NoiseLayerParams.Default(250.0);
             prm.Seed = 3;
             double cav;

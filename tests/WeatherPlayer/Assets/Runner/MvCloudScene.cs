@@ -187,7 +187,7 @@ namespace ReDefinition.WeatherPlayer
                 Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart),
                     mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                     mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
-                    mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
+                    mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioEnd);
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 var dummy = new RenderTexture(4, 4, 0, RenderTextureFormat.RFloat);
                 dummy.Create();

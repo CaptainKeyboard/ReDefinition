@@ -298,7 +298,7 @@ def stats_ours(folder):
         hw, hh = [int(x) for x in re.match(r"heights_(\d+)x(\d+)", hp[0]).groups()]
         hgt = np.fromfile(os.path.join(folder, hp[0]), dtype=np.float32).reshape(hh, hw)
         sea = ndimage.zoom((hgt <= 0).astype(np.float32), (H / hh, W / hw), order=1) > 0.5
-        P("LAND / SEA (share of sea %.2f): mean map value and type share, cumulus / rain deck, all seeds and times, |lat| < 60" % sea[np.abs(lat) < 60].mean())
+        P("LAND / SEA (share of sea %.2f): mean map value and type share, cumulus / low stratiform rain layer, all seeds and times, |lat| < 60" % sea[np.abs(lat) < 60].mean())
         for name in ("Kerbin-cumulus", "Kerbin-weather-rain", "sharedCover"):
             vals = {True: [], False: []}
             for s in seeds:
@@ -374,7 +374,7 @@ def stats_tvc():
     P("  largest single-type component = %.0f%% of the cloudy area; type-component diameter median %.0f km" % (100 * a.max() / band_area(presd, wd), np.median(diam(a))))
     w1 = read_tvc("Weather1Coverage.dds")
     z1, m1 = corr_length(w1, 0, 60)
-    P("weather map 1 (rain / fog deck): %dx%d, corr length zonal %.0f km, meridional %.0f km, mean %.2f" % (w1.shape[1], w1.shape[0], z1, m1, w1.mean()))
+    P("weather map 1 (low stratiform rain / fog layer): %dx%d, corr length zonal %.0f km, meridional %.0f km, mean %.2f" % (w1.shape[1], w1.shape[0], z1, m1, w1.mean()))
     return "\n".join(lines)
 
 

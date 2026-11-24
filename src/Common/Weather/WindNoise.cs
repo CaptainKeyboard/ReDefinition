@@ -13,8 +13,8 @@ namespace ReDefinition.Core
         public const float DepthAtBlizzard = 0.4f;
         // The most the visibility may change per second, as a share of its value.
         public const float MaxVisibilitySlewPerS = 0.25f;
-        // The most the direction of the falling flakes may turn per second, in degrees.
-        public const float MaxFlakeDirectionDegPerS = 30f;
+        // The most the direction of the falling hydrometeors may turn per second, in degrees.
+        public const float MaxHydrometeorDirectionDegPerS = 30f;
         // The most the wind may change per second, in m/s per s.
         public const float MaxWindSlewMsPerS = 8f;
 
@@ -64,12 +64,12 @@ namespace ReDefinition.Core
             return Toward(previousM, targetM, step);
         }
 
-        // The flake direction in degrees one step on: it turns towards the target the short way by at most MaxFlakeDirectionDegPerS. The
+        // The hydrometeor direction in degrees one step on: it turns towards the target the short way by at most MaxHydrometeorDirectionDegPerS. The
         // result is not wrapped into 0 to 360; the caller wraps it where it needs to.
-        public static float LimitFlakeDirection(float previousDeg, float targetDeg, float dtSeconds)
+        public static float LimitHydrometeorDirection(float previousDeg, float targetDeg, float dtSeconds)
         {
             float delta = (float)(((targetDeg - previousDeg) % 360.0 + 540.0) % 360.0 - 180.0);
-            float step = MaxFlakeDirectionDegPerS * dtSeconds;
+            float step = MaxHydrometeorDirectionDegPerS * dtSeconds;
             float move = delta < -step ? -step : delta > step ? step : delta;
             return previousDeg + move;
         }

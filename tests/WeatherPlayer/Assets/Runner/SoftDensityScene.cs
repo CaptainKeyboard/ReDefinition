@@ -775,8 +775,8 @@ namespace ReDefinition.WeatherPlayer
             bool ready = input != null && File.Exists(Path.Combine(input, "jobs.json")) && WeatherGpuTimer.Start() && rig.Init();
             Sink.Flag("soft_cost_timers_available", ready);
             if (!ready) yield break;
-            // The light cache's or the light volume's fill as its own segment (CurtainStart's mark; the march segment starts after it).
-            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainStart);
+            // The light cache's or the light volume's fill as its own segment (PraecipitatioStart's mark; the march segment starts after it).
+            rig.Recon.MarkCacheFilled = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioStart);
             LayersJobFile file = JsonUtility.FromJson<LayersJobFile>(File.ReadAllText(Path.Combine(input, "jobs.json")));
             var dummy = new RenderTexture(4, 4, 0, RenderTextureFormat.RFloat);
             dummy.Create();
@@ -791,7 +791,7 @@ namespace ReDefinition.WeatherPlayer
             Action<CommandBuffer> mStart = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabStart),
                 mMarched = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabMarched),
                 mResolved = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.SlabComposited),
-                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.CurtainEnd);
+                mEnd = c => WeatherGpuTimer.Mark(c, WeatherGpuTimer.PraecipitatioEnd);
             int costW, costH;
             // The cost target's size: 1707 x 960 as before, or -width N -height N (PUFF: the pass cost at 1920 x 1080 and 2560 x 1440).
             if (!int.TryParse(WeatherPass.Argument("-width"), out costW) || costW < 64) costW = 1707;
@@ -857,12 +857,12 @@ namespace ReDefinition.WeatherPlayer
                                 int number;
                                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], r = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
-                                    e = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                                    e = segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                                 if (m >= 0f && r >= 0f && e >= 0f)
                                 {
                                     s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++;
-                                    // With the light cache or the light volume the march segment starts after the fill; the fill is its own segment (CurtainStart's mark).
-                                    float fill = segments[WeatherGpuTimer.CurtainStart - WeatherGpuTimer.SlabStart];
+                                    // With the light cache or the light volume the march segment starts after the fill; the fill is its own segment (PraecipitatioStart's mark).
+                                    float fill = segments[WeatherGpuTimer.PraecipitatioStart - WeatherGpuTimer.SlabStart];
                                     if (fill >= 0f) s[3].Add(fill);
                                 }
                             }

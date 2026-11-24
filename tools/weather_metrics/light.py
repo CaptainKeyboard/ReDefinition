@@ -308,13 +308,13 @@ VIEW_TABLE = (
     ("storm", 90.0, 40.0, None, None, None),
     ("night", 90.0, -12.0, [0.0, 0.0, 0.0], ([0.02, 0.025, 0.04], [0.01, 0.012, 0.02]), (flat_sun(0.0, 45.0), NIGHT_MOON_COLOUR)),
 )
-# Views that look up at a layer (no cell): a thick deck seen from below and a thin cirrus, id -> (base, top, vertical optical depth, sun elevation).
-UP_VIEWS = {"deck": (2000.0, 2600.0, 25.0, 25.0), "cirrus": (8000.0, 8400.0, 0.4, 25.0)}
+# Views that look up at a layer (no cell): a thick stratus seen from below and a thin cirrus, id -> (base, top, vertical optical depth, sun elevation).
+UP_VIEWS = {"stratus": (2000.0, 2600.0, 25.0, 25.0), "cirrus": (8000.0, 8400.0, 0.4, 25.0)}
 
 
 def up_job(jid, vid, w=64, harness=False):
     """A view up at a layer. harness: the harness's own grey environment and the white sun, the setting the reference renderer rendered
-    (build/parity-ref-images/updecks.json, 16 x 12 px) for the 'deck' and 'cirrus' checks."""
+    (build/parity-ref-images/uplayers.json, 16 x 12 px) for the 'stratus' and 'cirrus' checks."""
     base, top, tau, el = UP_VIEWS[vid]
     cam = pr.Camera([0.0, 0.0, R + 2.0], 0.0, 35.0, w, int(w * 0.75), 60.0)
     if harness:
@@ -325,7 +325,7 @@ def up_job(jid, vid, w=64, harness=False):
 
 
 def up_reference(vid):
-    path = os.path.join(REPO, "build", "parity-ref-images", "updecks.json")
+    path = os.path.join(REPO, "build", "parity-ref-images", "uplayers.json")
     if not os.path.isfile(path):
         return None
     with open(path, encoding="utf-8") as f:
@@ -356,7 +356,7 @@ AB_VARIANTS = (
 # The views whose sun is seen through the air (FX-T03: the shader's SunAir with the compiled default extinction); the others keep the white sun
 # of the parity reference. Both the cell views and the extra views below use it for the low sun.
 SUN_AIR = dict(sunAirTau=[0.0764, 0.138, 0.295], sunAirHeight=8000.0)
-AIR_VIEWS = ("low", "sunset", "deck", "cirrus", "storm")
+AIR_VIEWS = ("low", "sunset", "stratus", "cirrus", "storm")
 
 
 def view_job(jid, spec, variant=None, w=96):
@@ -523,14 +523,14 @@ def collect(ctx):
     # The compiled defaults against the explicit numbers of the same cell.
     a, b = plane(folder, "DF", "g"), plane(folder, "BT", "g")
     out.append(Metric.at_most("defaults_equal_model", float(np.abs(a - b).max()), 1e-4).based("new"))
-    # The layers seen from below against the reference renderer (FX-T03): a thick deck, a thin cirrus; within 25 % of the reference's radiance.
+    # The layers seen from below against the reference renderer (FX-T03): a thick stratus, a thin cirrus; within 25 % of the reference's radiance.
     for vid in UP_VIEWS:
         u = up_ratio(folder, vid)
         if u is not None:
-            out.append(Metric.info("deck.%s.alpha_ours" % vid, u[0]))
-            out.append(Metric.info("deck.%s.alpha_reference" % vid, u[1]))
-            out.append(Metric.at_most("deck.%s.radiance_error" % vid, abs(u[2] - 1.0), 0.25).based("gate"))
-            out.append(Metric.info("deck.%s.radiance_ratio" % vid, u[2]))
+            out.append(Metric.info("uplayer.%s.alpha_ours" % vid, u[0]))
+            out.append(Metric.info("uplayer.%s.alpha_reference" % vid, u[1]))
+            out.append(Metric.at_most("uplayer.%s.radiance_error" % vid, abs(u[2] - 1.0), 0.25).based("gate"))
+            out.append(Metric.info("uplayer.%s.radiance_ratio" % vid, u[2]))
     out.extend(pictures(folder))
     for m in out:
         if m.value is not None and not isinstance(m.value, str):

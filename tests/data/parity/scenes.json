@@ -8,7 +8,7 @@
   "phase": { "g1": 0.85, "g2": -0.3, "w1": 0.92, "albedo": 0.999 },
   "environment": { "zenith": 0.30, "horizon": 0.55, "ground": 0.12, "groundAlbedo": 0.3 },
   "views": [
-    { "id": "uniform-deck", "scene": "uniform-deck", "flat": false, "position": [0, 0, 600002], "pitch": 25, "fov": 60, "sunAzimuth": 200, "sunElevation": 38, "layers": [[1700, 2500, 0.01, 0]] },
+    { "id": "uniform-layer", "scene": "uniform-layer", "flat": false, "position": [0, 0, 600002], "pitch": 25, "fov": 60, "sunAzimuth": 200, "sunElevation": 38, "layers": [[1700, 2500, 0.01, 0]] },
     { "id": "slab", "scene": "slab", "flat": true, "position": [0, 0, 2], "pitch": 40, "fov": 60, "sunAzimuth": 200, "sunElevation": 45, "layers": [[2000, 3000, 0.006, 0]] },
     { "id": "single-cloud", "scene": "single-cloud", "flat": true, "position": [0, -8000, 2000], "pitch": 0, "fov": 16, "sunAzimuth": 90, "sunElevation": 50, "layers": [[1412, 2588, 0.02, 1]], "cell": [2000, 800, 560] },
     { "id": "plane-terrain", "scene": "plane-terrain", "flat": true, "position": [0, 0, 600], "pitch": -45, "fov": 50, "sunAzimuth": 90, "sunElevation": 40, "layers": [[2000, 2200, 0.02, 2]], "cell": [2503] },

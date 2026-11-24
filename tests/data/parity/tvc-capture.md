@@ -18,9 +18,9 @@ Cloud alpha is not an output of TVC: where a check needs alpha, the view is capt
 
 | View id | Used by | Camera and settings | What is written |
 |---|---|---|---|
-| TV-DECK-2M | R01-horizon-below | Kerbin, camera 2 m above the ground at the KSC, looking north at 0 deg pitch; layer `Kerbin-base-layer` at coverage 1 (config switch), sun at 38 deg elevation | `alpha` (3 columns around the image centre, 480 rows), `camera` (radius 600000, h_cam, the layer's base/top/sigma as measured from the config's type table) |
-| TV-DECK-2KM | R01-horizon-inside | Camera at 2000 m inside the base layer, same layer, pitch 0 | as above |
-| TV-DECK-8KM | R01-horizon-above | Camera at 8000 m above the base layer, pitch -8 deg | as above |
+| TV-LAYER-2M | R01-horizon-below | Kerbin, camera 2 m above the ground at the KSC, looking north at 0 deg pitch; layer `Kerbin-base-layer` at coverage 1 (config switch), sun at 38 deg elevation | `alpha` (3 columns around the image centre, 480 rows), `camera` (radius 600000, h_cam, the layer's base/top/sigma as measured from the config's type table) |
+| TV-LAYER-2KM | R01-horizon-inside | Camera at 2000 m inside the base layer, same layer, pitch 0 | as above |
+| TV-LAYER-8KM | R01-horizon-above | Camera at 8000 m above the base layer, pitch -8 deg | as above |
 | TV-NOISE-STRIPE | R02-noise-spectrum, R02-noise-repetition | Camera at 15 km looking straight down over the base layer at coverage 1, stripes of 40 x 20 km sampled from the on/off difference | `alpha_stripes`, `dx`, `tau_map`, `tile_lag` (the layer's noise tile distance) |
 | TV-TWOSLAB | R05-stack-alpha, R05-boundary-crossing | Base layer and cumulonimbus layer both on, camera at 2 m looking up at 40 deg; then a vertical path through the base layer's lower boundary at 20 m/s | `alpha1`, `alpha2`, `alpha12`; `luminance` per frame |
 | TV-CELL-SILVER | R06-silver-lining | One isolated cumulus of the base layer at 8 km, sun 8 deg off the view axis, then 75 deg off, same elevation | `edge_near_sun`, `edge_far_sun` |
@@ -40,7 +40,7 @@ Cloud alpha is not an output of TVC: where a check needs alpha, the view is capt
 | TV-IVA-RAIN | R20-* | IVA in rain, then dry air | `measured_s`, `config_s` |
 | TV-WET | R21-* | Rain for 10 minutes, then dry; then a 6 h warp jump | `wet_over_dry`, `wet_diffuse`; `jump`, `stepwise` |
 | TV-LIGHTNING | R22-* | `Kerbin-Weather-1` thunder type, a bolt at a known distance, warp 1x and 5x | `distance_m`, `delay_s`; `flash_lum`, `base_lum`; `bolts_above_warp`, `bolts_below_coverage` |
-| TV-AERIAL | R23-aerial | The base layer's deck at 10, 30 and 60 km, Scatterer on and off | `d_m`, `luminance`, `l_near`, `l_sky`, `visual_range_m` |
+| TV-AERIAL | R23-aerial | The base layer at 10, 30 and 60 km, Scatterer on and off | `d_m`, `luminance`, `l_near`, `l_sky`, `visual_range_m` |
 | TV-EXPOSURE | R24-exposure | TUFX fixed and auto exposure on the same view | `ratio_fixed`, `ratio_auto` |
 
 The reference column has no capture list: `python tools/weather_metrics/parity_run.py reference <folder>` writes it from the renderer.

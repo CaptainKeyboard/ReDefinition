@@ -15,7 +15,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
     {
         private static readonly string[] CloudKeys =
         {
-            "cloudShortSunMarch", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudFarHaze", "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy",
+            "cloudShortSunMarch", "cloudSunWhiteBalance", "cloudDiffusionDecay", "cloudAerialPerspective", "cloudFarShapeMean", "cloudFarMinSamples", "cloudFarPolicy",
             "cloudFarMapFade"
         };
 
@@ -68,7 +68,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             foreach (string key in new[]
             {
-                "cloudShortSunMarch", "cloudFarHaze", "cloudFarShapeMean", "cloudFarPolicy", "cloudFarMapFade", "wetSurfaces", "windowDroplets", "lightning"
+                "cloudShortSunMarch", "cloudAerialPerspective", "cloudFarShapeMean", "cloudFarPolicy", "cloudFarMapFade", "wetSurfaces", "windowDroplets", "lightning"
             })
                 Assert.AreEqual(0.0, AtmospheresSettings.Definition(key).Default, key + " waits for the owner's agreement");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudFarMinSamples").Default);
@@ -106,12 +106,12 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             var far = new FarViewSettings();
             OwnCloudOptions.Apply(far, Defaults());
-            Assert.IsFalse(far.Haze);
+            Assert.IsFalse(far.AerialPerspective);
             Assert.IsFalse(far.ShapeMean);
             Assert.AreEqual(0, far.MinSamples);
             Assert.IsFalse(far.Policy);
-            OwnCloudOptions.Apply(far, Defaults("cloudFarHaze", 1, "cloudFarShapeMean", 1, "cloudFarMinSamples", 4, "cloudFarPolicy", 1));
-            Assert.IsTrue(far.Haze);
+            OwnCloudOptions.Apply(far, Defaults("cloudAerialPerspective", 1, "cloudFarShapeMean", 1, "cloudFarMinSamples", 4, "cloudFarPolicy", 1));
+            Assert.IsTrue(far.AerialPerspective);
             Assert.IsTrue(far.ShapeMean);
             Assert.AreEqual(4, far.MinSamples);
             Assert.IsTrue(far.Policy);

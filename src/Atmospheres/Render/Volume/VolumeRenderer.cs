@@ -32,23 +32,23 @@ namespace ReDefinition.Atmospheres
         // The sun taps of the tier.
         public int SunTaps = 3;
         // The shader variants.
-        public bool Powder = true, Curl = true, Deck = true, KeyedDither = true;
-        // The deck table: base and thickness above the ground for stratus, a cumulus layer and a high deck, and the cloud water that fills a deck.
-        public Vector4 DeckA = new Vector4(700f, 700f, 1600f, 1600f), DeckB = new Vector4(5500f, 900f, 0f, 0f);
-        public float DeckWater = 0.8f;
+        public bool Powder = true, Curl = true, LayerSlab = true, KeyedDither = true;
+        // The layer slab table: base and thickness above the ground for stratus, a cumulus layer and a high layer, and the cloud water that fills a layer slab.
+        public Vector4 LayerSlabA = new Vector4(700f, 700f, 1600f, 1600f), LayerSlabB = new Vector4(5500f, 900f, 0f, 0f);
+        public float LayerSlabWater = 0.8f;
     }
 
-    // The volume pass's drawing: the window texture and the deck map on the GPU, the march target at the chosen resolution, and the command
+    // The volume pass's drawing: the window texture and the layer slab map on the GPU, the march target at the chosen resolution, and the command
     // buffer that marches and composites (and, for the analytic motion and depth, the passes the host or the player calls). It uses nothing
     // of the game, so the weather player links it as it is. Nothing is allocated per frame once the target is made.
     internal sealed class VolumeRenderer
     {
-        private static readonly int IdWindow = Shader.PropertyToID("_Window"), IdDeck = Shader.PropertyToID("_Deck"),
+        private static readonly int IdWindow = Shader.PropertyToID("_Window"), IdLayerSlab = Shader.PropertyToID("_LayerSlab"),
             IdNoise = Shader.PropertyToID("_Noise"), IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"),
             IdRight = Shader.PropertyToID("_Right"), IdNorth = Shader.PropertyToID("_North"), IdWinSize = Shader.PropertyToID("_WinSize"),
             IdWind = Shader.PropertyToID("_Wind"), IdDens = Shader.PropertyToID("_Dens"), IdLight = Shader.PropertyToID("_Light"),
-            IdLook = Shader.PropertyToID("_Look"), IdStep = Shader.PropertyToID("_Step"), IdDeckA = Shader.PropertyToID("_DeckA"),
-            IdDeckB = Shader.PropertyToID("_DeckB"), IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"),
+            IdLook = Shader.PropertyToID("_Look"), IdStep = Shader.PropertyToID("_Step"), IdLayerSlabA = Shader.PropertyToID("_LayerSlabA"),
+            IdLayerSlabB = Shader.PropertyToID("_LayerSlabB"), IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"),
             IdAmbient = Shader.PropertyToID("_AmbientColour"), IdCamRight = Shader.PropertyToID("_CamRight"),
             IdCamUp = Shader.PropertyToID("_CamUp"), IdCamForward = Shader.PropertyToID("_CamForward"),
             IdHitTex = Shader.PropertyToID("_HitTex"), IdCloudTex = Shader.PropertyToID("_CloudTex"),
@@ -59,12 +59,12 @@ namespace ReDefinition.Atmospheres
         // The extinction at full density, per m (the cloud's optical thickness: 100 m of core is opaque).
         internal const float Sigma = 0.010f;
 
-        private const string KeywordPowder = "VOLUME_POWDER", KeywordCurl = "VOLUME_CURL", KeywordDeck = "VOLUME_DECK",
+        private const string KeywordPowder = "VOLUME_POWDER", KeywordCurl = "VOLUME_CURL", KeywordLayerSlab = "VOLUME_LAYER_SLAB",
             KeywordJitter = "VOLUME_JITTER_IGN";
 
         private Material material;
         private Texture3D windowTexture, noiseTexture;
-        private Texture2D deckTexture;
+        private Texture2D layerSlabTexture;
         private RenderTexture target, hit;
         private CommandBuffer commands;
         private Camera attached;
@@ -99,16 +99,16 @@ namespace ReDefinition.Atmospheres
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear
             };
-            deckTexture = new Texture2D(windowAcross, windowAcross, TextureFormat.RG16, false)
+            layerSlabTexture = new Texture2D(windowAcross, windowAcross, TextureFormat.RG16, false)
             {
-                name = "volume deck",
+                name = "volume layer slab",
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear
             };
             if (noise == null)
             {
-                int size = CurtainMath.NoiseSize;
-                byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
+                int size = PraecipitatioMath.NoiseSize;
+                byte[] voxels = StormNoise.Volume(size, PraecipitatioMath.NoisePeriod, PraecipitatioMath.NoiseOctaves, PraecipitatioMath.NoiseSeed);
                 noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
                 {
                     name = "volume noise",
@@ -123,7 +123,7 @@ namespace ReDefinition.Atmospheres
             }
             noiseTexture = noise;
             material.SetTexture(IdWindow, windowTexture);
-            material.SetTexture(IdDeck, deckTexture);
+            material.SetTexture(IdLayerSlab, layerSlabTexture);
             material.SetTexture(IdNoise, noiseTexture);
             commands = new CommandBuffer { name = "ReDefinition volume pass" };
             return true;
@@ -153,20 +153,20 @@ namespace ReDefinition.Atmospheres
             if (hit != null) hit.Release();
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(windowTexture);
-            UnityEngine.Object.Destroy(deckTexture);
+            UnityEngine.Object.Destroy(layerSlabTexture);
             if (madeNoise) UnityEngine.Object.Destroy(noiseTexture);
             material = null;
             windowTexture = null;
         }
 
-        // Uploads the resampler's voxels and deck map after a completed rebuild.
+        // Uploads the resampler's voxels and layer slab map after a completed rebuild.
         internal void Upload(VolumeWindowResampler resampler)
         {
             if (!Ready || resampler.Builds == uploadedBuilds || !resampler.HasData) return;
             windowTexture.SetPixelData(resampler.Data, 0);
             windowTexture.Apply(false);
-            deckTexture.SetPixelData(resampler.DeckMap, 0);
-            deckTexture.Apply(false);
+            layerSlabTexture.SetPixelData(resampler.LayerSlabMap, 0);
+            layerSlabTexture.Apply(false);
             uploadedBuilds = resampler.Builds;
         }
 
@@ -214,7 +214,7 @@ namespace ReDefinition.Atmospheres
             Material m = material;
             SetKeyword(KeywordPowder, f.Powder);
             SetKeyword(KeywordCurl, f.Curl);
-            SetKeyword(KeywordDeck, f.Deck);
+            SetKeyword(KeywordLayerSlab, f.LayerSlab);
             SetKeyword(KeywordJitter, f.KeyedDither);
             m.SetVector(IdCell, new Vector4(f.Centre.x, f.Centre.y, f.Centre.z, f.HalfWidthM));
             m.SetVector(IdUp, new Vector4(f.Up.x, f.Up.y, f.Up.z, f.Curvature));
@@ -225,9 +225,9 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdDens, new Vector4(Sigma * look.Density, look.Erosion, look.CurlStrength, look.Powder));
             m.SetVector(IdLight, new Vector4(look.SunShare, look.Ambient, look.BaseDark, look.TransmittanceCut));
             m.SetVector(IdLook, new Vector4(VolumeMath.SlabSteps(f.Steps), f.MaxDistanceM, f.FrameNumber, f.JitterIndex));
-            m.SetVector(IdStep, new Vector4(look.StepGrowth, f.SunTaps, look.DeckCoverage, f.DeckWater));
-            m.SetVector(IdDeckA, f.DeckA);
-            m.SetVector(IdDeckB, f.DeckB);
+            m.SetVector(IdStep, new Vector4(look.StepGrowth, f.SunTaps, look.LayerSlabCoverage, f.LayerSlabWater));
+            m.SetVector(IdLayerSlabA, f.LayerSlabA);
+            m.SetVector(IdLayerSlabB, f.LayerSlabB);
             m.SetVector(IdSun, new Vector4(f.TowardsSun.x, f.TowardsSun.y, f.TowardsSun.z, 0f));
             m.SetVector(IdSunColour, f.SunColour);
             m.SetVector(IdAmbient, f.AmbientColour);

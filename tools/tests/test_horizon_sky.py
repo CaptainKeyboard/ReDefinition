@@ -1,4 +1,4 @@
-"""The Python twin of the colour a far cloud fades into (E40 H1 haze): the same numbers as CloudHorizonSkyTests on the C# side.
+"""The Python twin of the colour a far cloud fades into (E40 H1 aerial perspective): the same numbers as CloudHorizonSkyTests on the C# side.
 
     python -m unittest tools.tests.test_horizon_sky
 """

@@ -26,8 +26,8 @@ namespace ReDefinition.Atmospheres
     // The probe of series K-S2 (start "surface", rows tests/series/rows/SURFACEPROBE.json): where the white of the far terrain in the solo pictures comes from. The same cb_far pose as
     // K-S1 (a cell 60 km ahead, the vessel held, the time and the clouds frozen), taken at the two headings 90 (K-S1's: the camera looks at the sun, SUSPECTED from K-S1's log line 'view 0
     // deg from it') and 270, each frame measured for the angle between the camera and the sun, and the SAME frame several times with ONE thing changed:
-    //   old_fog     the fog rule before this package (driver.forcedLevelOwnsFog 0: the field's visibility is the fog's even under a forced level), the frame of the K-S1 pictures;
-    //   baseline    the rule now: a forced level owns the fog (every layer empty);
+    //   old_fog     the visibility rule before this package (driver.forcedLevelOwnsVisibility 0: the field's visibility is the visibility extinction's even under a forced level), the frame of the K-S1 pictures;
+    //   baseline    the rule now: a forced level owns the visibility extinction (every layer empty);
     //   drawn       the cell drawn alone (the K-S1 picture);
     //   no_weather  weatherEffects off (the fog writer, the weather field and so the cloud pass, the weather view, precipitation, wet surfaces);
     //   no_pass     ownClouds off (only the cloud pass off, the weather effects on);
@@ -93,7 +93,7 @@ namespace ReDefinition.Atmospheres
             return new FogReading
             {
                 On = RenderSettings.fog, Mode = (int)RenderSettings.fogMode, Density = RenderSettings.fogDensity, Colour = RenderSettings.fogColor,
-                Held = FogWriter.WrittenDensity, Asked = view.FogDensity, Level = view.Level, VisibilityM = view.VisibilityM,
+                Held = VisibilityExtinctionWriter.WrittenDensity, Asked = view.VisibilityExtinctionDensity, Level = view.Level, VisibilityM = view.VisibilityM,
                 Ambient = RenderSettings.ambientLight, SunIntensity = sun != null ? sun.intensity : float.NaN, AmbientMode = (int)RenderSettings.ambientMode,
                 SunColour = sun != null ? sun.color : Color.black
             };
@@ -202,13 +202,13 @@ namespace ReDefinition.Atmospheres
         {
             switch (frame)
             {
-                case "old_fog": ForceTuning(FogRuleKey, 0f); break;
-                case "baseline": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(0f); break;
-                case "drawn": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(1f); break;
-                case "no_weather": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.WeatherEffects, 0.0); break;
-                case "no_pass": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.OwnClouds, 0.0); break;
-                case "no_cover": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.GroundCover, 0.0); break;
-                case "no_atmo": ForceTuning(FogRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.Enabled, 0.0); break;
+                case "old_fog": ForceTuning(VisibilityRuleKey, 0f); break;
+                case "baseline": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(0f); break;
+                case "drawn": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(1f); break;
+                case "no_weather": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.WeatherEffects, 0.0); break;
+                case "no_pass": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.OwnClouds, 0.0); break;
+                case "no_cover": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.GroundCover, 0.0); break;
+                case "no_atmo": ForceTuning(VisibilityRuleKey, 1f); Rig.SetSoloStrength(0f); SetSetting(AtmospheresSettings.Keys.Enabled, 0.0); break;
             }
         }
 
@@ -223,7 +223,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        internal const string FogRuleKey = "driver.forcedLevelOwnsFog";
+        internal const string VisibilityRuleKey = "driver.forcedLevelOwnsVisibility";
         private bool groundCover0;
 
         // One frame: switch the one thing, wait for the fog (and for the ground cover to repaint where the frame has it), describe it, take the picture.
@@ -347,7 +347,7 @@ namespace ReDefinition.Atmospheres
             var fogs = new Dictionary<string, FogReading>();
             foreach (ProbeWait w in Pose("p1", HeadingToward, FramesP1, entry, bit, pictures, fogs, sun)) yield return w;
             foreach (ProbeWait w in Pose("p2", HeadingAway, FramesP2, entry, bit, pictures, fogs, sun)) yield return w;
-            Tuning.ClearOverride(FogRuleKey);
+            Tuning.ClearOverride(VisibilityRuleKey);
 
             // The rule took effect: the frames with it ask for no fog; and whether the old rule asked any (information: a field without rain at the vessel gives none, the frames are then the same).
             bool rule = true;

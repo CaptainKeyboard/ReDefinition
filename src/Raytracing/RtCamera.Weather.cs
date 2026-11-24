@@ -5,27 +5,27 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // The part of RtCamera that takes the weather (WeatherHooks.View) into the packet: the fog on the rays, how far the rays go in
-    // fog, how many bounces they take in a blizzard, and the sun's share under cloud. Below RtWeatherMath.LevelFloor the weather
-    // changes nothing: its small moves would make the denoiser churn for no visible gain.
+    // The part of RtCamera that takes the weather (WeatherHooks.View) into the packet: the visibility extinction as an exp2 fog on the
+    // rays, how far the rays go in it, how many bounces they take in a blizzard, and the sun's share under cloud. Below
+    // RtWeatherMath.LevelFloor the weather changes nothing: its small moves would make the denoiser churn for no visible gain.
     //
-    // Three switches (OwnSettings.RtWeatherFog, RtWeatherReachCap, RtWeatherFewerBounces; the benchmark group rt-weather):
-    //  - the fog is a look and is on;
+    // Three switches (OwnSettings.RtVisibilityExtinction, setting key rtWeatherFog; RtWeatherReachCap, RtWeatherFewerBounces; the benchmark group rt-weather):
+    //  - the visibility extinction is a look and is on;
     //  - the reach cap and the bounce cut are quality costs that save time in a storm, and are off until the owner agrees to them.
     internal sealed partial class RtCamera
     {
         // Which parts of the weather the rays take. Read once per frame.
         internal struct WeatherSwitches
         {
-            public bool Fog, ReachCap, FewerBounces;
+            public bool VisibilityExtinction, ReachCap, FewerBounces;
 
-            // The add-on's live settings; the defaults (fog on, the two quality costs off) where there is no add-on.
+            // The add-on's live settings; the defaults (visibility extinction on, the two quality costs off) where there is no add-on.
             internal static WeatherSwitches FromAddon()
             {
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                if (addon == null) return new WeatherSwitches { Fog = true };
+                if (addon == null) return new WeatherSwitches { VisibilityExtinction = true };
                 OwnSettings live = addon.Live;
-                return new WeatherSwitches { Fog = live.RtWeatherFog, ReachCap = live.RtWeatherReachCap, FewerBounces = live.RtWeatherFewerBounces };
+                return new WeatherSwitches { VisibilityExtinction = live.RtVisibilityExtinction, ReachCap = live.RtWeatherReachCap, FewerBounces = live.RtWeatherFewerBounces };
             }
         }
 
@@ -58,15 +58,15 @@ namespace ReDefinition.Raytracing
             return view == null ? 1f : RtWeatherMath.SunScale(view.SunTransmission);
         }
 
-        // The weather's fog, and the rays' reach and bounces after the weather, written over what RtPacketBuilder.Params set.
+        // The weather's visibility extinction as the rays' fog, and the rays' reach and bounces after the weather, written over what RtPacketBuilder.Params set.
         private void ApplyWeather()
         {
             WeatherView view = FreshWeather();
             WeatherSwitches on = WeatherSwitchesOf();
             // The packet is the same one every frame: the fog is written whatever the weather, 0 for none.
-            float density = view != null && on.Fog ? RtWeatherMath.FogDensityFor(view.Level, view.FogDensity) : 0f;
+            float density = view != null && on.VisibilityExtinction ? RtWeatherMath.FogDensityFor(view.Level, view.VisibilityExtinctionDensity) : 0f;
             packet.Fog[0] = density;
-            Color fog = view != null ? view.FogColour : Color.black;
+            Color fog = view != null ? view.VisibilityExtinctionColour : Color.black;
             packet.Fog[1] = density > 0f ? fog.r : 0f;
             packet.Fog[2] = density > 0f ? fog.g : 0f;
             packet.Fog[3] = density > 0f ? fog.b : 0f;

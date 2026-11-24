@@ -69,31 +69,31 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(5, layers.Count);
             Assert.AreEqual(5, layers.Select(l => l.Name).Distinct().Count());
             Assert.AreEqual(4, CloudLayerSet.MostAtOnce(layers), "designed for four visible at once");
-            Assert.AreEqual(2, layers.Count(l => l.Group == "weather"), "the rain and the snow deck are exclusive");
+            Assert.AreEqual(2, layers.Count(l => l.Group == "weather"), "the low stratiform rain and snow layers are exclusive");
             // The pre-existing keys of the node are untouched by the layers.
             Assert.AreEqual(CloudDiscovery.Auto, r.Climate.Clouds.Discover);
             Assert.AreEqual("Kerbin-base-layer", r.Climate.Clouds.BaseLayer);
         }
 
-        // M2c (the low decks): the stratus types of both decks carry their rolls (rollAmount), every other type none; the rolls are drawn only with cloud.sheetRolls on,
-        // which is off by default, so the shipped deck draws as before.
+        // M2c (the low stratiform layers): the stratus types of both layers carry their undulations (undulatusAmount), every other type none; they are drawn only with cloud.undulatus on,
+        // which is off by default, so the shipped layer draws as before.
         [TestMethod]
-        public void TheStratusTypesCarryTheirRollsAndTheSwitchIsOffByDefault()
+        public void TheStratusTypesCarryTheirUndulatusAndTheSwitchIsOffByDefault()
         {
             foreach (CloudLayerSpec layer in Kerbin().Layers)
                 foreach (CloudTypeSpec type in layer.Types)
                 {
                     bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.RollAmount, 1e-6f, layer.Name + " " + type.Name);
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().RollAmount, 1e-6f, layer.Name + " " + type.Name + " built");
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
+                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
                 }
-            Assert.AreEqual(0f, OwnCloudOptions.SheetRollsDefault, "off until the owner says yes on the pictures");
+            Assert.AreEqual(0f, OwnCloudOptions.UndulatusDefault, "off until the owner says yes on the pictures");
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(9400001);
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(0f, frame.SheetRolls);
-            Assert.AreEqual(1f, frame.RollLengthShare);
+            Assert.AreEqual(0f, frame.Undulatus);
+            Assert.AreEqual(1f, frame.UndulatusWavelengthShare);
         }
 
         [TestMethod]
@@ -125,7 +125,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 { "Stratus", new[] { 0f, 2000f, 100f, 2500f } },
                 { "Snow stratus", new[] { 0f, 2000f, 100f, 2500f } },
                 { "Nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
-                { "Snow nimbus", new[] { 0f, 2000f, 1000f, 4000f } },
+                { "Snow nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
                 { "Stratocumulus", new[] { 300f, 2000f, 500f, 2500f } },
                 { "Cumulus humilis", new[] { 600f, 2000f, 2000f, 4000f } },
                 { "Cumulus mediocris", new[] { 600f, 2000f, 3000f, 5000f } },
@@ -135,7 +135,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 { "Cumulonimbus incus", new[] { 600f, 2000f, 8000f, 16000f } },
                 // The anvil sheet of a cumulonimbus (its outflow): its type spans the layer like the towers' (so that the mix between them keeps one base); the sheet itself is where its
                 // LIFT opens, 8.6 km, and its top is the towers' (asserted below with the sheet's own band).
-                { "Cumulonimbus anvil", new[] { 600f, 2000f, 8000f, 16000f } },
+                { "Incus", new[] { 600f, 2000f, 8000f, 16000f } },
                 { "Cirrus", new[] { 5000f, 13000f, 6000f, 13000f } },
                 { "Cirrostratus", new[] { 5000f, 13000f, 6000f, 13000f } }
             };
@@ -164,7 +164,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var tau = new Dictionary<string, float[]>(StringComparer.Ordinal)
             {
                 { "Stratus", new[] { 10f, 60f } }, { "Snow stratus", new[] { 10f, 60f } },
-                { "Nimbostratus", new[] { 20f, 300f } }, { "Snow nimbus", new[] { 20f, 300f } },
+                { "Nimbostratus", new[] { 20f, 300f } }, { "Snow nimbostratus", new[] { 20f, 300f } },
                 { "Stratocumulus", new[] { 5f, 300f } }, { "Cumulus humilis", new[] { 5f, 300f } }, { "Cumulus mediocris", new[] { 5f, 300f } },
                 { "Cumulus congestus", new[] { 5f, 300f } }, { "Altocumulus", new[] { 5f, 300f } },
                 { "Cumulonimbus calvus", new[] { 100f, 1000f } }, { "Cumulonimbus incus", new[] { 100f, 1000f } },
@@ -206,7 +206,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             }
             Assert.AreEqual(4, stack.LayerCount);
 
-            // The weather picks the snow deck: the same four layers with the other group member.
+            // The weather picks the low stratiform snow layer: the same four layers with the other group member.
             List<CloudLayerSpec> snow = CloudLayerSet.Select(rules.Layers, 4, group => group == "weather" ? 1 : 0);
             Assert.AreEqual("Kerbin-weather-snow", snow[0].Name);
             Assert.AreEqual(4, snow.Count);
@@ -311,20 +311,20 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0.75f * (1f - 0.85f), CloudLayerDef.DefaultAmbientDecay, 0.005f);
         }
 
-        // E40 L6 shape: the fibre axis numbers of a layer (cfg keys fibreMinWindMs and fibreTurnSeconds), and the defaults of a layer without them.
+        // E40 L6 shape: the filament axis numbers of a layer (cfg keys filamentMinWindMs and filamentTurnSeconds), and the defaults of a layer without them.
         [TestMethod]
-        public void TheFibreAxisNumbersReadFromTheLayerNodeAndDefault()
+        public void TheFilamentAxisNumbersReadFromTheLayerNodeAndDefault()
         {
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreMinWindMs = 2;fibreTurnSeconds = 45;" + GoodType + "}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;filamentMinWindMs = 2;filamentTurnSeconds = 45;" + GoodType + "}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
-            Assert.AreEqual(2f, a.FibreMinWindMs, 1e-6f);
-            Assert.AreEqual(45f, a.FibreTurnSeconds, 1e-6f);
-            Assert.AreEqual(2f, a.Build(1).FibreMinWindMs, 1e-6f);
-            Assert.AreEqual(45f, a.Build(1).FibreTurnSeconds, 1e-6f);
-            Assert.AreEqual(FibreAxis.DefaultMinWindMs, b.FibreMinWindMs);
-            Assert.AreEqual(FibreAxis.DefaultTurnSeconds, b.FibreTurnSeconds);
+            Assert.AreEqual(2f, a.FilamentMinWindMs, 1e-6f);
+            Assert.AreEqual(45f, a.FilamentTurnSeconds, 1e-6f);
+            Assert.AreEqual(2f, a.Build(1).FilamentMinWindMs, 1e-6f);
+            Assert.AreEqual(45f, a.Build(1).FilamentTurnSeconds, 1e-6f);
+            Assert.AreEqual(FilamentAxis.DefaultMinWindMs, b.FilamentMinWindMs);
+            Assert.AreEqual(FilamentAxis.DefaultTurnSeconds, b.FilamentTurnSeconds);
         }
 
         // E40 L6 shape: the layer's shapeSmoothing (the default of a type without its own) and its default 0.
@@ -405,21 +405,21 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(2.0, table.SmoothingOf(0.5), 1e-9);
         }
 
-        // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's fibre stretch.
+        // E40 L2 D1: the type's height-shaped threshold (LIFT, a curve like PROFILE) and the layer's filament stretch.
         [TestMethod]
         public void TheShapeKeysReadFromTheTypeAndLayerNodesAndDefaultToNone()
         {
             string lifted = "TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 0;key1 = 0.5 1;key2 = 1 0}LIFT{key0 = 0 0;key1 = 0.4 0;key2 = 1 0.3}}";
-            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 6;verticalScale = 0.4;" + lifted + "}"
+            BodyParseResult r = Parse("LAYER{name = A;innerAltitudeM = 100;outerAltitudeM = 900;filamentStretch = 6;verticalScale = 0.4;" + lifted + "}"
                 + "LAYER{name = B;innerAltitudeM = 100;outerAltitudeM = 900;" + GoodType + "}");
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             CloudLayerSpec a = r.Climate.Clouds.Layers.Single(l => l.Name == "A"), b = r.Climate.Clouds.Layers.Single(l => l.Name == "B");
-            Assert.AreEqual(6f, a.FibreStretch);
+            Assert.AreEqual(6f, a.FilamentStretch);
             Assert.AreEqual(0.4f, a.VerticalScale, 1e-6f);
             Assert.AreEqual(0f, b.VerticalScale, "no vertical scale: the body's sphereScale");
             Assert.AreEqual(0.4f, a.Build(1).VerticalScale, 1e-6f);
             Assert.AreEqual(3, a.Types[0].Lift.Count);
-            Assert.AreEqual(1f, b.FibreStretch);
+            Assert.AreEqual(1f, b.FilamentStretch);
             Assert.IsNull(b.Types[0].Lift);
             // The mid-level sheet's rule (altoType, altoFrom, altoFullAt): none by default, built into the layer, and its type's middle height is found from the table.
             r = Parse("LAYER{name = D;innerAltitudeM = 1000;outerAltitudeM = 3000;altoType = 1;altoFrom = 0.1;altoFullAt = 0.4;TYPE{name = Low;baseShare = 0;topShare = 0.2;PROFILE{key0 = 0 1}}"
@@ -433,18 +433,18 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(1000.0 + 0.6 * 2000.0, sheet.TypeMidHeightM(1f), 1e-3, "the sheet's middle: 0.6 of the layer");
             Assert.AreEqual(1000.0 + 0.1 * 2000.0, sheet.TypeMidHeightM(0f), 1e-3);
             CloudLayerDef built = a.Build(1);
-            Assert.AreEqual(6f, built.FibreStretch);
+            Assert.AreEqual(6f, built.FilamentStretch);
             Assert.AreEqual(0.0, built.Types[0].LiftAt(0.2), 1e-6);
             Assert.AreEqual(0.15, built.Types[0].LiftAt(0.7), 1e-6, "linear between the keys 0.4 -> 0 and 1 -> 0.3");
             Assert.AreEqual(0.3, built.Types[0].LiftAt(2.0), 1e-6, "clamped to the top");
             Assert.AreEqual(0.0, b.Build(1).Types[0].LiftAt(0.9), 0.0);
             // A lift that cannot be read is a warning and the type has none (the type itself stays); a stretch below 1 is brought up to 1.
-            r = Parse("LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;fibreStretch = 0.2;TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}LIFT{key0 = 0 -0.2}}}");
+            r = Parse("LAYER{name = C;innerAltitudeM = 100;outerAltitudeM = 900;filamentStretch = 0.2;TYPE{name = T;baseShare = 0;topShare = 1;PROFILE{key0 = 0 1}LIFT{key0 = 0 -0.2}}}");
             Assert.AreEqual(1, r.Climate.Clouds.Layers.Count);
             Assert.IsNull(r.Climate.Clouds.Layers[0].Types[0].Lift);
-            Assert.AreEqual(1f, r.Climate.Clouds.Layers[0].FibreStretch);
+            Assert.AreEqual(1f, r.Climate.Clouds.Layers[0].FilamentStretch);
             Assert.IsTrue(r.Warnings.Any(w => w.Contains("lift")), string.Join("; ", r.Warnings));
-            Assert.IsTrue(r.Warnings.Any(w => w.Contains("fibreStretch")), string.Join("; ", r.Warnings));
+            Assert.IsTrue(r.Warnings.Any(w => w.Contains("filamentStretch")), string.Join("; ", r.Warnings));
         }
 
         [TestMethod]
@@ -502,18 +502,18 @@ namespace ReDefinition.Tests.Atmospheres.T10
 
         // E40 T1 tint: the colour of the air between the camera and a cloud, per body.
         [TestMethod]
-        public void TheCloudsNodeCarriesTheHazeBlueOfTheHorizonAndOfAShortPath()
+        public void TheCloudsNodeCarriesTheAerialPerspectiveBlueOfTheHorizonAndOfAShortPath()
         {
             BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(0.35f, none.Climate.Clouds.HazeBlue, "the horizon colour of before");
-            Assert.AreEqual(0f, none.Climate.Clouds.HazeNearBlue, "the source of a short path is the sun's own colour");
-            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultHazeBlue, "the default of the key is the exponent the haze had before the key");
-            BodyParseResult set = Parse("hazeBlue = 0.5;hazeNearBlue = 0.1;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(0.5f, set.Climate.Clouds.HazeBlue);
-            Assert.AreEqual(0.1f, set.Climate.Clouds.HazeNearBlue);
-            BodyParseResult wild = Parse("hazeBlue = 7;hazeNearBlue = -2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(1f, wild.Climate.Clouds.HazeBlue, "brought into 0 to 1");
-            Assert.AreEqual(0f, wild.Climate.Clouds.HazeNearBlue);
+            Assert.AreEqual(0.35f, none.Climate.Clouds.AerialPerspectiveBlue, "the horizon colour of before");
+            Assert.AreEqual(0f, none.Climate.Clouds.AerialPerspectiveNearBlue, "the source of a short path is the sun's own colour");
+            Assert.AreEqual(CloudBridgeAir.BlueExponent, CloudRules.DefaultAerialPerspectiveBlue, "the default of the key is the exponent the aerial perspective had before the key");
+            BodyParseResult set = Parse("aerialPerspectiveBlue =0.5;aerialPerspectiveNearBlue =0.1;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(0.5f, set.Climate.Clouds.AerialPerspectiveBlue);
+            Assert.AreEqual(0.1f, set.Climate.Clouds.AerialPerspectiveNearBlue);
+            BodyParseResult wild = Parse("aerialPerspectiveBlue =7;aerialPerspectiveNearBlue =-2;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(1f, wild.Climate.Clouds.AerialPerspectiveBlue, "brought into 0 to 1");
+            Assert.AreEqual(0f, wild.Climate.Clouds.AerialPerspectiveNearBlue);
         }
 
         // E40 FL far: the gain on the colour a far cloud fades into, per body.
@@ -521,11 +521,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
         public void TheCloudsNodeCarriesAGainOnTheColourAFarCloudFadesInto()
         {
             BodyParseResult none = Parse("LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(Vector3.one, none.Climate.Clouds.HazeTint, "no key: the law as it was");
-            BodyParseResult set = Parse("hazeTintR = 1.35;hazeTintG = 1.48;hazeTintB = 1.17;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(new Vector3(1.35f, 1.48f, 1.17f), set.Climate.Clouds.HazeTint);
-            BodyParseResult wild = Parse("hazeTintR = 70;hazeTintG = -2;hazeTintB = 0;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
-            Assert.AreEqual(new Vector3(4f, 0.1f, 0.1f), wild.Climate.Clouds.HazeTint, "brought into 0.1 to 4");
+            Assert.AreEqual(Vector3.one, none.Climate.Clouds.AerialPerspectiveTint, "no key: the law as it was");
+            BodyParseResult set = Parse("aerialPerspectiveTintR = 1.35;aerialPerspectiveTintG = 1.48;aerialPerspectiveTintB = 1.17;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(1.35f, 1.48f, 1.17f), set.Climate.Clouds.AerialPerspectiveTint);
+            BodyParseResult wild = Parse("aerialPerspectiveTintR = 70;aerialPerspectiveTintG = -2;aerialPerspectiveTintB = 0;LAYER{name = A;innerAltitudeM = 500;outerAltitudeM = 1500;" + GoodType + "}");
+            Assert.AreEqual(new Vector3(4f, 0.1f, 0.1f), wild.Climate.Clouds.AerialPerspectiveTint, "brought into 0.1 to 4");
         }
 
         // E40 L3: the meso-scale cover pattern (node MESO), the type patches (typePatchKm, typePatchBlend) and the types' climate (node CLIMATE with LATITUDE, SURFACE, HUMIDITY, PRECIPITATION).

@@ -43,7 +43,7 @@ R = 600000.0
 MAP_W, MAP_H = 512, 256
 SIZE = (1708, 960)
 # site -> (the time of the maps, latitude, longitude). ksc: the K-T2 site of the TVC frames; fairA and fairB: places of the real maps (SkyMapsExplore, seed 664216370) where the cumulus layer holds
-# 0.5 to 0.55 of the sky in a 100 km window, with humilis / mediocris (A) or stratocumulus / humilis (B) and nothing of the rain deck, the cumulonimbus or the cirrus layer: a fair-weather field.
+# 0.5 to 0.55 of the sky in a 100 km window, with humilis / mediocris (A) or stratocumulus / humilis (B) and nothing of the low stratiform rain layer, the cumulonimbus or the cirrus layer: a fair-weather field.
 SITES = {"ksc": (1686000, -0.0972, -74.5577), "fairA": (1686000, 0.4, -98.5), "fairB": (1616400, -6.7, 158.6)}
 STACKS = {"cu": ["Kerbin-cumulus"], "all": ["Kerbin-weather-rain", "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus"]}
 # view -> (height above sea level in m, yaw from north in degrees, pitch). above8 and ground are the K-T2 views of the TVC frames.

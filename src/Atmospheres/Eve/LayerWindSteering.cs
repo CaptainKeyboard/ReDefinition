@@ -7,7 +7,7 @@ namespace ReDefinition.Atmospheres
 {
     // The E43 switches: the settings windShear, layerWindSteering (LayerSteeringMode, in AtmospheresSettings.Enums.cs), verticalMotion and anvilTilt.
     // A probe or a test pins a value through the Override field of the same name (null = the setting decides); Couple is the consistency rule
-    // between the layers of the window (thinned deck beneath a tall cell, anvil above the deck) and has no setting.
+    // between the layers of the window (thinned low stratiform layer beneath a tall cell, incus above it) and has no setting.
     internal static class LayerWindOptions
     {
         internal static LayerSteeringMode? SteeringOverride;
@@ -75,7 +75,7 @@ namespace ReDefinition.Atmospheres
         internal const float UpdraftReferenceMs = 3f, UpdraftGain = 1f, UpMaxChangePerS = 0.1f;
 
         // The rate (rad/s, positive eastward) the layer turns against the field's patterns: THE rate of the core (HeightWind.LayerRate), the same function the volume window and
-        // the layer maps use, so under cloudSource Both a layer of EVE and the window's deck of the same height move at one speed. windShear off = no drift against the patterns.
+        // the layer maps use, so under cloudSource Both a layer of EVE and the window's low stratiform layer of the same height move at one speed. windShear off = no drift against the patterns.
         internal static double SharedRate(BodyDerived d, BodyParams p, double heightM, bool shear)
         {
             if (!shear) return 0.0;

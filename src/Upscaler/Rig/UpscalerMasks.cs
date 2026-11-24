@@ -56,7 +56,7 @@ namespace ReDefinition.Upscaler
         };
 
         // Renderers left out by the name of their GameObject, where the shader is a stock one that is reactive elsewhere. The Atmospheres'
-        // whiteout veil is a screen-sized grid in front of the camera: marked, it would put the whole picture into the mask and
+        // whiteout is a screen-sized grid in front of the camera: marked, it would put the whole picture into the mask and
         // weaken the history of everything behind it.
         private static readonly string[] NotReactiveObjects =
         {

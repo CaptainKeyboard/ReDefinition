@@ -35,8 +35,8 @@ namespace ReDefinition.Atmospheres
     //    raytracing reads it once the seam of the T18 design note lands (nothing reads it today).
     //  - draw order: after the lit opaque scene and before the transparents (CameraEvent.BeforeForwardAlpha, tuning cloud.cameraEvent). Where Scatterer's
     //    screen-space scattering stands behind the pass at that event, the pass's buffers are moved behind it before the camera renders (OnPreRender,
-    //    cloud.afterScatterer, default on): the scattering writes the air of the path to the scene's depth and would give a cloud the haze of the sea behind it.
-    //    Behind the scattering Scatterer's air no longer reaches the cloud; the pass's aerial perspective (T06, cloud.farHaze 2, CloudHazePlan) replaces it with the
+    //    cloud.afterScatterer, default on): the scattering writes the air of the path to the scene's depth and would give a cloud the aerial perspective of the sea behind it.
+    //    Behind the scattering Scatterer's air no longer reaches the cloud; the pass's aerial perspective (T06, cloud.aerialPerspective 2, AerialPerspectivePlan) replaces it with the
     //    coefficients of Scatterer's atmosphere node of the body (ScattererAirReader), the same optical depth along the cloud's mean distance.
     //  - exposure: the pass is given pi times the scene's sun colour (it is radiometric, Unity's legacy lights have no 1/pi; cloud.sunUnit) and its radiance
     //    is encoded relative to the sun's display value at the final composite (CloudOutputStage: cloud.exposure, cloud.outputGamma 2.2), so the clouds
@@ -113,7 +113,7 @@ namespace ReDefinition.Atmospheres
         private byte[] typeScratch, altoScratch;
         // The layer maps at the mid-level sheet's height and at the fair-weather type's height (E40 L2 D1, CloudLookTuning.ApplyAlto).
         private readonly WeatherMap altoMidMap = new WeatherMap(), altoLowMap = new WeatherMap();
-        // The weather deck rule's inputs (FetchFogInputs) and its per-layer results (WeatherDeckRule.Apply).
+        // The low stratiform rule's inputs (FetchFogInputs) and its per-layer results (WeatherLowStratiformRule.Apply).
         private readonly WeatherMap humidityMap = new WeatherMap(), temperatureMap = new WeatherMap(), windMap = new WeatherMap();
         private float[] spreadScratch, fogSpreadK, fogWind;
         // E40 L3 (CloudMesoStage): the inputs of the types picked from their climate, and the stage's per-layer results.
@@ -122,7 +122,7 @@ namespace ReDefinition.Atmospheres
         private readonly CloudMesoInputs mesoInputs = new CloudMesoInputs();
         private readonly byte[][] mesoCover = new byte[CloudLayerDef.MaxLayers][], mesoType = new byte[CloudLayerDef.MaxLayers][];
         private readonly WeatherMap[] mesoCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
-        private readonly byte[][] deckCover = new byte[CloudLayerDef.MaxLayers][], deckType = new byte[CloudLayerDef.MaxLayers][];
+        private readonly byte[][] lowStratiformCover = new byte[CloudLayerDef.MaxLayers][], lowStratiformType = new byte[CloudLayerDef.MaxLayers][];
         // E40 CB: the anvils drawn into a layer's maps (AnvilMap), the inputs taken at the layer's fetch (the body's radius, the shear between the anvil and the steering level), and
         // the CPU copies of the maps with them.
         private readonly AnvilInputs[] anvilInputs = new AnvilInputs[CloudLayerDef.MaxLayers];
@@ -171,7 +171,7 @@ namespace ReDefinition.Atmospheres
             typeBytes = t;
             return true;
         }
-        private readonly WeatherMap[] deckCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
+        private readonly WeatherMap[] lowStratiformCoverMaps = new WeatherMap[CloudLayerDef.MaxLayers];
         private long lookStampSeen = -1;
         private readonly byte[][] forcedBytes = new byte[CloudLayerDef.MaxLayers][];
         // E40 start 60: a layer without its own coverage map silently took the field's shared cover (every layer closed as far as the weather), which can turn a half
@@ -182,7 +182,7 @@ namespace ReDefinition.Atmospheres
         private readonly WeatherMap[] layerTypeMaps = new WeatherMap[CloudLayerDef.MaxLayers], combinedMaps = new WeatherMap[CloudLayerDef.MaxLayers],
             pendingTypeMap = new WeatherMap[CloudLayerDef.MaxLayers];
         private readonly byte[][] pendingCover = new byte[CloudLayerDef.MaxLayers][], pendingType = new byte[CloudLayerDef.MaxLayers][];
-        private readonly WeatherDeckRule[] pendingDeck = new WeatherDeckRule[CloudLayerDef.MaxLayers];
+        private readonly WeatherLowStratiformRule[] pendingLowStratiform = new WeatherLowStratiformRule[CloudLayerDef.MaxLayers];
         private bool combineRound;
         private LayerRenderer renderer;
         private LayerReconstructDriver driver;
@@ -263,7 +263,7 @@ namespace ReDefinition.Atmospheres
 
         // The layer stack that stands (null while the pass is off): the CPU consumers read it.
         internal ICloudLayerSource Stack { get { return stack; } }
-        // Diagnosis (K-T2d): the names of the layers the stack was built from ("a|b|"), and whether the group members were picked by the cold branch (the snow deck).
+        // Diagnosis (K-T2d): the names of the layers the stack was built from ("a|b|"), and whether the group members were picked by the cold branch (the low stratiform snow layer).
         internal string StackKeyNow { get { return stackKey; } }
         internal bool GroupsCold { get { return cold; } }
         internal LayerMapStore GpuMaps { get { return renderer == null ? null : renderer.Maps; } }
@@ -1096,12 +1096,12 @@ namespace ReDefinition.Atmospheres
                 cover = filled;
                 coverSource = forcedMap;
             }
-            // The weather deck rule (WeatherDeckRule): the deck draws only where precipitation falls or the air is fog air; the coverage and the type bytes are the rule's, and
+            // The low stratiform rule (WeatherLowStratiformRule): the layer draws only where precipitation falls or the air is fog air; the coverage and the type bytes are the rule's, and
             // the CPU copy of the maps (StackMapMirror, the sun dimming, the cloud shadow, the oracle) gets the same ones.
             float fairType = CloudLookTuning.FairType(CloudLookTuning.TypeFairOf(layerName), stack.LayerAt(l).FairType);
             byte[] typeBytes;
             bool haveAltoMaps = false;
-            // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no deck rule, no meso stage (not under a probe's override
+            // CELLS: a layer with the cell list draws its towers from the generator's cells and not from the point-sampled layer map: no low stratiform rule, no meso stage (not under a probe's override
             // of the maps or the types, and only once the worker has made a list).
             CloudLayerDef cellDef = stack.LayerAt(l);
             // The map sky: the tall layer draws its towers from the cell list (the map holds a cell's tower in the single texel at its centre; the list paints each cell as one tower).
@@ -1114,7 +1114,7 @@ namespace ReDefinition.Atmospheres
                 cellLayer = gf.GetCells(b.flightGlobalsIndex, ut, list, out cellsUt);
             }
             cellLayerNow[l] = cellLayer;
-            WeatherDeckRule deck = cellLayer ? null : CloudLookTuning.DeckRuleOf(layerName, stack.LayerAt(l).Deck);
+            WeatherLowStratiformRule lowStratiformRule = cellLayer ? null : CloudLookTuning.LowStratiformRuleOf(layerName, stack.LayerAt(l).LowStratiform);
             byte[] rawCover = cover;
             if (cellLayer)
             {
@@ -1131,25 +1131,25 @@ namespace ReDefinition.Atmospheres
                 coverSource = paintedMap;
                 typeBytes = paintedType;
             }
-            else if (deck != null)
+            else if (lowStratiformRule != null)
             {
                 int n = cover.Length;
-                byte[] ruleCover = deckCover[l] ?? (deckCover[l] = new byte[n]);
-                byte[] ruleType = deckType[l] ?? (deckType[l] = new byte[n]);
-                if (ruleCover.Length != n) deckCover[l] = ruleCover = new byte[n];
-                if (ruleType.Length != n) deckType[l] = ruleType = new byte[n];
-                deck.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.DeckPrecipOf(layerName), CloudLookTuning.DeckFogOf(layerName));
-                // E40 CB: a deck layer whose table goes on past its rain types (the cumulonimbus layer's anvil sheet) ends its precipitation axis at rainType, as the other layers do.
-                float deckRain = stack.LayerAt(l).RainType;
-                if (deckRain < 1f)
-                    for (int i = 0; i < n; i++) ruleType[i] = (byte)Math.Round(ruleType[i] * deckRain);
+                byte[] ruleCover = lowStratiformCover[l] ?? (lowStratiformCover[l] = new byte[n]);
+                byte[] ruleType = lowStratiformType[l] ?? (lowStratiformType[l] = new byte[n]);
+                if (ruleCover.Length != n) lowStratiformCover[l] = ruleCover = new byte[n];
+                if (ruleType.Length != n) lowStratiformType[l] = ruleType = new byte[n];
+                lowStratiformRule.Apply(cover, typeMap.Values, fogSpreadK, fogWind, ruleCover, ruleType, CloudLookTuning.LowStratiformPrecipOf(layerName), CloudLookTuning.LowStratiformFogOf(layerName));
+                // E40 CB: a layer with the low stratiform rule whose table goes on past its rain types (the cumulonimbus layer's anvil sheet) ends its precipitation axis at rainType, as the other layers do.
+                float lowStratiformRain = stack.LayerAt(l).RainType;
+                if (lowStratiformRain < 1f)
+                    for (int i = 0; i < n; i++) ruleType[i] = (byte)Math.Round(ruleType[i] * lowStratiformRain);
                 float typeOverride = CloudLookTuning.TypeOverrideOf(layerName);
                 if (typeOverride >= 0f)
                 {
                     byte forced = (byte)Math.Min(255.0, Math.Round(typeOverride * 255.0, MidpointRounding.ToEven));
                     for (int i = 0; i < n; i++) ruleType[i] = forced;
                 }
-                WeatherMap ruleCoverMap = deckCoverMaps[l] ?? (deckCoverMaps[l] = new WeatherMap());
+                WeatherMap ruleCoverMap = lowStratiformCoverMaps[l] ?? (lowStratiformCoverMaps[l] = new WeatherMap());
                 ruleCoverMap.Resize(coverSource.Width, coverSource.Height);
                 for (int i = 0; i < n; i++) ruleCoverMap.Values[i] = ruleCover[i] / 255f;
                 cover = ruleCover;
@@ -1176,11 +1176,11 @@ namespace ReDefinition.Atmospheres
             }
             // The map sky: a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
             bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
-                               && MapSkyLayer(l, stack.LayerAt(l), deck ?? stack.LayerAt(l).Deck, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
+                               && MapSkyLayer(l, stack.LayerAt(l), lowStratiformRule ?? stack.LayerAt(l).LowStratiform, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
             if (mapSkyLayer) cellLayerNow[l] = false;
             // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
             CloudLayerDef mesoDef = stack.LayerAt(l);
-            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && deck == null)) && gf != null)
+            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && lowStratiformRule == null)) && gf != null)
             {
                 CloudMesoInputs mi = mesoInputs;
                 mi.Width = MapWidth;
@@ -1231,7 +1231,7 @@ namespace ReDefinition.Atmospheres
                 pendingCover[l] = CopyInto(pendingCover[l], cover);
                 pendingType[l] = CopyInto(pendingType[l], typeBytes);
                 pendingTypeMap[l] = typeForCpu;
-                pendingDeck[l] = deck;
+                pendingLowStratiform[l] = lowStratiformRule;
                 return;
             }
             else
@@ -1259,7 +1259,7 @@ namespace ReDefinition.Atmospheres
         {
             int n = coverageMap.Bytes.Length;
             int from = (int)((long)n * slice / CombineSlices), to = (int)((long)n * (slice + 1) / CombineSlices);
-            CloudLookTuning.MeetTheFieldRange(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine, pendingDeck, typeMap.Values, from, to);
+            CloudLookTuning.MeetTheFieldRange(pendingCover, stack.LayerCount, coverageMap.Bytes, CloudLookTuning.CoverCombine, pendingLowStratiform, typeMap.Values, from, to);
             if (slice + 1 < CombineSlices) return;
             for (int k = 0; k < stack.LayerCount; k++)
             {
@@ -1305,12 +1305,12 @@ namespace ReDefinition.Atmospheres
             get { return Stats.LastMapMs; }
         }
 
-        // The inputs of the weather deck rule (WeatherDeckRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
+        // The inputs of the low stratiform rule (WeatherLowStratiformRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
         // temperature maps) and the wind. A map the field cannot give leaves its input null: no fog from the spread, a calm wind.
         private void FetchFogInputs(CelestialBody b, IWeatherField field, double ut)
         {
             bool needed = false;
-            for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.DeckRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).Deck) != null;
+            for (int k = 0; k < stack.LayerCount && !needed; k++) needed = CloudLookTuning.LowStratiformRuleOf(stack.LayerAt(k).Name, stack.LayerAt(k).LowStratiform) != null;
             fogSpreadK = null;
             fogWind = null;
             // E40 L3: the humidity and the surface as bytes for the types picked from their climate (CloudMesoStage); a map the field cannot give leaves the input null (neutral).
@@ -1338,7 +1338,7 @@ namespace ReDefinition.Atmospheres
                 int n = humidityMap.Values.Length;
                 float[] spread = spreadScratch;
                 if (spread == null || spread.Length != n) spreadScratch = spread = new float[n];
-                for (int i = 0; i < n; i++) spread[i] = WeatherDeckRule.SpreadK(temperatureMap.Values[i], humidityMap.Values[i]);
+                for (int i = 0; i < n; i++) spread[i] = WeatherLowStratiformRule.SpreadK(temperatureMap.Values[i], humidityMap.Values[i]);
                 fogSpreadK = spread;
             }
             if (field.GetMap(b.flightGlobalsIndex, WeatherMapKind.WindSpeed, ut, windMap) && windMap.Width == MapWidth && windMap.Height == MapHeight) fogWind = windMap.Values;
@@ -1477,7 +1477,7 @@ namespace ReDefinition.Atmospheres
             f.OutputExposure = Tuning.Get(TuneExposure, CloudOutputStage.ExposureDefault);
             f.OutputGamma = Tuning.Get(TuneOutputGamma, CloudOutputStage.GammaDefault);
             f.OutputWhite = Math.Max(0.01f, sceneSun.grayscale);
-            float hazeLayerAltitude = 1500f;
+            float aerialPerspectiveLayerAltitude = 1500f;
             {
                 // The white point's colour: the sun a cloud at the nominal altitude gets (the pass's sun times the shader's air above it), over its luminance, by the sun's height.
                 Vector3 whiteViewer = GameGlobals.ActiveVessel != null ? GameGlobals.ActiveVessel.transform.position : camPos;
@@ -1497,12 +1497,12 @@ namespace ReDefinition.Atmospheres
                         }
                     if (whiteAltitude == float.MaxValue) whiteAltitude = 1500f;
                 }
-                hazeLayerAltitude = whiteAltitude;
+                aerialPerspectiveLayerAltitude = whiteAltitude;
                 Color cloudSun = CloudSunAir.AtAltitude(passSun, whiteSin, whiteAltitude, f.Light);
                 f.OutputWhiteTint = CloudOutputStage.WhiteTint(cloudSun, CloudOutputStage.WhiteShare(whiteSin, Tuning.Get(TuneWhitePoint, 1f)));
             }
             // The scene's white balance (sceneWhiteBalance, audit A2): where the host's hook balances the whole picture by the same tint this frame, the clouds and
-            // their haze leave it out (the haze's exemption is then the identity); otherwise the clouds keep their own white point.
+            // their aerial perspective leave it out (the aerial perspective's exemption is then the identity); otherwise the clouds keep their own white point.
             // The slider's strength s raises the tint to s (0: none, 1: the full tint); without the host's hook the clouds take that partial tint alone, as before.
             float strength = Mathf.Clamp01(AtmospheresSettings.SceneWhiteBalance);
             Color partial = SceneWhiteBalance.Partial(f.OutputWhiteTint, strength);
@@ -1538,7 +1538,7 @@ namespace ReDefinition.Atmospheres
                 f.Light.Lights[0] = new CloudLight { Towards = towards, Colour = moon };
             }
             OwnCloudOptions.LimitMoonLights(f.Light, OwnCloudOptions.LiveSettings);
-            // E40 C2: an extra light below light.moonMinShare of the sun (any moon in a daytime sky) is not marched to; the haze's in-scatter below still reads the moon as it was.
+            // E40 C2: an extra light below light.moonMinShare of the sun (any moon in a daytime sky) is not marched to; the aerial perspective's in-scatter below still reads the moon as it was.
             float moonShare = Tuning.Get(OwnCloudOptions.TuneMoonMinShare, OwnCloudOptions.MoonMinShareDefault);
             float moonLuma = Math.Max(f.Light.Lights[0].Colour.grayscale, f.Light.Lights[1].Colour.grayscale);
             Stats.MoonOverSun = moonLuma / sunLuminance;
@@ -1555,29 +1555,29 @@ namespace ReDefinition.Atmospheres
 
             // The far view: the body's own air (ResolveAir, read before the sun colour), the in-scatter that follows the sky, the march policy by altitude.
             CloudBridgeAir.Apply(f.Far, air);
-            // The aerial perspective behind Scatterer's scattering (cloud.farHaze 2, or AutoByDefault): on while the pass's buffers stand behind it.
-            f.Far.Haze = CloudHazePlan.Active(f.Far.Haze, f.Far.HazeAuto, moveBehindScattering);
-            Color hazeDisplay = new Color(Tuning.Get(CloudHazePlan.TuneR, CloudHazePlan.DefaultDisplayColour.r), Tuning.Get(CloudHazePlan.TuneG, CloudHazePlan.DefaultDisplayColour.g),
-                                          Tuning.Get(CloudHazePlan.TuneB, CloudHazePlan.DefaultDisplayColour.b), 1f);
-            // The colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray, the near colour what a short path in-scatters (E40 H1 haze, CloudHorizonSky;
-            // cloud.hazeSky 0: the law of before, hazeBlue / hazeNearBlue of the body and its share of the sun); both leave the white point's tint out (CloudHazePlan.ExemptFromWhitePoint).
-            int hazeColourSource = (int)Tuning.Get(CloudHazePlan.TuneColour, 0f);
-            float hazeShare = Tuning.Get(CloudHazePlan.TuneShare, CloudBridgeAir.HorizonShare);
+            // The aerial perspective behind Scatterer's scattering (cloud.aerialPerspective 2, or AutoByDefault): on while the pass's buffers stand behind it.
+            f.Far.AerialPerspective = AerialPerspectivePlan.Active(f.Far.AerialPerspective, f.Far.AerialPerspectiveAuto, moveBehindScattering);
+            Color aerialPerspectiveDisplay = new Color(Tuning.Get(AerialPerspectivePlan.TuneR, AerialPerspectivePlan.DefaultDisplayColour.r), Tuning.Get(AerialPerspectivePlan.TuneG, AerialPerspectivePlan.DefaultDisplayColour.g),
+                                          Tuning.Get(AerialPerspectivePlan.TuneB, AerialPerspectivePlan.DefaultDisplayColour.b), 1f);
+            // The colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray, the near colour what a short path in-scatters (E40 H1 aerial perspective, CloudHorizonSky;
+            // cloud.aerialPerspectiveSky 0: the law of before, aerialPerspectiveBlue / aerialPerspectiveNearBlue of the body and its share of the sun); both leave the white point's tint out (AerialPerspectivePlan.ExemptFromWhitePoint).
+            int aerialPerspectiveColourSource = (int)Tuning.Get(AerialPerspectivePlan.TuneColour, 0f);
+            float aerialPerspectiveShare = Tuning.Get(AerialPerspectivePlan.TuneShare, CloudBridgeAir.HorizonShare);
             double altitude = ((Vector3d)camPos - b.position).magnitude - b.Radius;
             Color farRadiance, nearRadiance;
-            if (hazeColourSource == 0 && Tuning.Get(CloudHazePlan.TuneSky, 1f) > 0.5f
-                && SkyHazeColours(cam, f, b, altitude, hazeLayerAltitude, moon, sunLuminance, towards, ambientTop, out farRadiance, out nearRadiance))
+            if (aerialPerspectiveColourSource == 0 && Tuning.Get(AerialPerspectivePlan.TuneSky, 1f) > 0.5f
+                && SkyAerialPerspectiveColours(cam, f, b, altitude, aerialPerspectiveLayerAltitude, moon, sunLuminance, towards, ambientTop, out farRadiance, out nearRadiance))
             {
-                farRadiance = CloudHazePlan.WithTint(farRadiance, c.Clouds.HazeTint);
+                farRadiance = AerialPerspectivePlan.WithTint(farRadiance, c.Clouds.AerialPerspectiveTint);
             }
             else
             {
-                farRadiance = CloudHazePlan.WithTint(CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeBlue),
-                                                     hazeColourSource == 1 ? Vector3.one : c.Clouds.HazeTint);   // a display colour the key asks for is not tinted
-                nearRadiance = CloudHazePlan.Inscatter(hazeColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, hazeShare, hazeDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.HazeNearBlue);
+                farRadiance = AerialPerspectivePlan.WithTint(AerialPerspectivePlan.Inscatter(aerialPerspectiveColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, aerialPerspectiveShare, aerialPerspectiveDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.AerialPerspectiveBlue),
+                                                     aerialPerspectiveColourSource == 1 ? Vector3.one : c.Clouds.AerialPerspectiveTint);   // a display colour the key asks for is not tinted
+                nearRadiance = AerialPerspectivePlan.Inscatter(aerialPerspectiveColourSource, sunColour, moon, ambientTop, f.Far.RayleighPerM, aerialPerspectiveShare, aerialPerspectiveDisplay, f.OutputWhite, f.OutputExposure, f.OutputGamma, c.Clouds.AerialPerspectiveNearBlue);
             }
-            f.Far.Inscatter = CloudHazePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
-            f.Far.InscatterNear = CloudHazePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
+            f.Far.Inscatter = AerialPerspectivePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
+            f.Far.InscatterNear = AerialPerspectivePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
@@ -1591,25 +1591,25 @@ namespace ReDefinition.Atmospheres
         private readonly CloudHorizonSky.Evaluator skySun = new CloudHorizonSky.Evaluator(), skyMoon = new CloudHorizonSky.Evaluator();
         private float nextSkyLog;
 
-        // The colours a far cloud fades into and a short path in-scatters, from the body's air along the view ray of the camera that stands on the lowest layer (E40 H1 haze). False where
+        // The colours a far cloud fades into and a short path in-scatters, from the body's air along the view ray of the camera that stands on the lowest layer (E40 H1 aerial perspective). False where
         // there is no air to work from.
-        private bool SkyHazeColours(Camera cam, LayerFrame f, CelestialBody b, double altitude, float layerAltitudeM, Color moon, float sunLuminance, Vector3 moonTowards, Color ambient, out Color far, out Color near)
+        private bool SkyAerialPerspectiveColours(Camera cam, LayerFrame f, CelestialBody b, double altitude, float layerAltitudeM, Color moon, float sunLuminance, Vector3 moonTowards, Color ambient, out Color far, out Color near)
         {
             far = near = ambient;
             if (!air.Valid) return false;
             Vector3 up = (cam.transform.position - f.PlanetCenter).normalized, forward = cam.transform.forward;
-            var v = new CloudHazePlan.SkyView { HeightM = altitude, LayerAltitudeM = layerAltitudeM };
+            var v = new AerialPerspectivePlan.SkyView { HeightM = altitude, LayerAltitudeM = layerAltitudeM };
             CloudHorizonSky.ViewAngles(up, forward, f.TowardsSun, out v.SunElevation, out v.SunAzimuth);
             if (moon.grayscale > 0f)
             {
                 CloudHorizonSky.ViewAngles(up, forward, moonTowards, out v.MoonElevation, out v.MoonAzimuth);
                 v.MoonOverSun = moon * (1f / sunLuminance);
             }
-            if (!CloudHazePlan.SkyInscatter(skySun, skyMoon, air, b.Radius, v, ambient, f.OutputWhite, f.OutputExposure, f.OutputGamma, out far, out near)) return false;
+            if (!AerialPerspectivePlan.SkyInscatter(skySun, skyMoon, air, b.Radius, v, ambient, f.OutputWhite, f.OutputExposure, f.OutputGamma, out far, out near)) return false;
             if (Time.realtimeSinceStartup >= nextSkyLog)
             {
                 nextSkyLog = Time.realtimeSinceStartup + 10f;
-                AtmospheresLog.Say("own clouds: haze colours of " + b.name + "'s air (display) far " + CloudOutputStage.Encode(far.r, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " "
+                AtmospheresLog.Say("own clouds: aerial perspective colours of " + b.name + "'s air (display) far " + CloudOutputStage.Encode(far.r, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " "
                                    + CloudOutputStage.Encode(far.g, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " " + CloudOutputStage.Encode(far.b, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000")
                                    + ", near " + CloudOutputStage.Encode(near.r, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + " " + CloudOutputStage.Encode(near.g, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000")
                                    + " " + CloudOutputStage.Encode(near.b, f.OutputWhite, f.OutputExposure, f.OutputGamma).ToString("0.000") + "; sun " + (v.SunElevation * 180.0 / Math.PI).ToString("0.0") + " deg up, view "
@@ -1623,7 +1623,7 @@ namespace ReDefinition.Atmospheres
         // sun colour (FillFrame): the colour Scatterer hands over is divided by this air, which is only right where it is the air that made the colour.
         private void ResolveAir(CelestialBody b)
         {
-            bool useScattererAir = CloudHazePlan.UseScattererAir(CloudHazePlan.SourceFrom(Tuning.Get(CloudHazePlan.TuneAirSource, -1f)), scattererLoaded);
+            bool useScattererAir = AerialPerspectivePlan.UseScattererAir(AerialPerspectivePlan.SourceFrom(Tuning.Get(AerialPerspectivePlan.TuneAirSource, -1f)), scattererLoaded);
             if (airBody == b.flightGlobalsIndex && airFromScatterer == useScattererAir) return;
             airBody = b.flightGlobalsIndex;
             airFromScatterer = useScattererAir;

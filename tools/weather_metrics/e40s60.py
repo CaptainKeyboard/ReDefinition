@@ -11,7 +11,7 @@ by this script alone, after the run, from the KSP log and the picture folder (.l
 Tables (the cost, grain, numbers-the-pass-ran-with and sun-colour tables are e40sf.py's, run on this start's rows):
   PLAN     the probe's estimate, the sections run and left out, the type views and the types that were absent
   LIGHT    per view the variant soft's light rows: the sunlit side (P90 of the luminance of the pixels the clouds changed by 0.15 or more), the base (P10), their ratio, the median and the
-           baseline's sky at the same pixels (a cumulus body passes at a top over base of 1.6 to 6; a deck is held against the sky behind it)
+           baseline's sky at the same pixels (a cumulus body passes at a top over base of 1.6 to 6; a cloud is held against the sky behind it)
   TYPES    per scene and target (humilis, congestus, cumulonimbus, cirrus): where the map holds it (km from the site, cover, whether the cell is weak) and, per view, the types under the view's centre
   MISSES   what the probe does not fail on but the start's questions need: a cost window or frame set with no layer drawn, a lost raw read or a mask without cloud (the warnings), a variant
            with fewer frames than the table says, a view that was not placed, a light row that could not be made. They are counted (T09s.collector_misses); the run is not aborted by them.
@@ -45,8 +45,8 @@ FRAME_LETTERS = "abcdefgh"
 WEAVE_ORDER = ("soft", "softhash", "softacc05")
 REFERENCE_PREFIX = "ref"
 # Light pass ranges (linear luminance), the ones the model supports and the review states: a cumulus body's top over base 1.6 to 6 (the two-stream model alone gives 2.1; the game's sky light lifts
-# the base and can lower it to about 1.6; the checklist's 2 to 6 has its lower edge here), a deck's median over the baseline's sky behind it 0.15 to 0.8, a base above 0.03.
-LIGHT_RATIO, LIGHT_DECK, LIGHT_BASE_MIN = (1.6, 6.0), (0.15, 0.8), 0.03
+# the base and can lower it to about 1.6; the checklist's 2 to 6 has its lower edge here), a cloud's median over the baseline's sky behind it 0.15 to 0.8, a base above 0.03.
+LIGHT_RATIO, LIGHT_CLOUD, LIGHT_BASE_MIN = (1.6, 6.0), (0.15, 0.8), 0.03
 SHEET_ORDER = ("soft", "softr50", "softcut16", "soft100s24")
 TYPE_ORDER = ("humilis", "congestus", "cumulonimbus", "cirrus")
 EXTRAS = (("horizon", "fair"), ("fog", "fair"), ("rain", "clock"))
@@ -89,25 +89,25 @@ def light_views(rows):
 
 
 def light_table(rows, num, fmt):
-    lines = ["LIGHT (the variant soft; LINEAR luminance of the pixels the clouds changed by 0.15 or more; top = P90, base = P10). Pass: a cumulus body top/base %.1f to %.1f and base above %.2f; a deck "
-             "(clock ground, rain) median over the sky behind it %.2f to %.1f" % (LIGHT_RATIO + (LIGHT_BASE_MIN,) + LIGHT_DECK),
-             "  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % ("scene", "view", "cloud %", "top", "base", "top/base", "median", "sky", "deck/sky", "pass")]
+    lines = ["LIGHT (the variant soft; LINEAR luminance of the pixels the clouds changed by 0.15 or more; top = P90, base = P10). Pass: a cumulus body top/base %.1f to %.1f and base above %.2f; a cloud "
+             "(clock ground, rain) median over the sky behind it %.2f to %.1f" % (LIGHT_RATIO + (LIGHT_BASE_MIN,) + LIGHT_CLOUD),
+             "  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % ("scene", "view", "cloud %", "top", "base", "top/base", "median", "sky", "cloud/sky", "pass")]
     metrics = []
     for scene, view in light_views(rows):
         r = scene_rows(rows, scene, view)
         top, base, ratio = num(r.get("light_top")), num(r.get("light_base")), num(r.get("light_top_over_base"))
-        deck = num(r.get("light_deck_over_sky"))
+        cloud = num(r.get("light_cloud_over_sky"))
         cumulus = view.startswith("ty_humilis") or view.startswith("ty_congestus") or (scene == "fair" and view in ("ground", "above"))
-        is_deck = scene == "clock" and view in ("ground", "rain")
+        is_cloud = scene == "clock" and view in ("ground", "rain")
         verdict = "-"
         if cumulus and ratio is not None:
             verdict = "yes" if LIGHT_RATIO[0] <= ratio <= LIGHT_RATIO[1] and (base or 0.0) >= LIGHT_BASE_MIN else "no (top/base %.2f, base %.3f)" % (ratio, base or 0.0)
-        elif is_deck and deck is not None:
-            verdict = "yes" if LIGHT_DECK[0] <= deck <= LIGHT_DECK[1] else "no (deck/sky %.2f)" % deck
+        elif is_cloud and cloud is not None:
+            verdict = "yes" if LIGHT_CLOUD[0] <= cloud <= LIGHT_CLOUD[1] else "no (cloud/sky %.2f)" % cloud
         share = num(r.get("light_cloud_share"))
         lines.append("  %-6s %-22s %7s %7s %7s %8s %7s %7s %9s  %s" % (scene, view, fmt(None if share is None else 100.0 * share, 1), fmt(top, 3), fmt(base, 3), fmt(ratio, 2),
-                                                                    fmt(num(r.get("light_median")), 3), fmt(num(r.get("light_sky")), 3), fmt(num(r.get("light_deck_over_sky")), 2), verdict))
-        for name, value in (("top", top), ("base", base), ("top_over_base", ratio), ("deck_over_sky", num(r.get("light_deck_over_sky")))):
+                                                                    fmt(num(r.get("light_median")), 3), fmt(num(r.get("light_sky")), 3), fmt(num(r.get("light_cloud_over_sky")), 2), verdict))
+        for name, value in (("top", top), ("base", base), ("top_over_base", ratio), ("cloud_over_sky", num(r.get("light_cloud_over_sky")))):
             if value is not None:
                 metrics.append({"metric": "T09s.light.%s.%s.%s" % (scene, view, name), "value": round(value, 4), "variant": None})
     if len(lines) == 2:
@@ -631,16 +631,16 @@ def selftest():
     # --- the log tables
     log = []
     p = "T09s.fair.ground.soft."
-    for name, value in (("light_cloud_share", 0.6), ("light_top", 0.8), ("light_base", 0.2), ("light_median", 0.5), ("light_sky", 0.4), ("light_top_over_base", 4.0), ("light_deck_over_sky", 1.25), ("frames", 8)):
+    for name, value in (("light_cloud_share", 0.6), ("light_top", 0.8), ("light_base", 0.2), ("light_median", 0.5), ("light_sky", 0.4), ("light_top_over_base", 4.0), ("light_cloud_over_sky", 1.25), ("frames", 8)):
         log.append(_row(p + name, value))
     log.append(_row("T09s.fair.ground.refsoft.frames", 4))
     p = "T09s.clock.ty_humilis_g.soft."
-    for name, value in (("light_cloud_share", 0.5), ("light_top", 0.9), ("light_base", 0.02), ("light_median", 0.4), ("light_sky", 0.4), ("light_top_over_base", 18.0), ("light_deck_over_sky", 1.0), ("frames", 3)):
+    for name, value in (("light_cloud_share", 0.5), ("light_top", 0.9), ("light_base", 0.02), ("light_median", 0.4), ("light_sky", 0.4), ("light_top_over_base", 18.0), ("light_cloud_over_sky", 1.0), ("frames", 3)):
         log.append(_row(p + name, value))
-    # A deck inside the pass range, one under it.
-    for view, deck in (("ground", 0.4), ("rain", 0.05)):
+    # A cloud inside the pass range, one under it.
+    for view, cloud in (("ground", 0.4), ("rain", 0.05)):
         p = "T09s.clock.%s.soft." % view
-        for name, value in (("light_cloud_share", 1.0), ("light_top", 0.1), ("light_base", 0.05), ("light_median", 0.08), ("light_sky", 0.2), ("light_top_over_base", 2.0), ("light_deck_over_sky", deck), ("frames", 3)):
+        for name, value in (("light_cloud_share", 1.0), ("light_top", 0.1), ("light_base", 0.05), ("light_median", 0.08), ("light_sky", 0.2), ("light_top_over_base", 2.0), ("light_cloud_over_sky", cloud), ("frames", 3)):
             log.append(_row(p + name, value))
     log += [_row("T09s.types.clock.humilis.found", True), _row("T09s.types.clock.humilis.dist_km", 32.0), _row("T09s.types.clock.humilis.cover", 0.8), _row("T09s.types.clock.humilis.weak", False),
             _row("T09s.types.clock.humilis.type", "Cumulus humilis"), _row("T09s.types.clock.cirrus.found", False),
@@ -654,8 +654,8 @@ def selftest():
     assert got["T09s.light.fair.ground.top_over_base"] == 4.0, got
     assert "yes" in [l for l in out_lines if " ground " in l and "0.800" in l][0], joined
     assert any("ty_humilis_g" in l and "no (top/base 18.00, base 0.020)" in l for l in out_lines), joined
-    assert any(" ground " in l and " clock " in l and l.rstrip().endswith("yes") and "0.40" in l for l in out_lines), joined      # the deck inside 0.15 to 0.8
-    assert any(" rain " in l and "no (deck/sky 0.05)" in l for l in out_lines), joined
+    assert any(" ground " in l and " clock " in l and l.rstrip().endswith("yes") and "0.40" in l for l in out_lines), joined      # the cloud inside 0.15 to 0.8
+    assert any(" rain " in l and "no (cloud/sky 0.05)" in l for l in out_lines), joined
     assert "humilis" in joined and "cirrus" in joined and "NOT" not in joined and "match" in joined and "sun  41.5 deg" in joined, joined
     assert "estimate 1020 s" in joined, joined
     assert "type views 8" in joined, joined

@@ -60,7 +60,7 @@ namespace ReDefinition.Atmospheres
         // E40 C1: the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps; exact: the density reads that are left are the same).
         public bool EmptyReach = true;
         // E40 C2: the longest leap over empty grid points in the layer's noise scales (0: off, the leap is EmptyLeap's grid points whatever the layer). A span of a layer with coarse noise
-        // (a weather deck 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
+        // (a low stratiform weather layer 10 km, a cumulonimbus layer 5 km) is stepped every 100 m or less; where the density is empty the march then leaps up to this many scales at a time and goes back to
         // the grid point after the last empty one when a leap lands on cloud, so a cloud is entered at the grid's own resolution and only a feature narrower than the leap can be passed over.
         public float LeapScales;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
@@ -76,17 +76,17 @@ namespace ReDefinition.Atmospheres
         // The distance in m beyond which that step grows (layers.spanGrowthFromM, 0: from the camera); the span's part before it is evenly spaced.
         public float SpanGrowthFromM;
         // With the points by distance (SpanGrowthPerM > 0) a far step is long, and so is a leap of a few of them: the march ends the leap where the ray reaches the altitude at which cloud
-        // can begin, and starts again from one grid step there, so a thin deck crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
+        // can begin, and starts again from one grid step there, so a thin cloud layer crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
         public int CostDebug;
         // Package T05: inside a cloud the step grows by this share of the transmittance the ray has already lost (0: a fixed step).
         public float TransmittanceGrowth;
         // E40 grain against TVC. DitherSequence: the per-pixel step offset, advanced by the golden ratio per frame: 1 an integer hash (white; what the default drew before E40 step (c)), 2 the
         // interleaved gradient noise (lower temporal noise, a few strong spatial lines), 3 (E40 F2, the default) the blue-noise tile of DitherMatrix (the same temporal noise, no line).
         public int DitherSequence = 3;
-        // M2c (the low decks): the rolls of the sheet types (CloudTypeDef.RollAmount) drawn with this share of their depth (0: off, the deck of before; the tuning key
-        // cloud.sheetRolls), and the roll length as a share of the layer's depth (cloud.rollLengthShare).
-        public float SheetRolls;
-        public float RollLengthShare = 1f;
+        // M2c (the low stratiform layers): the undulations of the stratiform types (variety undulatus, CloudTypeDef.UndulatusAmount) drawn with this share of their depth (0: off, the layer of
+        // before; the tuning key cloud.undulatus), and the wavelength as a share of the layer's depth (cloud.undulatusWavelengthShare).
+        public float Undulatus;
+        public float UndulatusWavelengthShare = 1f;
         // Package T16, the visibility culling (the switches are off until the owner agrees).
         public CullSettings Cull = new CullSettings();
 
@@ -134,10 +134,10 @@ namespace ReDefinition.Atmospheres
         internal const string LatticeKeyword = "CLOUD_LATTICE";
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
-        // M2c: each type's roll depth (CloudTypeDef.RollAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeRoll); the frame's switch and the roll length
-        // are _RollP (LayerFrame.SheetRolls, LayerFrame.RollLengthShare).
-        private readonly Vector4[] typeRoll = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
-        private static readonly int IdTypeRoll = Shader.PropertyToID("_TypeRoll"), IdRollP = Shader.PropertyToID("_RollP");
+        // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
+        // and the wavelength are _UndulatusP (LayerFrame.Undulatus, LayerFrame.UndulatusWavelengthShare).
+        private readonly Vector4[] typeUndulatus = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
+        private static readonly int IdTypeUndulatus = Shader.PropertyToID("_TypeUndulatus"), IdUndulatusP = Shader.PropertyToID("_UndulatusP");
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
         // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
         private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
@@ -201,7 +201,7 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            // The first MaxLayers rows: base, top, erosion and smoothing of each type; the next MaxLayers rows (CLOUDR1): the heap preset, the exponent of the density rim and the cavity.
+            // The first MaxLayers rows: base, top, erosion and smoothing of each type; the next MaxLayers rows (CLOUDR1): the cumuliform preset, the exponent of the density rim and the cavity.
             infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "layer type info",
@@ -340,26 +340,26 @@ namespace ReDefinition.Atmospheres
                     profile[texel + 2] = lightData[i * 2 + 1];
                     profile[texel + 3] = liftData[i];
                 }
-                Noise.SetStretch(l, layer.FibreStretch);
+                Noise.SetStretch(l, layer.FilamentStretch);
                 Noise.SetVertical(l, layer.VerticalScale);
                 Noise.SetSmoothing(l, layer.ShapeSmoothing);
-                Noise.SetFibre(l, layer.FibreMinWindMs, layer.FibreTurnSeconds);
+                Noise.SetFilament(l, layer.FilamentMinWindMs, layer.FilamentTurnSeconds);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, e, table.SmoothingOfType(t));
-                    int heap = table.HeapOfType(t);
-                    if (heap > 0) Noise.RequestHeap();
-                    if (heap > 0 || table.EdgeOfType(t) > 0f) extras = true;
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(heap, table.EdgeOfType(t), table.CavityOfType(t), table.PuffOfType(t));
+                    int cumuliform = table.CumuliformOfType(t);
+                    if (cumuliform > 0) Noise.RequestCumuliform();
+                    if (cumuliform > 0 || table.EdgeOfType(t) > 0f) extras = true;
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(cumuliform, table.EdgeOfType(t), table.CavityOfType(t), table.FormOfType(t));
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].RollAmount : 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].UndulatusAmount : 0f;
                 }
                 for (int t = table.Count; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = 0f;
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
@@ -369,10 +369,10 @@ namespace ReDefinition.Atmospheres
                 for (int t = 0; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
-                    typeRoll[slot >> 2][slot & 3] = 0f;
+                    typeUndulatus[slot >> 2][slot & 3] = 0f;
                 }
             }
-            material.SetVectorArray(IdTypeRoll, typeRoll);
+            material.SetVectorArray(IdTypeUndulatus, typeUndulatus);
             if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
@@ -443,7 +443,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSpacingP, new Vector4(0f, 0f, Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            m.SetVector(IdRollP, new Vector4(Mathf.Clamp01(f.SheetRolls), Mathf.Max(f.RollLengthShare, 0.05f), 0f, 0f));
+            m.SetVector(IdUndulatusP, new Vector4(Mathf.Clamp01(f.Undulatus), Mathf.Max(f.UndulatusWavelengthShare, 0.05f), 0f, 0f));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (z: the step offset's; y and w unused since the cone rotation and the pre-F2 grid went).
             double phase = StepPhase.Of(f.FrameNumber);
@@ -464,8 +464,8 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdCullL, cullL);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
-            // The map-driven sky's connected sheet types (MapSkyRegions.SheetTypes).
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.SheetTypes(cellLayer[l]) : Vector4.zero;
+            // The map-driven sky's connected stratiform types (MapSkyRegions.StratiformTypes).
+            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.StratiformTypes(cellLayer[l]) : Vector4.zero;
             m.SetVectorArray(IdCellS, cellS);
             // The test lattice (cloud.field off) is the variant CLOUD_LATTICE; the product (the field) draws without its code.
             bool lattice = !CloudLookTuning.Field;

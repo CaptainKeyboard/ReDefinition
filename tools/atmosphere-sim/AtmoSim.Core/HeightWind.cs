@@ -105,7 +105,7 @@ namespace AtmoSim.Core
 
         // Decision R3 (layer decoupling): a layer drifting against the patterns by an absolute UT rate leaves the pattern's own rain, cells and fronts behind (about 860 km a day
         // at 10 m/s), so the field would no longer be the one source of truth under it. Layers that carry rain, cells and fronts (below 0.2 of the tropopause, the height of the
-        // window's deck) therefore move with the generator's patterns, which are the steering flow of the systems; only decks above 0.45 of the tropopause (cirrus, alto decks,
+        // window's low stratiform layer) therefore move with the generator's patterns, which are the steering flow of the systems; only cloud layers above 0.45 of the tropopause (cirrus, altostratus,
         // which carry no precipitation) drift against the patterns with the wind of their height. The weight rises smoothly between the two heights.
         public static double LayerDecoupleWeight(BodyParams b, double heightM)
         {

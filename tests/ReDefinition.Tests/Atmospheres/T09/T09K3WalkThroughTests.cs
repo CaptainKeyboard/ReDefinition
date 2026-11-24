@@ -83,7 +83,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(begin >= 0 && end > begin, id + " has a begin and an end line");
                 if (!id.StartsWith("off_", StringComparison.Ordinal))
                 {
-                    Assert.IsTrue(Number(r, "T09d." + view + ".k3." + id + ".deck_median", id) > 0, id + " has a deck in its numeric frame");
+                    Assert.IsTrue(Number(r, "T09d." + view + ".k3." + id + ".cloud_median", id) > 0, id + " has a cloud in its numeric frame");
                     Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_k3-" + id + "-1707x960-natural-half")), id + " natural picture");
                     Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view + "_k3-aid1" + id + "-1707x960-aid-direct-half")), id + " aid picture");
                 }
@@ -143,7 +143,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void K3SheetLayerVariantsSetTheKeyOfTheLayerTheStackNames()
+        public void K3StratiformLayerVariantsSetTheKeyOfTheLayerTheStackNames()
         {
             Run r = StartK3(new[] { "plain_g", "lshift_g", "tfair_g", "toverride_g" });
             var seen = new Dictionary<string, Dictionary<string, double>>();
@@ -155,7 +155,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.5, seen["tfair_g"][CloudLookTuning.TuneTypeFair + "Kerbin-cumulus"], 1e-6);
             Assert.AreEqual(1.0, seen["toverride_g"][CloudLookTuning.TuneTypeOverride + "Kerbin-cumulus"], 1e-6);
             Assert.AreEqual(-99.0, seen["tfair_g"][CloudLookTuning.TuneLayerShift + "Kerbin-cumulus"], 1e-6, "the previous variant's key is gone");
-            Assert.AreEqual("Kerbin-cumulus", Values(r, "K3.sheet_layer", "lshift_g")[0].Value);
+            Assert.AreEqual("Kerbin-cumulus", Values(r, "K3.stratiform_layer", "lshift_g")[0].Value);
         }
 
         // The variants of each start of tests/series/K-T3.json, in order.

@@ -4,7 +4,7 @@ with the same metrics, for the spike of the atmosphere plan (.local/plans/season
 Sub-commands:
 
   stills <folder> [--reference <shots folder>]
-      The four views of the player's stills run (<view>_clear/_curtain/_slab/_both) and, per view, the same figures of the stored
+      The four views of the player's stills run (<view>_clear/_praecipitatio/_slab/_both) and, per view, the same figures of the stored
       frames of the game's EVE cell (cell-clear/far/mid/inside.png of a run in .local/work/atmospheres-test/run-cell*/shots). Metrics
       per view, in the sky above the horizon (at 25 km only the rows the cell reaches and the columns of its box):
         luma_mean      mean luma (the coded values, as in the stored screenshots)
@@ -15,7 +15,7 @@ Sub-commands:
         edge_contrast  at 25 km: the mean outside the cell's box minus the mean inside, over the outside, minus the same of the
                        clear frame (how well the cell's edge shows)
   sheet <folder> <out.png> [--reference <shots folder>]
-      A contact sheet: three views, own slab and curtain left, the stored EVE cell right.
+      A contact sheet: three views, own slab and praecipitatio left, the stored EVE cell right.
   turn <folder> [<folder> ...]
       The player's camera turns through the upscalers (frames at the display size, references at twice that, averaged down).
       In the sky band of the 25 km view: ghost_move (mean luma error against the reference over the moving frames), ghost_still
@@ -132,7 +132,7 @@ def stills(args):
         clear = load_player(args.folder, view + '_clear')
         if clear is None:
             continue
-        for variant in ('both', 'slab', 'curtain'):
+        for variant in ('both', 'slab', 'praecipitatio'):
             frame = load_player(args.folder, '%s_%s' % (view, variant))
             if frame is not None:
                 rows.append((view, 'own ' + variant, metrics(view, frame, clear, 'player')))
@@ -146,7 +146,7 @@ def stills(args):
 
 
 def sheet(args):
-    """The contact sheet of the three views: own cell (slab and curtain) left, the stored EVE cell right."""
+    """The contact sheet of the three views: own cell (slab and praecipitatio) left, the stored EVE cell right."""
     cell = (640, 360)
     sheet_image = Image.new('RGB', (cell[0] * 2 + 3 * 10, cell[1] * 3 + 4 * 10 + 3 * 18), (24, 24, 24))
     draw = ImageDraw.Draw(sheet_image)
@@ -154,7 +154,7 @@ def sheet(args):
         own = load_player(args.folder, view + '_both')
         eve = load_stored(args.reference, STORED[view])
         y = 10 + i * (cell[1] + 28)
-        for j, (label, frame) in enumerate((('own slab + curtain, ' + view, own), ('EVE cell as steered now, ' + view, eve))):
+        for j, (label, frame) in enumerate((('own slab + praecipitatio, ' + view, own), ('EVE cell as steered now, ' + view, eve))):
             x = 10 + j * (cell[0] + 10)
             draw.text((x, y), label, fill=(230, 230, 230))
             image = Image.fromarray((np.clip(frame, 0, 1) * 255).astype(np.uint8)).resize(cell, Image.LANCZOS)

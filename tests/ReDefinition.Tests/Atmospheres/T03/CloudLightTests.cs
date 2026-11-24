@@ -248,7 +248,7 @@ namespace ReDefinition.Tests
         {
             CloudLightMath.CellLight k = new CloudLightSettings().CellLight();
             double iso, isoLow;
-            // a deck lit from above: the incidence is the sun's elevation sine, so the source near the top grows with the sun as the photon walk's does (0.45 / 0.69 / 1.0 W at 0.5 / 0.7 / 0.94)
+            // a stratiform layer lit from above: the incidence is the sun's elevation sine, so the source near the top grows with the sun as the photon walk's does (0.45 / 0.69 / 1.0 W at 0.5 / 0.7 / 0.94)
             Assert.AreEqual(0.5, CloudLightMath.CellIncidence(20.0, 10.0, 1e-4), 1e-3);
             double high = CloudLightMath.CellDiffusion(1.0, 0.94, 0.08, 1200.0, 20000.0, 0.94, k, out iso);
             double low = CloudLightMath.CellDiffusion(1.0, 0.26, 0.08, 1200.0, 20000.0, 0.26, k, out isoLow);
@@ -257,7 +257,7 @@ namespace ReDefinition.Tests
             double near = CloudLightMath.CellDiffusion(5.0, 3.5, 0.08, 1200.0, 20000.0, 0.7, k, out iso);
             double far = CloudLightMath.CellDiffusion(120.0, 84.0, 0.08, 1200.0, 20000.0, 0.7, k, out iso);
             Assert.IsTrue(far < 0.5 * near, "near " + near + " far " + far);
-            // the chord of a deck is its height over the sun's sine, of a cell as wide as high its diameter
+            // the chord of a stratiform layer is its height over the sun's sine, of a cell as wide as high its diameter
             Assert.AreEqual(1200.0 / 0.5, CloudLightMath.CellChord(0.5, 1200.0, 1.0e7), 1.0);
             Assert.AreEqual(1600.0, CloudLightMath.CellChord(0.3, 1600.0, 1600.0), 1e-6);
             // no cell width: nothing, the octaves untouched

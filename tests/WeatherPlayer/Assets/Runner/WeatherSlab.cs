@@ -21,7 +21,7 @@ namespace ReDefinition.WeatherPlayer
         public Color SunColour = new Color(1.00f, 0.96f, 0.88f, 1f);
         public float SunShare = 0.3f;
         public Color Ambient = new Color(0.50f, 0.54f, 0.60f, 1f);
-        // The wind: a direction in degrees, the pattern's speed and the vertical shear as CurtainMath has them.
+        // The wind: a direction in degrees, the pattern's speed and the vertical shear as PraecipitatioMath has them.
         public float WindYaw = 20f, WindSpeed = 9f, Shear = 0.25f;
 
         // Sets a field by its name (the command line's -set name=value), false for a name that is not one.
@@ -44,10 +44,10 @@ namespace ReDefinition.WeatherPlayer
         }
     }
 
-    // The volume pass of the atmospheres and the storm curtain, drawn into the player's camera: the volume by command buffers (the march
-    // into a texture of its own size after the sky, then laid over the scene), the curtain as the mod draws it (a bounding cylinder with
-    // the curtain shader). Both read the camera's depth. The GPU time of the volume goes through the proxy's timestamp queries
-    // (WeatherGpuTimer); the curtain's is measured by VolumeCostScene.
+    // The volume pass of the atmospheres and the storm praecipitatio, drawn into the player's camera: the volume by command buffers (the march
+    // into a texture of its own size after the sky, then laid over the scene), the praecipitatio as the mod draws it (a bounding cylinder with
+    // the praecipitatio shader). Both read the camera's depth. The GPU time of the volume goes through the proxy's timestamp queries
+    // (WeatherGpuTimer); the praecipitatio's is measured by VolumeCostScene.
     internal sealed class WeatherSlab : MonoBehaviour
     {
         private static readonly int IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"),
@@ -56,28 +56,28 @@ namespace ReDefinition.WeatherPlayer
             IdAmbient = Shader.PropertyToID("_AmbientColour"), IdNoise = Shader.PropertyToID("_Noise"),
             IdHeights = Shader.PropertyToID("_Heights");
 
-        // Whether the volume and the curtain are drawn, the settings, the jitter in render pixels, and the frame's number.
-        internal bool SlabOn = true, CurtainOn = true;
+        // Whether the volume and the praecipitatio are drawn, the settings, the jitter in render pixels, and the frame's number.
+        internal bool SlabOn = true, PraecipitatioOn = true;
         internal CellSettings Cell = new CellSettings();
         internal Vector2 JitterPixels;
         internal int Frame;
-        // The curtain's rays are marched at most this far while the camera is inside the cell, m, and its step count.
-        internal float CurtainSteps = 28f;
+        // The praecipitatio's rays are marched at most this far while the camera is inside the cell, m, and its step count.
+        internal float PraecipitatioSteps = 28f;
 
         private Camera cam;
-        private Material curtainMaterial;
+        private Material praecipitatioMaterial;
         private Texture3D noise;
-        private CommandBuffer markBeforeCurtain, markAfterCurtain;
-        private GameObject curtainObject;
-        private Transform curtainTransform;
+        private CommandBuffer markBeforePraecipitatio, markAfterPraecipitatio;
+        private GameObject praecipitatioObject;
+        private Transform praecipitatioTransform;
 
         // The march texture the last frame wrote, for the analytic motion pass.
         internal RenderTexture SlabTexture { get { return Volume != null ? Volume.Renderer.Target : null; } }
 
-        // Why the volume or the curtain cannot be drawn, or null.
+        // Why the volume or the praecipitatio cannot be drawn, or null.
         internal string Problem;
 
-        // The volume pass of the atmospheres (scenario -scenario, tuning -vset name=v;name=v; -volume 0 draws the curtain alone): the
+        // The volume pass of the atmospheres (scenario -scenario, tuning -vset name=v;name=v; -volume 0 draws the praecipitatio alone): the
         // window, the renderer and the frame numbers.
         internal VolumeSetup Volume;
 
@@ -91,20 +91,20 @@ namespace ReDefinition.WeatherPlayer
         // The jitter index of the frame (the upscaler's phase), set by the pass with the jitter.
         internal int JitterIndex;
 
-        // The volume pass's share S of the curtain gate, 0 to 1 (the curtain's step count follows it).
-        internal float CurtainShare = 1f;
+        // The volume pass's share S of the praecipitatio gate, 0 to 1 (the praecipitatio's step count follows it).
+        internal float PraecipitatioShare = 1f;
 
         internal void Init(Camera camera)
         {
             cam = camera;
-            Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
-            if (curtainShader == null)
+            Shader praecipitatioShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
+            if (praecipitatioShader == null)
             {
-                Problem = "shader missing: curtain";
+                Problem = "shader missing: praecipitatio";
                 return;
             }
-            int size = CurtainMath.NoiseSize;
-            byte[] voxels = StormNoise.Volume(size, CurtainMath.NoisePeriod, CurtainMath.NoiseOctaves, CurtainMath.NoiseSeed);
+            int size = PraecipitatioMath.NoiseSize;
+            byte[] voxels = StormNoise.Volume(size, PraecipitatioMath.NoisePeriod, PraecipitatioMath.NoiseOctaves, PraecipitatioMath.NoiseSeed);
             noise = new Texture3D(size, size, size, TextureFormat.RGBA32, true)
             {
                 name = "weather player noise",
@@ -116,24 +116,24 @@ namespace ReDefinition.WeatherPlayer
             noise.SetPixels32(colours);
             noise.Apply(true, true);
 
-            curtainMaterial = new Material(curtainShader) { hideFlags = HideFlags.HideAndDontSave };
-            curtainMaterial.SetTexture(IdNoise, noise);
-            curtainMaterial.EnableKeyword("STORM_DEPTH");
+            praecipitatioMaterial = new Material(praecipitatioShader) { hideFlags = HideFlags.HideAndDontSave };
+            praecipitatioMaterial.SetTexture(IdNoise, noise);
+            praecipitatioMaterial.EnableKeyword("STORM_DEPTH");
 
-            curtainObject = new GameObject("weather player curtain");
-            curtainObject.AddComponent<MeshFilter>().sharedMesh = CylinderMesh();
-            var renderer = curtainObject.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = curtainMaterial;
+            praecipitatioObject = new GameObject("weather player praecipitatio");
+            praecipitatioObject.AddComponent<MeshFilter>().sharedMesh = CylinderMesh();
+            var renderer = praecipitatioObject.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = praecipitatioMaterial;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
-            curtainTransform = curtainObject.transform;
+            praecipitatioTransform = praecipitatioObject.transform;
 
-            markBeforeCurtain = new CommandBuffer { name = "weather curtain start" };
-            markAfterCurtain = new CommandBuffer { name = "weather curtain end" };
-            WeatherGpuTimer.Mark(markBeforeCurtain, WeatherGpuTimer.CurtainStart);
-            WeatherGpuTimer.Mark(markAfterCurtain, WeatherGpuTimer.CurtainEnd);
-            cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, markBeforeCurtain);
-            cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, markAfterCurtain);
+            markBeforePraecipitatio = new CommandBuffer { name = "weather praecipitatio start" };
+            markAfterPraecipitatio = new CommandBuffer { name = "weather praecipitatio end" };
+            WeatherGpuTimer.Mark(markBeforePraecipitatio, WeatherGpuTimer.PraecipitatioStart);
+            WeatherGpuTimer.Mark(markAfterPraecipitatio, WeatherGpuTimer.PraecipitatioEnd);
+            cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, markBeforePraecipitatio);
+            cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, markAfterPraecipitatio);
 
             string volumeArgument = WeatherPass.Argument("-volume");
             if (volumeArgument != "0")
@@ -157,42 +157,42 @@ namespace ReDefinition.WeatherPlayer
                     return;
                 }
                 Volume.Renderer.Attach(cam, CameraEvent.AfterSkybox);
-                // The curtain stands under the core: its base is the core's, its width a share of the core's radius.
+                // The praecipitatio stands under the core: its base is the core's, its width a share of the core's radius.
                 Cell.BaseM = 1100f;
                 Cell.Radius = 4500f;
-                CurtainShare = Volume.Get("volume.curtainS", 1f);
-                CurtainSteps = VolumeMath.CurtainSteps(CurtainShare);
+                PraecipitatioShare = Volume.Get("volume.praecipitatioS", 1f);
+                PraecipitatioSteps = VolumeMath.PraecipitatioSteps(PraecipitatioShare);
             }
         }
 
-        // The bounding cylinder of the curtain, radius 1 and height 1 from y 0, as CurtainPass builds it.
+        // The bounding cylinder of the praecipitatio, radius 1 and height 1 from y 0, as PraecipitatioPass builds it.
         private static Mesh CylinderMesh()
         {
-            float[] v = CurtainMath.CylinderVertices(CurtainMath.Segments);
+            float[] v = PraecipitatioMath.CylinderVertices(PraecipitatioMath.Segments);
             var vertices = new Vector3[v.Length / 3];
             for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
             var mesh = new Mesh { name = "weather player cylinder" };
             mesh.vertices = vertices;
-            mesh.triangles = CurtainMath.CylinderTriangles(CurtainMath.Segments);
+            mesh.triangles = PraecipitatioMath.CylinderTriangles(PraecipitatioMath.Segments);
             mesh.bounds = new Bounds(new Vector3(0f, 0.5f, 0f), new Vector3(2f, 1f, 2f));
             return mesh;
         }
 
-        // The curtain's frame and the wind offsets of the frame; written before the camera culls. The frame's time is its number
+        // The praecipitatio's frame and the wind offsets of the frame; written before the camera culls. The frame's time is its number
         // over 60, so that a run repeats.
         internal void Prepare()
         {
-            if (curtainMaterial == null) return;
+            if (praecipitatioMaterial == null) return;
             CellSettings c = Cell;
             float time = Frame / 60f;
             double yaw = c.WindYaw * Math.PI / 180.0;
             float dx = (float)Math.Cos(yaw), dz = (float)Math.Sin(yaw);
-            float offsetX = CurtainMath.Wrap(dx * c.WindSpeed * time, CurtainMath.CloudTileM);
-            float offsetZ = CurtainMath.Wrap(dz * c.WindSpeed * time, CurtainMath.CloudTileM);
-            float fall = CurtainMath.Wrap(CurtainMath.FallSpeed * time, CurtainMath.StreakTileM);
+            float offsetX = PraecipitatioMath.Wrap(dx * c.WindSpeed * time, PraecipitatioMath.CloudTileM);
+            float offsetZ = PraecipitatioMath.Wrap(dz * c.WindSpeed * time, PraecipitatioMath.CloudTileM);
+            float fall = PraecipitatioMath.Wrap(PraecipitatioMath.FallSpeed * time, PraecipitatioMath.StreakTileM);
 
             Transform t = cam.transform;
-            Material m = curtainMaterial;
+            Material m = praecipitatioMaterial;
             m.SetVector(IdCell, new Vector4(0f, 0f, 0f, c.Radius));
             m.SetVector(IdUp, new Vector4(0f, 1f, 0f, 0f));
             m.SetVector(IdRight, new Vector4(1f, 0f, 0f, 0f));
@@ -200,17 +200,17 @@ namespace ReDefinition.WeatherPlayer
             m.SetVector(IdSunColour, c.SunColour);
 
             float below = 150f;
-            curtainTransform.position = new Vector3(0f, -below, 0f);
-            curtainTransform.localScale = new Vector3(c.Radius * CurtainMath.Widening, c.BaseM + CurtainMath.SnowOnlyHeadroomM + below,
-                                                      c.Radius * CurtainMath.Widening);
-            m.SetVector(IdHeights, new Vector4(c.BaseM, c.BaseM + CurtainMath.SnowOnlyHeadroomM, below, 0.6f));
-            m.SetVector(IdWind, new Vector4(offsetX, offsetZ, dx * (float)CurtainMath.Shear, fall));
+            praecipitatioTransform.position = new Vector3(0f, -below, 0f);
+            praecipitatioTransform.localScale = new Vector3(c.Radius * PraecipitatioMath.Widening, c.BaseM + PraecipitatioMath.SnowOnlyHeadroomM + below,
+                                                      c.Radius * PraecipitatioMath.Widening);
+            m.SetVector(IdHeights, new Vector4(c.BaseM, c.BaseM + PraecipitatioMath.SnowOnlyHeadroomM, below, 0.6f));
+            m.SetVector(IdWind, new Vector4(offsetX, offsetZ, dx * (float)PraecipitatioMath.Shear, fall));
             float longest = 60000f + c.Radius * 2f;
             Vector3 p = t.position;
             if (Mathf.Sqrt(p.x * p.x + p.z * p.z) < c.Radius) longest = Mathf.Min(longest, Mathf.Max(4f * 60f, 1.5f * c.BaseM));
-            m.SetVector(IdLook, new Vector4(1f, CurtainSteps, dz * (float)CurtainMath.Shear, longest));
+            m.SetVector(IdLook, new Vector4(1f, PraecipitatioSteps, dz * (float)PraecipitatioMath.Shear, longest));
             m.SetVector(IdAmbient, new Color(0.72f, 0.76f, 0.82f, 1f));
-            curtainObject.SetActive(CurtainOn);
+            praecipitatioObject.SetActive(PraecipitatioOn);
 
             if (Volume != null)
             {
@@ -221,12 +221,12 @@ namespace ReDefinition.WeatherPlayer
         }
     }
 
-    // The GPU time of the slab's passes and the curtain, by the proxy's timestamp queries (src/Probe/GpuProfiler.cs asks the same
+    // The GPU time of the slab's passes and the praecipitatio, by the proxy's timestamp queries (src/Probe/GpuProfiler.cs asks the same
     // exports): a marker issued into the render stream ends a query, and the proxy hands back the frame's markers in order with
     // the milliseconds from the Present before to each.
     internal static class WeatherGpuTimer
     {
-        internal const int SlabStart = 101, SlabMarched = 102, SlabComposited = 103, CurtainStart = 104, CurtainEnd = 105;
+        internal const int SlabStart = 101, SlabMarched = 102, SlabComposited = 103, PraecipitatioStart = 104, PraecipitatioEnd = 105;
         private const string Proxy = ReDefinition.Proxy.ProxyDll.Name;
         private static IntPtr markerFunc;
         private static bool failed;
@@ -260,8 +260,8 @@ namespace ReDefinition.WeatherPlayer
                 KspProfSetLabel(SlabStart, "slab start");
                 KspProfSetLabel(SlabMarched, "slab march");
                 KspProfSetLabel(SlabComposited, "slab composite");
-                KspProfSetLabel(CurtainStart, "curtain start");
-                KspProfSetLabel(CurtainEnd, "curtain");
+                KspProfSetLabel(PraecipitatioStart, "praecipitatio start");
+                KspProfSetLabel(PraecipitatioEnd, "praecipitatio");
                 return markerFunc != IntPtr.Zero;
             }
             catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException)

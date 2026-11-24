@@ -14,7 +14,7 @@ namespace ReDefinition.Atmospheres
     {
         // Lit by the sun (a short march towards it) and by the sky: the clouds.
         Weather = 0,
-        // Lit by the sky and one sun tap, no march towards the sun: thin high layers and flat decks that need no self-shadow.
+        // Lit by the sky and one sun tap, no march towards the sun: thin high layers and flat stratiform layers that need no self-shadow.
         Cheap = 1,
         // A fog layer on the ground: lit by the sky and a fixed share of the sun, no march towards the sun.
         Fog = 2,
@@ -51,13 +51,13 @@ namespace ReDefinition.Atmospheres
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
 
-        // The type's light response by height (E40 B3; cfg keys baseLight, headLight, baseAmbient, headAmbient): factors on the direct light and on the sky's fill at the type's base
+        // The type's light response by height (E40 B3; cfg keys baseLight, topLight, baseAmbient, topAmbient): factors on the direct light and on the sky's fill at the type's base
         // and at its top, smoothly between (1: the global fit). A cumulus gets a shaded flat base and bright hard-lit heads, a stratus a flat dark base. Baked into the type's
         // tabulated profile texture (channels g and b, LayerTypeTable.LightAt), read by the layer shader at the sample.
         internal float BaseLight { get; set; } = 1f;
-        internal float HeadLight { get; set; } = 1f;
+        internal float TopLight { get; set; } = 1f;
         internal float BaseAmbient { get; set; } = 1f;
-        internal float HeadAmbient { get; set; } = 1f;
+        internal float TopAmbient { get; set; } = 1f;
 
         // The type's height-shaped threshold (E40 L2 D1; cfg node LIFT { key0 = height lift, ... }, null: none): at the height h of the type (0 base, 1 top) the coverage threshold is lifted by
         // lift(h) in units of the layer's headroom (LayerTypeTable.LiftHeadroom: 1 lowers the map so far that no noise value passes even at map 1), so the cloud's outline is narrower there
@@ -69,32 +69,33 @@ namespace ReDefinition.Atmospheres
         // type's top no column passes the threshold whatever the map and the noise, and each column ends where its own map and noise value meet the rising lift: its height follows its
         // excess over the threshold, as a convective top follows its parcel's buoyancy. Without it the columns the LIFT cannot close (most of them: the headroom is 1.1 to 2 map units, the
         // LIFT curves ended at 0.2 to 0.5) stood to the type's top and the profile's last tenth cut them into one flat lid (TopClosureTests: 43 to 73 % of the humilis columns, 75 to 93 %
-        // of the incus columns, all of the decks). A closure over a quarter still left every cumulus top within the upper 300 m (a lid in the player); the convective types close over
+        // of the incus columns, all of the low stratiform layers). A closure over a quarter still left every cumulus top within the upper 300 m (a lid in the player); the convective types close over
         // 0.8. 0: no closure (the profile alone ends the type).
         internal const float DefaultTopClose = 0.25f;
         internal float TopClose { get; set; } = DefaultTopClose;
         // How much a tower of this type feeds an anvil (E40 CB; cfg key outflow, 0 to 1, 0: none): a cumulonimbus incus spreads its outflow at the tropopause, a calvus not yet (AnvilMap).
         internal float Outflow { get; set; }
-        // M2c (the low decks, 2026-11-23): the depth of the type's rolls (cfg key rollAmount, 0 to 1; 0: none): the type's thickness swings by this share across long rolls
-        // that lie across the level's wind (stratus undulatus, the reference photos' parallel bands; the base stays even), the roll length cloud.rollLengthShare of the
-        // layer's depth. Drawn only while the tuning key cloud.sheetRolls is on (default off: the deck of before).
-        internal float RollAmount { get; set; }
+        // M2c (the low stratiform layers, 2026-11-23): the depth of the type's undulations (variety undulatus, WMO International Cloud Atlas; cfg key undulatusAmount, 0 to 1; 0: none):
+        // the type's thickness swings by this share in long, nearly parallel waves across the level's wind, so the top undulates (seen from above as the waves of
+        // Stratus_clouds_Vodno_4.jpg; from below as lighter and darker bands) while the base stays even; the wavelength cloud.undulatusWavelengthShare of the layer's
+        // depth. Drawn only while the tuning key cloud.undulatus is on (default off: the layer of before).
+        internal float UndulatusAmount { get; set; }
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see
         // CloudLayerDef.ShapeSmoothing. A tall type (congestus) needs it, a flat sheet (stratocumulus) wants the volume's fine octaves for its lumps. The GPU reads it from the type
         // info texture's alpha (LayerTypeTable.SmoothingOf).
         internal float ShapeSmoothing { get; set; } = -1f;
-        // CLOUDR1 P2: the heap preset of the type's macro shape (cfg key heap = billow | rough | none; HeapModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
-        internal int Heap { get; set; }
+        // CLOUDR1 P2: the cumuliform preset of the type's macro shape (cfg key cumuliform = bulge | rough | none; CumuliformModel.PresetOf: 0, the shape volume of today). Read by every consumer of the shape.
+        internal int Cumuliform { get; set; }
         // CLOUDR1 P1: the exponent of the type's density rim (cfg key edgePower; 0: the layer's waterPower). Below 1 the rim turns opaque within a short distance (a crisp outline), above
         // it the rim is a long translucent ramp. The water content at the outline (CloudLayerDef.SoftClosed) and every reader of the share follow it.
         internal float EdgePower { get; set; }
-        // CLOUDR1 P3: how strongly the heap volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
+        // CLOUDR1 P3: how strongly the cumuliform volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
         internal float Cavity { get; set; }
-        // CLOUD FIELD: the puffy form of the type (cfg key puff = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
-        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the billows of the heap preset); 0: the type is not drawn puffy.
-        internal int Puff { get; set; }
+        // CLOUD FIELD: the cloud form of the type (cfg key form = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
+        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn as single clouds.
+        internal int Form { get; set; }
 
         internal double LiftAt(double h)
         {
@@ -116,8 +117,8 @@ namespace ReDefinition.Atmospheres
         {
             double x = h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h;
             double s = x * x * (3.0 - 2.0 * x);
-            direct = BaseLight + (HeadLight - BaseLight) * s;
-            ambient = BaseAmbient + (HeadAmbient - BaseAmbient) * s;
+            direct = BaseLight + (TopLight - BaseLight) * s;
+            ambient = BaseAmbient + (TopAmbient - BaseAmbient) * s;
         }
 
         // The factor the type's profile is multiplied by at a height share h of the type (0 base, 1 top): its density scale, with the rise by height where the soft density is on.
@@ -219,7 +220,7 @@ namespace ReDefinition.Atmospheres
         // water below the outline must not appear where the map is low: the map value is moved before the share, map' = min(map, 2 map - K) (ClearSkyMap), K = closed w - (T - C).
         // Where the layer has no noise (cfg noiseAmount 0) it keeps the plain soft edge of its cfg numbers.
         internal bool Soft { get { return NoiseAmount > 0f; } }
-        // The factor on the owner's softness: the layer's cfg key softnessScale (a weather deck softer, a cirrus sheet softest).
+        // The factor on the owner's softness: the layer's cfg key softnessScale (a low stratiform weather layer softer, a cirrus sheet softest).
         internal float SoftnessScale { get; set; } = 1f;
         // The exponent of the water content in the density: the layer's cfg key waterPower (2: the density grows with the square of the water; 1: thin sheets have no core).
         internal float WaterPower { get; set; } = 2f;
@@ -244,40 +245,40 @@ namespace ReDefinition.Atmospheres
         internal float AmbientMs { get; set; } = DefaultAmbientMs;
         internal float AmbientDecay { get; set; } = DefaultAmbientDecay;
         // The width of the layer's cloud cells in m for the sun's diffusion in a lit (Weather) layer (cfg key lightCellWidth; E40 LM2, CloudLightMath.CellDiffusion; the shader's _LightM.w):
-        // the light's far depth is the chord of an ellipsoid of the type's height and this width, and a cell loses light through its sides over it. A deck is tens of km wide (its
+        // the light's far depth is the chord of an ellipsoid of the type's height and this width, and a cell loses light through its sides over it. A stratiform layer is tens of km wide (its
         // chord is the slab's height over the sun's sine), a cumulus cell about as wide as high. 0: none (the slab-fitted diffusion term of before).
         internal float LightCellWidth { get; set; }
         // The type value of the layer at full precipitation (cfg key rainType, 1: the last type of the table; see CloudLookTuning.TypeValue).
         internal float RainType { get; set; } = 1f;
-        // How much longer the layer's noise features are along the planet's axis than across it (cfg key fibreStretch, 1 and above; 1: isotropic): the lookup is compressed along the
-        // axis by 1 / FibreStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus fibres; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
+        // How much longer the layer's noise features are along the planet's axis than across it (cfg key filamentStretch, 1 and above; 1: isotropic): the lookup is compressed along the
+        // axis by 1 / FilamentStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus filaments; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
         // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
-        internal float FibreStretch { get; set; } = 1f;
+        internal float FilamentStretch { get; set; } = 1f;
         // The pitch of the layer's cloud cells in m (cfg key cellPitch, 0: none; CELLS, owner order 2026-11-17). The layer map (a texel of 7.4 km on Kerbin) says how much of a region
         // is cloud; the cells put that share down as single clouds: a jittered lattice of this pitch on the sphere, each cell a disc whose radius follows the map's cloud share (CloudCells.cginc).
         internal float CellPitchM { get; set; }
-        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the billow noise moves).
-        // CellBillow (cfg key cellBillow): how far the billows move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
-        // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer billow octaves (0.37 and 0.137 of the
+        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the bulge noise moves).
+        // CellBulge (cfg key cellBulge): how far the bulges move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
+        // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer bulge octaves (0.37 and 0.137 of the
         // first's size), the heads on the heads (0: not read). The defaults are the look the owner chose on 2026-11-17 (the player's photo framing, c_pv_f1).
-        internal float CellBillow { get; set; } = DefaultCellBillow;
+        internal float CellBulge { get; set; } = DefaultCellBulge;
         internal float CellBandM { get; set; } = DefaultCellBandM;
         internal float CellFine { get; set; } = DefaultCellFine;
-        internal const float DefaultCellBillow = 0.5f, DefaultCellBandM = 10f, DefaultCellFine = 1f;
+        internal const float DefaultCellBulge = 0.5f, DefaultCellBandM = 10f, DefaultCellFine = 1f;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale, 0: the body's sphereScale key, 1: the lattice is isotropic): the radial distance from the layer's middle is
         // multiplied by it before the volumes are read, so below 1 the features are 1 / VerticalScale times longer in the vertical than across. A convective cloud is a column: the air that
         // rises in a cell is the same over the depth of the cloud, so the noise that decides where it stands must not change over that depth, or the bodies float at different heights and
-        // the tops are slivers (E40 L5 shape). A deck (stratus, fog) keeps 1.
+        // the tops are slivers (E40 L5 shape). A low stratiform layer (stratus, fog) keeps 1.
         internal float VerticalScale { get; set; }
         // How far the layer's shape noise is smoothed (cfg key shapeSmoothing, in noise scales: the width of the box the shape volume is averaged over before it is read; 0: the volume
         // as it is). The top of a cloud is where the shape noise crosses the type's rising threshold, so a top stands higher by the noise's swing over the threshold's slope, and the
         // fine octaves of the volume (cone-shaped Worley peaks among them) turn into narrow spires that are a kilometre tall (E40 L6 shape). Averaged, those octaves are gone and the
         // tops are rounded: the volume's mip chain, each level equalised again so that the share of the sky a map value covers does not move (NoiseVolumeSet.ShapeMips).
         internal float ShapeSmoothing { get; set; }
-        // The fibre axis of the layer (cfg keys fibreMinWindMs and fibreTurnSeconds): the wind below which the fibres keep to the body's pole, and the time the axis takes to turn to a
-        // new wind (FibreAxis).
-        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
-        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The filament axis of the layer (cfg keys filamentMinWindMs and filamentTurnSeconds): the wind below which the filaments keep to the body's pole, and the time the axis takes to turn to a
+        // new wind (FilamentAxis).
+        internal float FilamentMinWindMs { get; set; } = FilamentAxis.DefaultMinWindMs;
+        internal float FilamentTurnSeconds { get; set; } = FilamentAxis.DefaultTurnSeconds;
         // The tops of the layer's convective types follow the updraft of their cell (cfg keys topReach, topRefMs and topFullMs; HeightPlan.TuningFor): TopReach is the most a top is moved up
         // or down as a share of the layer's thickness, TopRefMs the updraft at which a top stands where the type table puts it, TopFullMs the updraft at which it has moved by the whole
         // reach. 0 (TopReach): the body's own numbers in m (HeightTuning), the behaviour before E40 L6.
@@ -293,7 +294,7 @@ namespace ReDefinition.Atmospheres
         internal float AnvilSeconds { get; set; } = DefaultAnvilSeconds;
         internal float AnvilUpdraftMs { get; set; } = DefaultAnvilUpdraftMs;
         internal float AnvilScale { get; set; } = 1f;
-        // The layer's towers come from the generator's list of living convective cells (cfg key cellList; WeatherGenerator.Cells) and not from the point-sampled layer map with the deck rule and
+        // The layer's towers come from the generator's list of living convective cells (cfg key cellList; WeatherGenerator.Cells) and not from the point-sampled layer map with the low stratiform rule and
         // the meso stage: AnvilMap.PaintCells draws each cell's footprint into the maps area-averaged over the texel, AnvilMap.ApplyCells spreads each cell's anvil from the cell's own numbers
         // (centre, radius, strength). Off by default; the layer needs an anvil type.
         internal bool CellList { get; set; }
@@ -471,8 +472,8 @@ namespace ReDefinition.Atmospheres
         internal float NoiseScaleM { get; set; }
         // The type value where no precipitation falls (CloudLayerSpec.FairType; -1: the precipitation level itself). The tuning key cloud.typeFair.<name> goes before it.
         internal float FairType { get; set; } = -1f;
-        // What may draw the layer (WeatherDeckRule); null: the layer is drawn wherever its coverage map passes. The tuning key cloud.deckRule.<name> switches it off (0) or on (1).
-        internal WeatherDeckRule Deck { get; set; }
+        // What may draw the layer (WeatherLowStratiformRule); null: the layer is drawn wherever its coverage map passes. The tuning key cloud.lowStratiformRule.<name> switches it off (0) or on (1).
+        internal WeatherLowStratiformRule LowStratiform { get; set; }
         // The longitude the layer's maps are turned by against the body's frame, degrees (the layer turns with its wind).
         internal float MapShiftDeg { get; set; }
 

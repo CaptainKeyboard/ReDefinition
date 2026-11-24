@@ -7,7 +7,7 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The look starts of K-T2d (T09ProbeLook: -atmoLook A for start 51, B for start 52) against the fake world: the frames each one takes, the expectation rows that come before a frame,
-    // the map profile along the view, the set selection by the command line, and the failures it must name. The fake draws a deck for every frame whose mask includes a layer.
+    // the map profile along the view, the set selection by the command line, and the failures it must name. The fake draws a cloud layer for every frame whose mask includes a layer.
     public partial class T09WalkThroughTests
     {
         private Run StartLook(string mode, string sets = null, string win = null, Action<Run> tweak = null)
@@ -68,7 +68,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 foreach (string frame in new[] { "kC0", "kC0m8", "kC4", "kC4m8", "kC5", "kC5m8", "kovr" })
                 {
                     string q = p + frame + ".";
-                    Assert.IsTrue(Row(r, q + "deck_median") > 0, q + "has a deck row");
+                    Assert.IsTrue(Row(r, q + "cloud_median") > 0, q + "has a cloud layer row");
                     double mean = Row(r, q + "expect_closed_mean");
                     Assert.IsTrue(mean >= 0 && mean <= 1, q + "expectation " + mean);
                     Assert.IsTrue(Row(r, q + "expect_closed_p10") <= mean + 1e-9 && mean <= Row(r, q + "expect_closed_p90") + 1e-9, q + "the spread brackets the mean");
@@ -76,41 +76,41 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 }
                 // The expectation row is written before the frame's own rows: its line comes before the readout of the same frame in the log of rows.
                 int expectAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "kC4.expect_closed_mean\""));
-                int readAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "kC4.deck_median\""));
+                int readAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "kC4.cloud_median\""));
                 Assert.IsTrue(expectAt >= 0 && readAt > expectAt, p + "the expectation is written first");
                 // The map profile along the view: the layers' maps at 0, 5, 10, 20, 40 and 80 km.
                 foreach (int l in new[] { 0, 1, 2, 3 })
                     foreach (string km in new[] { "0", "5", "10", "20", "40", "80" })
                         Assert.IsTrue(Row(r, p + "L" + l + ".map_at_" + km + "_km") >= 0, p + "map profile L" + l + " " + km);
-                Assert.AreEqual("Kerbin-cumulus", Values(r, p + "sheet_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
+                Assert.AreEqual("Kerbin-cumulus", Values(r, p + "stratiform_layer", "plain")[0].Value, "the sheet layer is the highest map outside the rain group");
                 Assert.AreEqual(0.665, Row(r, p + "kovr.forced_map"), 1e-6);
             }
             // The forced map reaches the tuning table (the key of the sheet layer) while its frame is taken, and the keys of a set while its frames are.
             Assert.IsTrue(r.Log.Count > 0);
-            // The ground view: the layers alone under the winning set (the last selected: C5), and the rain deck's two coverages.
+            // The ground view: the layers alone under the winning set (the last selected: C5), and the low stratiform rain layer's two coverages.
             foreach (string cover in new[] { "low", "high" })
             {
                 for (int k = 0; k < 4; k++) Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-ground_" + cover + "-wC5o" + k + "-1707x960-natural-half")), "layer " + k + " alone, " + cover);
-                foreach (string q in new[] { "q50", "q42" }) Assert.IsTrue(Row(r, "T09d.ground." + cover + "." + q + ".deck_median") >= 0, q + " rows, " + cover);
+                foreach (string q in new[] { "q50", "q42" }) Assert.IsTrue(Row(r, "T09d.ground." + cover + "." + q + ".cloud_median") >= 0, q + " rows, " + cover);
             }
-            // The above view at the high cover is not read by look A, except the rain deck alone (P3), like the inside view.
+            // The above view at the high cover is not read by look A, except the low stratiform rain layer alone (P3), like the inside view.
             Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-above_high-kC0-")), "no set frames above the high cover");
-            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-l0in-")) && r.World.Saved.Any(n => n.Contains("-above_high-l0up-")), "the rain deck alone from inside and from above");
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-l0in-")) && r.World.Saved.Any(n => n.Contains("-above_high-l0up-")), "the low stratiform rain layer alone from inside and from above");
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-inside_high-off-")) && r.World.Saved.Any(n => n.Contains("-above_high-off-")));
-            // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the rain deck from inside and above (2 x 2)
-            // + the aid frames of the optical depth: 3 pairs x 2 sets (the current one and the winning one at shift 0) + the two rain deck frames.
-            // + the order pair (start 52): 2 poses x 2 frames; the rain deck alone from 2.3 km (off, l0mid, aid); the aid frames of the layers alone (L0 and L1) at both covers of the ground view.
+            // 3 pairs x (off + 6 set frames + forced map) + ground x 2 covers x (4 layers + 2 rain frames) + the low stratiform rain layer from inside and above (2 x 2)
+            // + the aid frames of the optical depth: 3 pairs x 2 sets (the current one and the winning one at shift 0) + the two low stratiform rain layer frames.
+            // + the order pair (start 52): 2 poses x 2 frames; the low stratiform rain layer alone from 2.3 km (off, l0mid, aid); the aid frames of the layers alone (L0 and L1) at both covers of the ground view.
             Assert.AreEqual(3 * 8 + 2 * 6 + 4 + 3 * 2 + 2 + 4 + 3 + 4, r.World.Saved.Count, string.Join(",", r.World.Saved.Take(6).ToArray()));
             foreach (string pose in new[] { "ground.low", "above.low" })
             {
                 string o = "T09d." + pose + ".";
                 foreach (string frame in new[] { "ord1", "ord0" })
-                    Assert.IsTrue(Row(r, o + frame + ".deck_median") > 0, o + frame + " has a deck row");
+                    Assert.IsTrue(Row(r, o + frame + ".cloud_median") > 0, o + frame + " has a cloud layer row");
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + pose.Replace('.', '_') + "-ord0-")) && r.World.Saved.Any(n => n.Contains("-" + pose.Replace('.', '_') + "-ord1-")), pose + " order pair pictures");
             }
-            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-deck_high-l0mid-")) && r.World.Saved.Any(n => n.Contains("-deck_high-off-")), "the rain deck alone from 2.3 km");
-            Assert.IsTrue(Row(r, "T09d.deck.high.aid1l0mid.aidtau_n") > 0, "aid frame of the rain deck from 2.3 km");
-            Assert.IsTrue(Row(r, "T09d.deck.high.l0mid.expect_tau_zenith_mean") >= 0, "the oracle's zenith tau for the deck alone");
+            Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-lowstratiform_high-l0mid-")) && r.World.Saved.Any(n => n.Contains("-lowstratiform_high-off-")), "the low stratiform rain layer alone from 2.3 km");
+            Assert.IsTrue(Row(r, "T09d.lowstratiform.high.aid1l0mid.aidtau_n") > 0, "aid frame of the low stratiform rain layer from 2.3 km");
+            Assert.IsTrue(Row(r, "T09d.lowstratiform.high.l0mid.expect_tau_zenith_mean") >= 0, "the oracle's zenith tau for the cloud layer alone");
             foreach (string cover in new[] { "low", "high" })
                 foreach (int k in new[] { 0, 1 })
                 {
@@ -129,12 +129,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
                     double closed = Row(r, p + frame + ".expect_zenith_closed");
                     Assert.IsTrue(closed >= 0 && closed <= 1, p + frame + " zenith closed share");
                     Assert.IsTrue(Row(r, p + "aid1" + frame + ".aidtau_n") > 0, p + frame + " aid tau samples");
-                    int natural = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + frame + ".deck_median\""));
+                    int natural = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + frame + ".cloud_median\""));
                     int aidAt = r.Rows.FindIndex(l => l.Contains("\"metric\":\"" + p + "aid1" + frame + ".aidtau_n\""));
                     Assert.IsTrue(natural >= 0 && aidAt > natural, p + frame + " the aid frame follows the natural frame");
                 }
             }
-            Assert.IsTrue(Row(r, "T09d.inside.high.aid1l0in.aidtau_n") > 0 && Row(r, "T09d.above.high.aid1l0up.aidtau_n") > 0, "aid frames of the rain deck from inside and above");
+            Assert.IsTrue(Row(r, "T09d.inside.high.aid1l0in.aidtau_n") > 0 && Row(r, "T09d.above.high.aid1l0up.aidtau_n") > 0, "aid frames of the low stratiform rain layer from inside and above");
             // The only warnings are the four frames of the order pair, which name that the fake has no pass that read the camera's buffer order.
             Assert.AreEqual(4.0, Number(r, "T09.pictures.warnings"));
         }
@@ -195,48 +195,48 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 string p = "T09d." + view + ".";
                 foreach (string frame in new[] { "t0", "e14", "air1", "t0b" })
                 {
-                    Assert.IsTrue(Row(r, p + frame + ".deck_median") > 0, p + frame);
+                    Assert.IsTrue(Row(r, p + frame + ".cloud_median") > 0, p + frame);
                     Assert.IsTrue(Row(r, p + frame + ".sun_r") > 0 && Row(r, p + frame + ".sun_g") > 0 && Row(r, p + frame + ".sun_b") > 0, p + frame + " sun colour");
                 }
                 Assert.IsTrue(Row(r, p + "off2.sky_n") > 0 || Row(r, p + "off2.ground_n") > 0, p + "the second baseline frame (the noise floor) is read");
                 Assert.IsTrue(Row(r, p + "off.prof_b0_n") >= 0, p + "the baseline's row profile");
             }
-            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, haze off and on), their repeat, the baseline and its repeat, the order frames 1, 0, 0, 1.
+            // The horizon pose at the low cover: eight frames (fade 0 / 20 / 40 / 80 km, aerial perspective off and on), their repeat, the baseline and its repeat, the order frames 1, 0, 0, 1.
             foreach (string frame in new[] { "hz0h0", "hz0h1", "hz20h0", "hz20h1", "hz40h0", "hz40h1", "hz80h0", "hz80h1", "hz0h0b" })
             {
-                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".cloud_median") >= 0, frame);
                 Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".expect_closed_mean") >= 0, frame + " expectation");
             }
             foreach (string frame in new[] { "ord1", "ord0", "ord0b", "ord1b" })
             {
-                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".deck_median") >= 0, frame);
+                Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".cloud_median") >= 0, frame);
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-horizon_low-" + frame + "-")), frame + " picture");
-                // The row profile of the deck: five bands below the horizon row and five above it, each with its sample count.
+                // The row profile of the cloud layer: five bands below the horizon row and five above it, each with its sample count.
                 Assert.IsTrue(Row(r, "T09d.horizon.low." + frame + ".prof_b0_n") > 0, frame + " row profile");
             }
             Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-horizon_low-off2-")), "the baseline's repeat at the horizon pose");
             // The view from above at the low cover: the order frames 1, 0, 0, 1 and the pass's own aerial perspective at the strength 1 and 2.
             foreach (string frame in new[] { "ord1", "ord0", "ord0b", "ord1b", "hh1", "hh2" })
             {
-                Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".deck_median") >= 0, "above low " + frame);
+                Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".cloud_median") >= 0, "above low " + frame);
                 Assert.IsTrue(Row(r, "T09d.above.low." + frame + ".prof_b0_n") > 0, "above low " + frame + " row profile");
             }
-            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and haze frames are read from above at the low cover and at the horizon only");
+            Assert.IsFalse(r.World.Saved.Any(n => n.Contains("-ground_low-ord1-") || n.Contains("-ground_high-hh1-")), "the order and aerial perspective frames are read from above at the low cover and at the horizon only");
             Assert.IsFalse(r.Rows.Any(l => l.Contains(".t0.prof_")), "the row profile is written for the horizon pose, the order frames and the baselines only");
             Assert.AreEqual(1.0, Row(r, "T09d.horizon.low.placed_ok"));
-            // The rain deck's own light at the high cover, from 8.3 km and 2.3 km: the deck, with the shadows off, with every layer, the aid frame of the tau.
-            foreach (string pose in new[] { "above.high.l0up", "deck.high.l0mid" })
+            // The low stratiform rain layer's own light at the high cover, from 8.3 km and 2.3 km: the cloud layer, with the shadows off, with every layer, the aid frame of the tau.
+            foreach (string pose in new[] { "above.high.l0up", "lowstratiform.high.l0mid" })
             {
                 string view = pose.Substring(0, pose.LastIndexOf('.')), frame = pose.Substring(pose.LastIndexOf('.') + 1);
                 string q = "T09d." + view + ".";
-                Assert.IsTrue(Row(r, q + frame + ".deck_median") >= 0 && Row(r, q + frame + "sh0.deck_median") >= 0 && Row(r, q + frame + "all.deck_median") >= 0, pose + " frames");
+                Assert.IsTrue(Row(r, q + frame + ".cloud_median") >= 0 && Row(r, q + frame + "sh0.cloud_median") >= 0 && Row(r, q + frame + "all.cloud_median") >= 0, pose + " frames");
                 Assert.IsTrue(Row(r, q + "aid1" + frame + ".aidtau_n") > 0, pose + " aid tau");
                 Assert.IsTrue(r.World.Saved.Any(n => n.Contains("-" + view.Replace('.', '_') + "-" + frame + "sh0-")), pose + " shadows-off picture");
             }
             // The shadow setting is put back after the shadows-off frames.
             Assert.AreEqual(shadowsBefore, AtmospheresSettings.CloudShadows, "cloudShadows is back as it was");
             // 3 pairs x (off + off2 + 4 variants) + the horizon (off, off2, 4 order frames, 8 fade frames, the repeat) + the high cover's ground view again (counted in the 3 pairs)
-            // + 2 deck-light views x (off, deck, aid tau, shadows off, all layers) + from above at the low cover the order frames (4) and the haze frames (2).
+            // + 2 layer-light views x (off, layer, aid tau, shadows off, all layers) + from above at the low cover the order frames (4) and the aerial perspective frames (2).
             Assert.AreEqual(3 * 6 + 15 + 2 * 5 + 4 + 2, r.World.Saved.Count);
         }
 

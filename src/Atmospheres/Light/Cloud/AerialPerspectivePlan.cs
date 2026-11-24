@@ -10,41 +10,41 @@ namespace ReDefinition.Atmospheres
     // scattering (order 0) Scatterer fogs the cloud by the sea behind it, so the pass's own fog would double it and stays off there.
     //
     // The keys (ATMO_TUNING, all default to the behaviour before this package):
-    //   cloud.farHaze      -1: the cloudFarHaze setting decides, and the automatic rule applies too (AutoByDefault, the default); 0 off; 1 on; 2 automatic: on exactly where
+    //   cloud.aerialPerspective      -1: the cloudAerialPerspective setting decides, and the automatic rule applies too (AutoByDefault, the default); 0 off; 1 on; 2 automatic: on exactly where
     //                      the pass is behind Scatterer's scattering
     //   cloud.airSource    -1: Scatterer's atmosphere node of the body when Scatterer is loaded and the node reads, else the pass's own air; 0 the own air; 1 Scatterer's node
-    //   cloud.hazeColour   0: the sun's share (CloudBridgeAir.Inscatter, the default); 1: a display colour, cloud.hazeR / hazeG / hazeB (0 to 1, as the camera shows it)
-    //   cloud.hazeShare    the sun's share of the in-scatter of colour source 0 (CloudBridgeAir.HorizonShare)
-    internal static class CloudHazePlan
+    //   cloud.aerialPerspectiveColour   0: the sun's share (CloudBridgeAir.Inscatter, the default); 1: a display colour, cloud.aerialPerspectiveR / aerialPerspectiveG / aerialPerspectiveB (0 to 1, as the camera shows it)
+    //   cloud.aerialPerspectiveShare    the sun's share of the in-scatter of colour source 0 (CloudBridgeAir.HorizonShare)
+    internal static class AerialPerspectivePlan
     {
-        internal const string TuneAirSource = "cloud.airSource", TuneColour = "cloud.hazeColour", TuneShare = "cloud.hazeShare",
-            TuneR = "cloud.hazeR", TuneG = "cloud.hazeG", TuneB = "cloud.hazeB";
+        internal const string TuneAirSource = "cloud.airSource", TuneColour = "cloud.aerialPerspectiveColour", TuneShare = "cloud.aerialPerspectiveShare",
+            TuneR = "cloud.aerialPerspectiveR", TuneG = "cloud.aerialPerspectiveG", TuneB = "cloud.aerialPerspectiveB";
 
         // Whether the aerial perspective is on by itself behind Scatterer's scattering. On by default (a visible look feature costs at most 0.05 ms and read in the right
-        // direction in every measurement); cloud.farHaze 0 switches it off.
+        // direction in every measurement); cloud.aerialPerspective 0 switches it off.
         internal const bool AutoByDefault = true;
 
-        // The display colour of colour source 1 when a start gives none: the sea's haze at the horizon row of the baseline frames of start 55 (above view, prof_b0 of
+        // The display colour of colour source 1 when a start gives none: the sea's aerial perspective at the horizon row of the baseline frames of start 55 (above view, prof_b0 of
         // the order frames: 0.620 / 0.711 / 0.749).
         internal static readonly Color DefaultDisplayColour = new Color(0.620f, 0.711f, 0.749f, 1f);
 
         internal enum AirSource { Auto = -1, Own = 0, Scatterer = 1 }
 
-        // The two numbers the force key and the auto key make: whether the aerial perspective is forced on (haze), and whether it is left to the automatic rule (auto).
-        // force: cloud.farHaze (-1, 0, 1 or 2), setting: the cloudFarHaze setting.
-        internal static void Resolve(float force, bool setting, out bool haze, out bool auto)
+        // The two numbers the force key and the auto key make: whether the aerial perspective is forced on (aerialPerspective), and whether it is left to the automatic rule (auto).
+        // force: cloud.aerialPerspective (-1, 0, 1 or 2), setting: the cloudAerialPerspective setting.
+        internal static void Resolve(float force, bool setting, out bool aerialPerspective, out bool auto)
         {
-            haze = setting;
+            aerialPerspective = setting;
             auto = AutoByDefault;
-            if (force > 1.5f) { haze = false; auto = true; }
-            else if (force > 0f) { haze = true; auto = false; }
-            else if (force == 0f) { haze = false; auto = false; }
+            if (force > 1.5f) { aerialPerspective = false; auto = true; }
+            else if (force > 0f) { aerialPerspective = true; auto = false; }
+            else if (force == 0f) { aerialPerspective = false; auto = false; }
         }
 
         // Whether the aerial perspective runs in a frame: forced or set on, or automatic with the pass behind Scatterer's scattering.
-        internal static bool Active(bool haze, bool auto, bool behindScattering)
+        internal static bool Active(bool aerialPerspective, bool auto, bool behindScattering)
         {
-            return haze || (auto && behindScattering);
+            return aerialPerspective || (auto && behindScattering);
         }
 
         // Whether the air is read from Scatterer's node: the key allows it and (for the automatic key) Scatterer is loaded.
@@ -59,13 +59,13 @@ namespace ReDefinition.Atmospheres
         }
 
         // The in-scatter colour in the pass's radiance: source 0 the sun's share, source 1 the display colour decoded through the output stage (the inverse of the encoding
-        // the pass applies to its colour, CloudOutputStage.Decode), so that a deck that fades completely shows exactly that colour on the screen.
+        // the pass applies to its colour, CloudOutputStage.Decode), so that a cloud layer that fades completely shows exactly that colour on the screen.
         internal static Color Inscatter(int source, Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, Color display, float white, float exposure, float gamma)
         {
             return Inscatter(source, sun, moon, ambient, rayleighPerM, share, display, white, exposure, gamma, CloudBridgeAir.BlueExponent);
         }
 
-        // The same with the blue exponent of the sun-share colour (colour source 0) as a number: the body's hazeBlue for the colour a far cloud fades into, hazeNearBlue for the in-scatter
+        // The same with the blue exponent of the sun-share colour (colour source 0) as a number: the body's aerialPerspectiveBlue for the colour a far cloud fades into, aerialPerspectiveNearBlue for the in-scatter
         // over a short path (E40 T1 tint). The display colour of source 1 has no exponent.
         internal static Color Inscatter(int source, Color sun, Color moon, Color ambient, Vector3 rayleighPerM, float share, Color display, float white, float exposure, float gamma, float blueExponent)
         {
@@ -85,9 +85,9 @@ namespace ReDefinition.Atmospheres
                              premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
         }
 
-        // cloud.hazeSky (E40 H1 haze): 1 (the default) the colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray (CloudHorizonSky), the short-path
-        // colour the same medium's local source over its extinction; 0 the law of before (the sun's share and the Rayleigh power law of hazeBlue / hazeNearBlue, the body's hazeTint gain).
-        internal const string TuneSky = "cloud.hazeSky";
+        // cloud.aerialPerspectiveSky (E40 H1 aerial perspective): 1 (the default) the colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray (CloudHorizonSky), the short-path
+        // colour the same medium's local source over its extinction; 0 the law of before (the sun's share and the Rayleigh power law of aerialPerspectiveBlue / aerialPerspectiveNearBlue, the body's aerialPerspectiveTint gain).
+        internal const string TuneSky = "cloud.aerialPerspectiveSky";
 
         // The sun's and the moon's view of the horizon at one frame, for SkyInscatter: the camera's height above the sea, the height of the lowest layer (the ray its far clouds stand on), the
         // elevation of each light and the azimuth of the view from it, and how bright the moon's light is against the sun's per channel (zero: no moon).
@@ -98,7 +98,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The colours a far cloud fades into at the end of the air (far) and over a short path (near), in the pass's radiance, from the body's air: the sky's display value of the horizon ray
-        // (Scatterer's display law, skyExposure of the node) decoded through the output stage so that a deck that has faded completely shows the sky's colour on the screen, floored at the
+        // (Scatterer's display law, skyExposure of the node) decoded through the output stage so that a cloud layer that has faded completely shows the sky's colour on the screen, floored at the
         // ambient. False where the air gives no medium (the caller keeps the law of before). The evaluators keep the higher orders between frames.
         internal static bool SkyInscatter(CloudHorizonSky.Evaluator sun, CloudHorizonSky.Evaluator moon, CloudBridgeAir.Air air, double planetRadiusM, SkyView v, Color ambient, float white, float exposure,
                                           float gamma, out Color far, out Color near)
@@ -123,7 +123,7 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // The body's gain per channel on the colour a far cloud fades into (body keys hazeTintR / G / B, E40 FL far): the Rayleigh power law of hazeBlue is bluer and greener-poor than the horizon of
+        // The body's gain per channel on the colour a far cloud fades into (body keys aerialPerspectiveTintR / G / B, E40 FL far): the Rayleigh power law of aerialPerspectiveBlue is bluer and greener-poor than the horizon of
         // a sky with aerosols, so the gain moves the law's colour onto the horizon's. The gain multiplies the radiance, so the colour keeps following the sun's colour and height. One: the law as it was.
         internal static Color WithTint(Color radiance, Vector3 gain)
         {
@@ -131,7 +131,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The in-scatter belongs to the air, not to the cloud's light. The output stage divides every channel of the pass by the white point's tint (the adaptation to the sun a cloud gets),
-        // and the sky and the sea behind the cloud, which the haze should melt it into, are not divided: with the in-scatter in the stage too, a far cloud faded into a colour 4 to 5 percent
+        // and the sky and the sea behind the cloud, which the aerial perspective should melt it into, are not divided: with the in-scatter in the stage too, a far cloud faded into a colour 4 to 5 percent
         // bluer than the sky it stands in front of (the tint of Kerbin's sun at a cloud is 1.04 / 0.99 / 0.95; E40 T1 tint). The radiance is multiplied by the tint so that the stage's
         // division cancels. With the stage off (gamma at or below the off value) nothing is divided and nothing is changed.
         internal static Color ExemptFromWhitePoint(Color radiance, Color whiteTint, float gamma)

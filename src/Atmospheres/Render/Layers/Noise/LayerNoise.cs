@@ -60,19 +60,19 @@ namespace ReDefinition.Atmospheres
             IdCurl = Shader.PropertyToID("_NoiseCurl"), IdFlow = Shader.PropertyToID("_NoiseFlow"), IdColour = Shader.PropertyToID("_NoiseColour"),
             IdP = Shader.PropertyToID("_NoiseP"), IdQ = Shader.PropertyToID("_NoiseQ"), IdR = Shader.PropertyToID("_NoiseR"), IdS = Shader.PropertyToID("_NoiseS"),
             IdOffset = Shader.PropertyToID("_NoiseOffset"), IdLayer = Shader.PropertyToID("_NoiseLayer"), IdStretch = Shader.PropertyToID("_NoiseStretch"), IdAxis = Shader.PropertyToID("_NoiseAxis"),
-            IdBillow = Shader.PropertyToID("_BillowP"), IdHeapP = Shader.PropertyToID("_HeapP"), IdBlendP = Shader.PropertyToID("_BlendP");
+            IdBulge = Shader.PropertyToID("_BulgeP"), IdCumuliformP = Shader.PropertyToID("_CumuliformP"), IdBlendP = Shader.PropertyToID("_BlendP");
 
         private readonly Vector4[] offsets = new Vector4[CloudLayerDef.MaxLayers], layerData = new Vector4[CloudLayerDef.MaxLayers], stretchData = new Vector4[CloudLayerDef.MaxLayers];
-        // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FibreStretch; 1: isotropic).
+        // The factor each layer's noise features are longer along the body's axis than across (CloudLayerDef.FilamentStretch; 1: isotropic).
         private readonly double[] stretch = { 1.0, 1.0, 1.0, 1.0 };
         // The vertical scale of each layer's lattice (CloudLayerDef.VerticalScale; 0: the switch SphereScale, the body's key).
         private readonly double[] vertical = new double[CloudLayerDef.MaxLayers];
         // How far each layer's shape noise is smoothed, in noise scales (CloudLayerDef.ShapeSmoothing; 0: not at all).
         private readonly double[] smoothing = new double[CloudLayerDef.MaxLayers];
-        // Each layer's fibre axis numbers (CloudLayerDef.FibreMinWindMs and FibreTurnSeconds).
-        private readonly float[] minWind = { FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs, FibreAxis.DefaultMinWindMs };
-        private readonly double[] turnSeconds = { FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds, FibreAxis.DefaultTurnSeconds };
-        // The unit axis of each layer's fibre stretch: the layer's wind (the horizontal direction of the drift), smoothed in time, or the body's pole where there is no wind.
+        // Each layer's filament axis numbers (CloudLayerDef.FilamentMinWindMs and FilamentTurnSeconds).
+        private readonly float[] minWind = { FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs, FilamentAxis.DefaultMinWindMs };
+        private readonly double[] turnSeconds = { FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds, FilamentAxis.DefaultTurnSeconds };
+        // The unit axis of each layer's filament stretch: the layer's wind (the horizontal direction of the drift), smoothed in time, or the body's pole where there is no wind.
         private readonly Vector3[] axis = { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
         private Vector3 pole = Vector3.forward;
         private bool poleKnown;
@@ -81,11 +81,11 @@ namespace ReDefinition.Atmospheres
             driftZ = new double[CloudLayerDef.MaxLayers], rise = new double[CloudLayerDef.MaxLayers];
         private readonly LayerNoiseMotion[] motion = new LayerNoiseMotion[CloudLayerDef.MaxLayers];
         private Task<NoiseVolumeSet> task;
-        // CLOUDR1 P2: the heap volume is built on its own worker the first time a type asks for a preset (RequestHeap), so a stack without heap types pays nothing.
-        private Task<HeapVolumeSet> heapTask;
-        private HeapVolumeSet heapSet;
-        private bool heapWanted;
-        internal const int HeapSeedOffset = 3;
+        // CLOUDR1 P2: the cumuliform volume is built on its own worker the first time a type asks for a preset (RequestCumuliform), so a stack without cumuliform types pays nothing.
+        private Task<CumuliformVolumeSet> cumuliformTask;
+        private CumuliformVolumeSet cumuliformSet;
+        private bool cumuliformWanted;
+        internal const int CumuliformSeedOffset = 3;
         private Texture3D shapeTexture, detailTexture, curlTexture;
         private Texture2D flowTexture, colourTexture, defaultFlow, defaultColour;
         private double flowTime;
@@ -113,8 +113,8 @@ namespace ReDefinition.Atmospheres
             sizeLevelBuilt = Switches.SizeLevel;
             seedBuilt = seed;
             Ready = false;
-            DropHeap();
-            if (heapWanted) StartHeap();
+            DropCumuliform();
+            if (cumuliformWanted) StartCumuliform();
             task = Task.Run(() =>
             {
                 var watch = Stopwatch.StartNew();
@@ -124,70 +124,70 @@ namespace ReDefinition.Atmospheres
             });
         }
 
-        // Asks for the heap volume (CLOUDR1 P2): starts its worker once; the GPU texture and the CPU twin's data appear when it is done (HeapReady).
-        internal void RequestHeap()
+        // Asks for the cumuliform volume (CLOUDR1 P2): starts its worker once; the GPU texture and the CPU twin's data appear when it is done (CumuliformReady).
+        internal void RequestCumuliform()
         {
-            if (heapWanted) return;
-            heapWanted = true;
-            if (task != null) StartHeap();
+            if (cumuliformWanted) return;
+            cumuliformWanted = true;
+            if (task != null) StartCumuliform();
         }
 
-        // True where a type of the uploaded stack has a heap preset, an edge exponent or a cavity: the shader then reads the second type info texture (set by LayerRenderer.Upload).
+        // True where a type of the uploaded stack has a cumuliform preset, an edge exponent or a cavity: the shader then reads the second type info texture (set by LayerRenderer.Upload).
         internal bool ExtrasUsed;
 
-        // True (the weather player): Bind waits for the heap volume's worker, so no frame is drawn with the shape volume in its place.
-        internal bool BlockOnHeap;
+        // True (the weather player): Bind waits for the cumuliform volume's worker, so no frame is drawn with the shape volume in its place.
+        internal bool BlockOnCumuliform;
 
-        internal bool HeapReady { get { return heapSet != null; } }
-        internal HeapVolumeSet HeapVolume { get { return heapSet; } }
+        internal bool CumuliformReady { get { return cumuliformSet != null; } }
+        internal CumuliformVolumeSet CumuliformVolume { get { return cumuliformSet; } }
 
-        private void StartHeap()
+        private void StartCumuliform()
         {
             int n = NoiseSizes.ForLevel(Switches.SizeLevel).Shape;
-            uint seed = Switches.Seed + HeapSeedOffset;
-            heapTask = Task.Run(() => HeapVolumeSet.Generate(n, seed));
+            uint seed = Switches.Seed + CumuliformSeedOffset;
+            cumuliformTask = Task.Run(() => CumuliformVolumeSet.Generate(n, seed));
         }
 
-        private void DropHeap()
+        private void DropCumuliform()
         {
-            heapTask = null;
-            heapSet = null;
-            shapeHasHeap = false;
-            if (ShapeVolumes != null) ShapeVolumes.Heap = null;
+            cumuliformTask = null;
+            cumuliformSet = null;
+            shapeHasCumuliform = false;
+            if (ShapeVolumes != null) ShapeVolumes.Cumuliform = null;
         }
 
-        // Uploads the heap volume when its worker is done.
-        private void PollHeap(bool wait)
+        // Uploads the cumuliform volume when its worker is done.
+        private void PollCumuliform(bool wait)
         {
-            if (heapTask == null || heapSet != null) return;
-            if (!heapTask.IsCompleted && !wait) return;
+            if (cumuliformTask == null || cumuliformSet != null) return;
+            if (!cumuliformTask.IsCompleted && !wait) return;
             try
             {
-                heapSet = heapTask.Result;
+                cumuliformSet = cumuliformTask.Result;
             }
             catch (Exception e)
             {
-                Problem = "the heap volume generation failed: " + (e.InnerException != null ? e.InnerException.Message : e.Message);
-                heapTask = null;
+                Problem = "the cumuliform volume generation failed: " + (e.InnerException != null ? e.InnerException.Message : e.Message);
+                cumuliformTask = null;
                 return;
             }
             if (ShapeVolumes != null)
             {
-                ShapeVolumes.Heap = heapSet;
+                ShapeVolumes.Cumuliform = cumuliformSet;
                 RebuildShapeTexture();
             }
         }
 
-        // The shape texture once the heap volume is there: the shape volume's red channel with the heap's two presets and the cavity of the first in green, blue and alpha, the same mip chain
-        // (HeapVolumes.MergeWithShape). Replaces the R8 texture; the shader reads the red channel for a type without a heap, as before.
+        // The shape texture once the cumuliform volume is there: the shape volume's red channel with the cumuliform's two presets and the cavity of the first in green, blue and alpha, the same mip chain
+        // (CumuliformVolumes.MergeWithShape). Replaces the R8 texture; the shader reads the red channel for a type without a cumuliform, as before.
         private void RebuildShapeTexture()
         {
-            if (heapSet == null || ShapeVolumes == null || ShapeVolumes.Shape == null || ShapeVolumes.ShapeN != heapSet.N) return;
+            if (cumuliformSet == null || ShapeVolumes == null || ShapeVolumes.Shape == null || ShapeVolumes.ShapeN != cumuliformSet.N) return;
             Destroy(shapeTexture);
-            byte[][] levels = HeapVolumes.MergeWithShape(ShapeVolumes.Shape, ShapeVolumes.ShapeMips, heapSet);
-            var texture = new Texture3D(heapSet.N, heapSet.N, heapSet.N, TextureFormat.RGBA32, true)
+            byte[][] levels = CumuliformVolumes.MergeWithShape(ShapeVolumes.Shape, ShapeVolumes.ShapeMips, cumuliformSet);
+            var texture = new Texture3D(cumuliformSet.N, cumuliformSet.N, cumuliformSet.N, TextureFormat.RGBA32, true)
             {
-                name = "cloud noise shape + heap",
+                name = "cloud noise shape + cumuliform",
                 filterMode = FilterMode.Trilinear,
                 wrapMode = TextureWrapMode.Repeat,
                 hideFlags = HideFlags.HideAndDontSave
@@ -195,15 +195,15 @@ namespace ReDefinition.Atmospheres
             for (int m = 0; m < levels.Length; m++) texture.SetPixelData(levels[m], m);
             texture.Apply(false, true);
             shapeTexture = texture;
-            shapeHasHeap = true;
+            shapeHasCumuliform = true;
         }
 
-        private bool shapeHasHeap;
+        private bool shapeHasCumuliform;
 
         // Uploads the volumes when the worker is done (true: ready). wait: blocks until it is (the player's way).
         internal bool Poll(bool wait = false)
         {
-            PollHeap(wait);
+            PollCumuliform(wait);
             if (Ready) return true;
             if (task == null) return false;
             if (!task.IsCompleted && !wait) return false;
@@ -220,9 +220,9 @@ namespace ReDefinition.Atmospheres
             }
             Upload(set);
             Ready = true;
-            if (heapSet != null && ShapeVolumes != null)
+            if (cumuliformSet != null && ShapeVolumes != null)
             {
-                ShapeVolumes.Heap = heapSet;
+                ShapeVolumes.Cumuliform = cumuliformSet;
                 RebuildShapeTexture();
             }
             return true;
@@ -241,7 +241,7 @@ namespace ReDefinition.Atmospheres
             Destroy(detailTexture);
             Destroy(curlTexture);
             shapeTexture = MakeShape3D(set);
-            shapeHasHeap = false;
+            shapeHasCumuliform = false;
             detailTexture = Make3D(set.DetailN, TextureFormat.R8, set.Detail, "cloud noise detail");
             curlTexture = Make3D(set.CurlN, TextureFormat.RGBA32, set.Curl, "cloud noise curl");
             GenerationMs = set.GenerationMs;
@@ -329,15 +329,15 @@ namespace ReDefinition.Atmospheres
             if (layer >= 0 && layer < smoothing.Length) smoothing[layer] = scales > 0.0 && !double.IsNaN(scales) ? scales : 0.0;
         }
 
-        // A layer's fibre axis numbers: the wind below which the fibres keep to the pole (m/s) and the time the axis takes to turn to a new wind (s; the cfg keys fibreMinWindMs and fibreTurnSeconds).
-        internal void SetFibre(int layer, float minWindMs, double turnSeconds)
+        // A layer's filament axis numbers: the wind below which the filaments keep to the pole (m/s) and the time the axis takes to turn to a new wind (s; the cfg keys filamentMinWindMs and filamentTurnSeconds).
+        internal void SetFilament(int layer, float minWindMs, double turnSeconds)
         {
             if (layer < 0 || layer >= minWind.Length) return;
-            minWind[layer] = minWindMs >= 0f && !float.IsNaN(minWindMs) ? minWindMs : FibreAxis.DefaultMinWindMs;
-            this.turnSeconds[layer] = turnSeconds >= 0.0 && !double.IsNaN(turnSeconds) ? turnSeconds : FibreAxis.DefaultTurnSeconds;
+            minWind[layer] = minWindMs >= 0f && !float.IsNaN(minWindMs) ? minWindMs : FilamentAxis.DefaultMinWindMs;
+            this.turnSeconds[layer] = turnSeconds >= 0.0 && !double.IsNaN(turnSeconds) ? turnSeconds : FilamentAxis.DefaultTurnSeconds;
         }
 
-        // The body's pole in world space (the third row of the world-to-map matrix): the axis of a layer's fibres where there is no wind. The first time it is known every axis takes it
+        // The body's pole in world space (the third row of the world-to-map matrix): the axis of a layer's filaments where there is no wind. The first time it is known every axis takes it
         // (a layer's axis then turns from it to the wind in Advance).
         internal void SetPole(Vector3 value)
         {
@@ -345,13 +345,13 @@ namespace ReDefinition.Atmospheres
             pole = value.normalized;
             if (poleKnown) return;
             poleKnown = true;
-            for (int l = 0; l < axis.Length; l++) axis[l] = FibreAxis.Target(motion[l].DriftMs, pole, minWind[l]);
+            for (int l = 0; l < axis.Length; l++) axis[l] = FilamentAxis.Target(motion[l].DriftMs, pole, minWind[l]);
         }
 
         // Puts a layer's axis at the direction of its wind at once (a reading, the player; the game turns it over the layer's turn time in Advance).
         internal void SnapAxis(int layer)
         {
-            if (layer >= 0 && layer < axis.Length) axis[layer] = FibreAxis.Target(motion[layer].DriftMs, pole, minWind[layer]);
+            if (layer >= 0 && layer < axis.Length) axis[layer] = FilamentAxis.Target(motion[layer].DriftMs, pole, minWind[layer]);
         }
 
         // Puts a layer's axis at a given direction (a reading of the game's axis, the player; the game's axis may still be turning towards its wind). The pole counts as known, so the first
@@ -401,8 +401,8 @@ namespace ReDefinition.Atmospheres
                 driftY[l] += motion[l].DriftMs.y * dt;
                 driftZ[l] += motion[l].DriftMs.z * dt;
                 rise[l] += motion[l].RiseMs * dt;
-                // The fibres turn to the layer's wind, slowly (a camera that moves over the planet turns the wind's world direction too).
-                axis[l] = FibreAxis.Turn(axis[l], FibreAxis.Target(motion[l].DriftMs, pole, minWind[l]), dt, turnSeconds[l]);
+                // The filaments turn to the layer's wind, slowly (a camera that moves over the planet turns the wind's world direction too).
+                axis[l] = FilamentAxis.Turn(axis[l], FilamentAxis.Target(motion[l].DriftMs, pole, minWind[l]), dt, turnSeconds[l]);
             }
         }
 
@@ -444,15 +444,15 @@ namespace ReDefinition.Atmospheres
                 SmoothingScales = smoothing[layer],
                 NoDistanceLod = !Switches.DistanceLod,
                 NoFineDetail = !Switches.FineDetail,
-                HeapFootLod = CloudLookTuning.HeapFootLod,
-                HeapIso = CloudLookTuning.HeapIso,
-                HeapWarpShare = HeapModel.WarpShare,
+                CumuliformFootLod = CloudLookTuning.CumuliformFootLod,
+                CumuliformIso = CloudLookTuning.CumuliformIso,
+                CumuliformWarpShare = CumuliformModel.WarpShare,
                 Blend = CloudLookTuning.NoiseBlend,
                 BlendExponent = CloudLookTuning.NoiseBlendExp,
                 BlendCell = CloudLookTuning.NoiseBlendCell,
-                BillowContrastDelta = CloudLookTuning.BillowContrast - 1.0,
-                FineWeight = CloudLookTuning.BillowFine(-1f) >= 0f ? CloudLookTuning.BillowFine(-1f) : (double?)null,
-                FineFrequency = CloudLookTuning.BillowFineFreq(0f),
+                BulgeContrastDelta = CloudLookTuning.BulgeContrast - 1.0,
+                FineWeight = CloudLookTuning.BulgeFine(-1f) >= 0f ? CloudLookTuning.BulgeFine(-1f) : (double?)null,
+                FineFrequency = CloudLookTuning.BulgeFineFreq(0f),
                 ReferenceRadiusM = referenceRadiusM,
                 UpDistanceM = rise[layer],
                 Stretch = 1.0 - 1.0 / stretch[layer],
@@ -465,7 +465,7 @@ namespace ReDefinition.Atmospheres
         // Writes the volumes, the switches and the layers' numbers into the layer material.
         internal void Bind(Material material, int layerCount)
         {
-            PollHeap(BlockOnHeap);
+            PollCumuliform(BlockOnCumuliform);
             Poll();
             EnsureDefaults();
             bool on = Switches.Enabled && Ready;
@@ -473,16 +473,16 @@ namespace ReDefinition.Atmospheres
             material.SetVector(IdQ, new Vector4(Switches.WarpAmplitude > 0f ? Switches.WarpAmplitude : (float)NoiseModel.WarpAmplitudeScales,
                                                 Switches.WarpCell > 0f ? Switches.WarpCell : (float)NoiseModel.WarpCellScales, (float)NoiseModel.CurlAmplitudeScales,
                                                 (float)((flowTime / FlowLoopSeconds) % 1.0)));
-            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)HeapModel.PeriodScales, (float)HeapModel.WarpShare));
+            material.SetVector(IdR, new Vector4((float)NoiseModel.ShapePeriodScales, (float)NoiseModel.DetailPeriodScales, (float)CumuliformModel.PeriodScales, (float)CumuliformModel.WarpShare));
             material.SetVector(IdS, new Vector4((float)NoiseModel.DetailFinestCellScales, Switches.DistanceLod ? (float)NoiseModel.DetailLodFullFootCells : 0f,
                                                 Switches.DistanceLod ? (float)NoiseModel.DetailLodOffFootCells : 0f, (float)detailMean));
-            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BillowFine((float)NoiseModel.FineDetailWeight) : 0f,
-                                                                           CloudLookTuning.BillowFineFreq((float)NoiseModel.FineDetailFrequency), 0f, ShapeVoxelsLog2()));
-            // PUFF: the billow detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top).
-            material.SetVector(IdBillow, new Vector4(CloudLookTuning.BillowLight,CloudLookTuning.BillowContrast - 1f, CloudLookTuning.BillowTop, 0f));
-            // CLOUDR1: the heap volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the heap is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
+            material.SetVector(Shader.PropertyToID("_NoiseT"), new Vector4(Switches.FineDetail ? CloudLookTuning.BulgeFine((float)NoiseModel.FineDetailWeight) : 0f,
+                                                                           CloudLookTuning.BulgeFineFreq((float)NoiseModel.FineDetailFrequency), 0f, ShapeVoxelsLog2()));
+            // PUFF: the bulge detail's keys (all neutral at 0: the light tap, the contrast minus 1, the gain toward the top).
+            material.SetVector(IdBulge, new Vector4(CloudLookTuning.BulgeLight,CloudLookTuning.BulgeContrast - 1f, CloudLookTuning.BulgeTop, 0f));
+            // CLOUDR1: the cumuliform volume (x: it is built, y: bit 0 the march's spacing raises its mip level, bit 1 the cumuliform is read at the lattice's true vertical scale, z: log2 of its voxels per noise scale like _NoiseT.w).
             material.SetVector(IdBlendP, new Vector4(CloudLookTuning.NoiseBlend ? 1f : 0f, CloudLookTuning.NoiseBlendExp, CloudLookTuning.NoiseBlendCell, CloudLookTuning.LightErosionTaps));
-            material.SetVector(IdHeapP, new Vector4(shapeHasHeap ? 1f : 0f, (CloudLookTuning.HeapFootLod ? 1f : 0f) + (CloudLookTuning.HeapIso ? 2f : 0f), (float)Math.Log(ShapeSize() / HeapModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
+            material.SetVector(IdCumuliformP, new Vector4(shapeHasCumuliform ? 1f : 0f, (CloudLookTuning.CumuliformFootLod ? 1f : 0f) + (CloudLookTuning.CumuliformIso ? 2f : 0f), (float)Math.Log(ShapeSize() / CumuliformModel.PeriodScales, 2.0), ExtrasUsed ? 1f : 0f));
             material.SetTexture(IdShape, shapeTexture);
             material.SetTexture(IdDetail, detailTexture);
             material.SetTexture(IdCurl, curlTexture);
@@ -535,8 +535,8 @@ namespace ReDefinition.Atmospheres
 
         internal void Dispose()
         {
-            heapTask = null;
-            heapSet = null;
+            cumuliformTask = null;
+            cumuliformSet = null;
             Destroy(shapeTexture);
             Destroy(detailTexture);
             Destroy(curlTexture);

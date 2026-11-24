@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
         // The body's scales (GeneratorField.CloudScalesOf): the radius, the depth of the troposphere (the unit of the patterns' sizes) and the latitudes (rad) of the edges of the first two
         // circulation cells (the unit of the climate's latitude bands; NaN: plain latitude). A caller sets them from its body; without a radius and a depth (0) the stage changes nothing.
         internal double RadiusKm, DepthKm;
-        // The shortest wavelength (km) of the body's weather systems (GeneratorField.SystemWavelengthMinKm): the unit of a frontal deck's pattern (CloudMesoSpec.ScaleSystems); 0: not known.
+        // The shortest wavelength (km) of the body's weather systems (GeneratorField.SystemWavelengthMinKm): the unit of a frontal low stratiform layer's pattern (CloudMesoSpec.ScaleSystems); 0: not known.
         internal double SystemKm;        internal double Edge1Rad = double.NaN, Edge2Rad = double.NaN;
         // The tropopause's share of the atmosphere's depth where a body does not state its tropopause (GeneratorRules.TropopauseDepthShare's default).
         internal const double DefaultTropopauseShare = 0.15;
@@ -56,7 +56,7 @@ namespace ReDefinition.Atmospheres
             }
             if (meso != null && meso.On) ApplyCover(layer, meso, inp, coverIn, ref coverOut);
             else coverOut = coverIn;
-            if (layer.HasClimate && layer.Deck == null) ApplyType(layer, inp, typeIn, ref typeOut);
+            if (layer.HasClimate && layer.LowStratiform == null) ApplyType(layer, inp, typeIn, ref typeOut);
             else typeOut = typeIn;
         }
 
@@ -251,7 +251,7 @@ namespace ReDefinition.Atmospheres
             return (float)Math.Max(2.0 * texel, Math.Min(circumference / 6.0, km));
         }
 
-        // The coarsest cell of a layer's cover pattern in km: an explicit km first, then the multiple of the body's shortest weather-system wavelength (a frontal deck follows its systems; ScaleSystems),
+        // The coarsest cell of a layer's cover pattern in km: an explicit km first, then the multiple of the body's shortest weather-system wavelength (a frontal low stratiform layer follows its systems; ScaleSystems),
         // else the multiple of the troposphere's depth; kept between two texels and a sixth of the circumference (SizeKm).
         internal static float PatternKm(CloudMesoSpec meso, CloudMesoInputs inp)
         {

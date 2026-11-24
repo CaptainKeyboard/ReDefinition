@@ -8,17 +8,17 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // The units of the own cloud pass (CloudOutputStage) and what a cover value does in the layer shape (CloudCoverModel), on the numbers of K-T2d start 44
     // (.local/plans/atmospheres/K-T2d-result.md): ground view at the high cover, sun elevation 15.6 degrees, the scene's sun colour (0.536, 0.400, 0.214)
     // (luminance 0.415), ambient luminance 0.2475, the Gamma-space half-float target, baseline sky 0.458 and sunlit sea 0.443 (display values after Deferred).
-    // The raw deck medians of the pass at cloud.sunGain 1, 4, 16, 64 were 0.0145, 0.0584, 0.219, 0.755 (proportional to the gain: nothing after the pass clamps).
+    // The raw cloud layer medians of the pass at cloud.sunGain 1, 4, 16, 64 were 0.0145, 0.0584, 0.219, 0.755 (proportional to the gain: nothing after the pass clamps).
     [TestClass]
     public class CloudOutputStageTests
     {
         private const float White = 0.415f, Sea = 0.443f, Sky = 0.458f;
         private const float RawG1 = 0.0145f, RawG4 = 0.0584f, RawG16 = 0.219f, RawG64 = 0.755f;
 
-        // What the product's stage makes of the raw radiance the pass wrote at the gain: the sun unit multiplies the (all direct) deck, then the display encoding.
-        private static float Product(float rawDeck, float exposure = 1f, float sunUnit = CloudOutputStage.SunUnitDefault, float gamma = CloudOutputStage.GammaDefault)
+        // What the product's stage makes of the raw radiance the pass wrote at the gain: the sun unit multiplies the (all direct) cloud layer, then the display encoding.
+        private static float Product(float rawCloud, float exposure = 1f, float sunUnit = CloudOutputStage.SunUnitDefault, float gamma = CloudOutputStage.GammaDefault)
         {
-            return CloudOutputStage.Encode(rawDeck * sunUnit, White, exposure, gamma);
+            return CloudOutputStage.Encode(rawCloud * sunUnit, White, exposure, gamma);
         }
 
         [TestMethod]
@@ -57,14 +57,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheGroundDeckOfK_T2dLandsBelowTheSeaAndTheSkyAtGainOneAndIsNoLongerBlack()
+        public void TheGroundCloudLayerOfK_T2dLandsBelowTheSeaAndTheSkyAtGainOneAndIsNoLongerBlack()
         {
             float units = Product(RawG1, 1f, CloudOutputStage.SunUnitDefault, 1f), product = Product(RawG1);
             Assert.AreEqual(0.0456f, units, 0.001f, "units alone: pi times the raw 0.0145");
             Assert.AreEqual(0.152f, product, 0.01f, "the encoded stage: W (0.0456 / W) ^ (1 / 2.2)");
             // Commensurable: well below the sunlit sea (a thick base lit by diffuse light), but not 3 percent of it as in start 44 (0.0145 / 0.443).
-            Assert.IsTrue(product / Sea > 0.27f && product / Sea < 0.43f, "deck / sea " + product / Sea);
-            Assert.IsTrue(product / Sky > 0.27f && product / Sky < 0.40f, "deck / sky " + product / Sky);
+            Assert.IsTrue(product / Sea > 0.27f && product / Sea < 0.43f, "cloud layer / sea " + product / Sea);
+            Assert.IsTrue(product / Sky > 0.27f && product / Sky < 0.40f, "cloud layer / sky " + product / Sky);
             Assert.IsTrue(RawG1 / Sea < 0.04f, "start 44: " + RawG1 / Sea);
         }
 
@@ -87,9 +87,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheDeckSeenFromAboveLandsNearTheSeaWithTheAmbientKeptInItsOwnUnits()
+        public void TheCloudLayerSeenFromAboveLandsNearTheSeaWithTheAmbientKeptInItsOwnUnits()
         {
-            // Start 44, view above: deck median 0.311 / 0.643 / 1.683 at gain 1 / 4 / 16, the sea of the baseline 0.311 / 0.72 = 0.432. The deck is the ambient (display
+            // Start 44, view above: cloud layer median 0.311 / 0.643 / 1.683 at gain 1 / 4 / 16, the sea of the baseline 0.311 / 0.72 = 0.432. The cloud layer is the ambient (display
             // units already: it is not scaled) plus the direct part, which grows with the gain: direct = (g4 - g1) / 3.
             float direct = (0.643f - 0.311f) / 3f, ambient = 0.311f - direct, sea = 0.432f;
             float radiance = ambient + direct * CloudOutputStage.SunUnitDefault;
@@ -141,7 +141,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheShapeFormulaPinsTheLayersThreshold()
         {
-            // Rain deck: coverage 0.5, edge 0.2, noise amount 0.3. At the map value 0.5 the median noise gives share 0.5; the formula is the shader's.
+            // Low stratiform rain layer: coverage 0.5, edge 0.2, noise amount 0.3. At the map value 0.5 the median noise gives share 0.5; the formula is the shader's.
             Assert.AreEqual(0.5, CloudCoverModel.Share(0.5, 0.5, 0.3, 0.5, 0.2), 1e-9);
             Assert.AreEqual(0.0, CloudCoverModel.Share(0.2, 0.5, 0.3, 0.5, 0.2), 1e-9);
             Assert.AreEqual(1.0, CloudCoverModel.Share(0.9, 0.5, 0.3, 0.5, 0.2), 1e-9);
@@ -150,10 +150,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void ACoverOfPoint47ClosesMostOfTheSkyUnderTheRainDeckAsStartedAndAHalfClosedSkyNeedsACoverageOfAbout0Point4()
+        public void ACoverOfPoint47ClosesMostOfTheSkyUnderTheRainLowStratiformAsStartedAndAHalfClosedSkyNeedsACoverageOfAbout0Point4()
         {
             double[] noise = UniformNoise(2001);
-            // The rain deck's Stratus (baseShare 0.1 to topShare 0.5 of 2100 m, the profile's mean 0.74): equivalent thickness 622 m; sigma 0.045 per m; looking up at
+            // The low stratiform rain layer's Stratus (baseShare 0.1 to topShare 0.5 of 2100 m, the profile's mean 0.74): equivalent thickness 622 m; sigma 0.045 per m; looking up at
             // 18 degrees (the K-T2d ground view) the slant factor is 3.24; at the zenith 1.
             double thickness = 0.4 * 2100.0 * 0.74, sigma = 0.045;
             foreach (double slant in new[] { 3.24, 1.0 })
@@ -171,7 +171,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheFogAndNimbostratusTypesOfTheSameDeckCloseDifferentSharesAtTheSameCover()
+        public void TheFogAndNimbostratusTypesOfTheSameLowStratiformCloseDifferentSharesAtTheSameCover()
         {
             // The type value is the precipitation level: 0 Fog (210 m, mean profile 0.565), 0.5 Stratus, 1 Nimbostratus (1995 m, mean 0.804). The same map value 0.514
             // (start 42's cover at the view height) closes a different share by type (the Player's table 1: 21 / 85 / 100 percent).

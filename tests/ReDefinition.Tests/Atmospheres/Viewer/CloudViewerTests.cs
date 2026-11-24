@@ -102,7 +102,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsNull(CloudKeyRegistry.Find("eve.slewRate"));
             List<CloudKey> keys = CloudKeyRegistry.Expand(new[] { "a", "b" });
             Assert.AreEqual(CloudKeyRegistry.All.Count + 2 * CloudKeyRegistry.PerLayer.Count, keys.Count);
-            Assert.IsTrue(keys.Any(k => k.Key == "cloud.deckRule.b"));
+            Assert.IsTrue(keys.Any(k => k.Key == "cloud.lowStratiformRule.b"));
         }
 
         [TestMethod]
@@ -286,23 +286,23 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         [TestMethod]
         public void TheRolesOfTheLayersAreReadFromTheirGroupAndName()
         {
-            Assert.AreEqual(WeatherPresets.Role.Deck, WeatherPresets.RoleOf(Kerbin[0]));
+            Assert.AreEqual(WeatherPresets.Role.LowStratiform, WeatherPresets.RoleOf(Kerbin[0]));
             Assert.AreEqual(WeatherPresets.Role.Cumulus, WeatherPresets.RoleOf(Kerbin[1]));
             Assert.AreEqual(WeatherPresets.Role.Cumulonimbus, WeatherPresets.RoleOf(Kerbin[2]));
             Assert.AreEqual(WeatherPresets.Role.Cirrus, WeatherPresets.RoleOf(Kerbin[3]));
         }
 
         [TestMethod]
-        public void TheRainDeckClosesTheDeckAndTheFieldClearsEveryOverride()
+        public void TheRainLowStratiformClosesTheLowStratiformAndTheFieldClearsEveryOverride()
         {
-            Dictionary<string, float> rain = WeatherPresets.Overrides(ViewerWeather.RainDeck, Kerbin).ToDictionary(p => p.Key, p => p.Value);
+            Dictionary<string, float> rain = WeatherPresets.Overrides(ViewerWeather.RainLowStratiform, Kerbin).ToDictionary(p => p.Key, p => p.Value);
             Assert.AreEqual(1f, rain["cloud.mapOverride.Kerbin-weather-rain"]);
-            Assert.AreEqual(0f, rain["cloud.deckRule.Kerbin-weather-rain"], "the deck rule off: the constant map draws everywhere");
+            Assert.AreEqual(0f, rain["cloud.lowStratiformRule.Kerbin-weather-rain"], "the low stratiform rule off: the constant map draws everywhere");
             Assert.AreEqual(0f, rain["cloud.mapOverride.Kerbin-cumulonimbus"]);
             Assert.IsTrue(float.IsNaN(rain["cloud.typeOverride.Kerbin-cirrus"]));
             double level;
             ForceType type;
-            WeatherPresets.Precipitation(ViewerWeather.RainDeck, out level, out type);
+            WeatherPresets.Precipitation(ViewerWeather.RainLowStratiform, out level, out type);
             Assert.AreEqual(ForceType.Rain, type);
             Assert.IsTrue(level > 0.0);
             List<KeyValuePair<string, float>> field = WeatherPresets.Overrides(ViewerWeather.Field, Kerbin);
@@ -332,7 +332,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             List<ViewerPose> poses = PosePresets.For(Kerbin);
             Assert.AreEqual(T09Probe.Views.Length + 2, poses.Count);
             Assert.AreEqual(600.0 + 3500.0, poses.First(p => p.Name == "inside").AglM, 1e-6);
-            Assert.AreEqual(7600.0 + PosePresets.AboveDeckMarginM, poses.First(p => p.Name == "above").AglM, 1e-6);
+            Assert.AreEqual(7600.0 + PosePresets.AboveLowStratiformMarginM, poses.First(p => p.Name == "above").AglM, 1e-6);
             Assert.AreEqual(T09Probe.Views[0].AglM, PosePresets.For(new ViewerLayer[0]).First(p => p.Name == "ground").AglM);
             Assert.AreEqual(4550.0, PosePresets.For(new ViewerLayer[0]).First(p => p.Name == "inside").AglM, "no stack: the probe's own height");
         }

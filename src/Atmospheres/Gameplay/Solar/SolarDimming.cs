@@ -91,8 +91,8 @@ namespace ReDefinition.Atmospheres
             double ut = Planetarium.GetUniversalTime();
             WeatherSample s;
             if (!WeatherHub.Sample(body.flightGlobalsIndex, v.latitude, v.longitude, v.altitude, ut, out s)) return 1.0;
-            // Where the host reads the clouds (EVE's decks, the own layers) its value counts and not the field's, a clear 0 included: the
-            // same rule as the frame driver's, so that the panels and the picture agree (the field's cloud is painted into those decks, and
+            // Where the host reads the clouds (EVE's cloud layers, the own layers) its value counts and not the field's, a clear 0 included: the
+            // same rule as the frame driver's, so that the panels and the picture agree (the field's cloud is painted into those layers, and
             // the two must not add).
             double tau = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, v.latitude, v.longitude, v.altitude, ut, s.OpticalDepthVertical);
             CelestialBody sun = GameGlobals.Sun;

@@ -6,7 +6,7 @@
 
 The scene 'far-sheet' draws ONE cumulus cell of the shipped Clouds-Kerbin.cfg (a Gaussian bump in the coverage map, e-folding radius SIGMA_KM, the type map constant: Cumulus humilis or
 Cumulus congestus) with the pass of the game from CAMERA_HEIGHT above the sea, DISTANCES_KM from the cell's near side, the sun at one azimuth (east: the cell is lit from the side) and
-two elevations (45.6 degrees and 12 degrees). Haze off: the radiance is the cloud's own light. Each picture is made twice, with the converged march and with the product's (48 steps, 25 m,
+two elevations (45.6 degrees and 12 degrees). Aerial perspective off: the radiance is the cloud's own light. Each picture is made twice, with the converged march and with the product's (48 steps, 25 m,
 step growth, light reuse; the mean of PRODUCT_FRAMES frames). A third group switches single light terms off or changes them at the same distances (the 'chain' variants of VARIANTS).
 
 The measures are taken over the closed part of the cloud (alpha above 0.9): the luminance of its radiance relative to W (the white card facing the sun outside the air), the same as the
@@ -46,7 +46,7 @@ EDGE_KM = float(os.environ.get("E40FAR_EDGE", 3.0))          # the cell's visibl
 DISTANCES_KM = (2, 6, 12, 25, 50)
 # azimuth, elevation: hi and lo from the east (the cell is lit from the side), fw toward the sun (the camera looks north, the sun is north), bk the sun behind the camera
 SUNS = {"hi": (90.0, 45.6), "lo": (90.0, 12.0), "fw": (0.0, 45.6), "bk": (180.0, 45.6)}
-# E40FAR_SUNS=hi,lo: only these suns (a before / after haze picture at two sun heights in a quarter of the jobs).
+# E40FAR_SUNS=hi,lo: only these suns (a before / after aerial perspective picture at two sun heights in a quarter of the jobs).
 SUNS = {k: v for k, v in SUNS.items() if k in os.environ.get("E40FAR_SUNS", ",".join(SUNS)).split(",")}
 VARIANT_SUNS = tuple(s for s in ("hi", "fw") if s in SUNS)    # the suns the chain variants run at (congestus)
 CLOUDS = (("humilis", "Kerbin-cumulus", "Cumulus humilis"), ("congestus", "Kerbin-cumulus", "Cumulus congestus"))
@@ -56,9 +56,9 @@ GAMMA = 2.2
 AMBIENT_TOP = [0.2357, 0.2432, 0.2470]
 AMBIENT_BOTTOM = [0.1178, 0.1216, 0.1235]
 SOFTNESS = 0.5
-# E40FAR_QUICK=1: only the product's march, no chain variants (a haze comparison in a few minutes). E40FAR_TINT=r,g,b: the far in-scatter colour's gain (body keys hazeTintR/G/B; 1,1,1: none).
+# E40FAR_QUICK=1: only the product's march, no chain variants (an aerial perspective comparison in a few minutes). E40FAR_TINT=r,g,b: the far in-scatter colour's gain (body keys aerialPerspectiveTintR/G/B; 1,1,1: none).
 QUICK = os.environ.get("E40FAR_QUICK") == "1"
-HAZE_TINT = np.array([float(x) for x in os.environ.get("E40FAR_TINT", "1,1,1").split(",")])
+AERIAL_TINT = np.array([float(x) for x in os.environ.get("E40FAR_TINT", "1,1,1").split(",")])
 # The sky the pictures' backdrop shows: the game's own (K-T2 start 61, ground_fair off frame, display values at rows 740 and 300 of 960: the horizon and 55 degrees up).
 GAME_SKY_HORIZON = np.array([0.663, 0.784, 0.82])
 GAME_SKY_ZENITH = np.array([0.184, 0.349, 0.561])
@@ -77,17 +77,17 @@ VARIANTS = {
     "g0": ("prod", dict(stepGrowth=0.0)),                        # no step growth with distance
     "m96": ("prod", dict(maxSteps=96)),                          # 96 grid points per span
 }
-# E40FAR_HAZE: after = the haze of E40 T1 at Scatterer's air of Kerbin (the law before E40 H1, with E40FAR_TINT as its gain); sky = the colours worked out from the air (E40 H1 haze: the
+# E40FAR_AERIAL: after = the aerial perspective of E40 T1 at Scatterer's air of Kerbin (the law before E40 H1, with E40FAR_TINT as its gain); sky = the colours worked out from the air (E40 H1: the
 # product); E40FAR_BACKDROP=model: the sky behind the pictures is the model's at the sun and the camera, not the game's measured one of start 61 (44 degrees).
-HAZE = os.environ.get("E40FAR_HAZE")
+AERIAL = os.environ.get("E40FAR_AERIAL")
 BACKDROP_MODEL = os.environ.get("E40FAR_BACKDROP") == "model"
 TAG = os.environ.get("E40FAR_TAG")
 NAME = "e40-fl" + ("-" + TAG if TAG else "")
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing",
-               "fibreMinWindMs", "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "lightCellWidth")
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "filamentStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing",
+               "filamentMinWindMs", "filamentTurnSeconds", "topReach", "topRefMs", "topFullMs", "lightCellWidth")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "topLight", "baseAmbient", "topAmbient", "shapeSmoothing", "topClose")
 CFG_PATH = os.environ.get("E40FAR_CFG") or e40o.CFG
 # E40FAR_TUNING=key=value,key=value: the job's tuning keys (the look knobs of the game), E40FAR_LAYER=key=value,...: layer keys of the job (for a cfg candidate without editing the cfg).
 TUNING = [dict(key=k, value=float(v)) for k, v in (p.split("=") for p in os.environ.get("E40FAR_TUNING", "").split(",") if p)]
@@ -173,23 +173,23 @@ def view_azimuth(sun):
     return 360.0 - az if az > 180.0 else az
 
 
-def haze_block(layer, sun="hi"):
-    """The far block of a job with Scatterer's air. E40FAR_HAZE=after: the in-scatter of E40 T1 (short-path colour the sun's own, the horizon's 0.35 blue, E40FAR_TINT its gain); sky: the colours
-    worked out from the air at this sun (E40 H1 haze, horizon_sky.py: the product)."""
-    if not HAZE:
+def aerial_perspective_block(layer, sun="hi"):
+    """The far block of a job with Scatterer's air. E40FAR_AERIAL=after: the in-scatter of E40 T1 (short-path colour the sun's own, the horizon's 0.35 blue, E40FAR_TINT its gain); sky: the colours
+    worked out from the air at this sun (E40 H1 aerial perspective, horizon_sky.py: the product)."""
+    if not AERIAL:
         return None
     ray = np.array(SC_RAYLEIGH)
     layer_altitude = layer["inner"] + 0.25 * (layer["outer"] - layer["inner"])
     tint = white_tint(layer_altitude, SUNS[sun][1])
-    air = dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
-    if HAZE == "sky":
+    air = dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, aerialPerspectiveStrength=1.0)
+    if AERIAL == "sky":
         far, near, _ = hs.far_near(hs.KERBIN, CAMERA_HEIGHT, layer_altitude, SUNS[sun][1], view_azimuth(sun), WHITE, AMBIENT_TOP)
         return dict(air, inscatter=[float(x) for x in np.array(far) * tint], inscatterNear=[float(x) for x in np.array(near) * tint])
 
     def inscatter(exponent):
         return np.maximum(2.35 * 0.23 * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
 
-    return dict(air, inscatter=[float(x) for x in inscatter(0.35) * tint * HAZE_TINT], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
+    return dict(air, inscatter=[float(x) for x in inscatter(0.35) * tint * AERIAL_TINT], inscatterNear=[float(x) for x in inscatter(0.0) * tint])
 
 
 def job_id(cloud, sun, km, march, variant=None):
@@ -225,7 +225,7 @@ def build_jobs():
                         numbers_here.update(extra if variant else {})
                         j = lay.job(job_id(cloud, sun, km, march, variant), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=MAP[0], mapHeight=MAP[1], sun=sun_vec,
                                     sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM, soft=SOFTNESS, tuning=TUNING, **numbers_here,
-                                    **(dict(far=haze_block(layer, sun)) if HAZE else {}))
+                                    **(dict(far=aerial_perspective_block(layer, sun)) if AERIAL else {}))
                         (variants if variant else base).append(j)
     # the band: a field of the type (constant coverage map) seen from the ground along the horizon, the clouds of every distance in one picture
     band_cov = "band-cov.r8"
@@ -247,7 +247,7 @@ def build_jobs():
                         t.update(TYPE_OVERRIDE)
                 base.append(lay.job("fl-band-%s-%s-%s" % (cloud, sun, march), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=MAP[0], mapHeight=MAP[1], sun=sun_vec,
                                     sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM, soft=SOFTNESS, tuning=TUNING, **numbers,
-                                    **(dict(far=haze_block(layer, sun)) if HAZE else {})))
+                                    **(dict(far=aerial_perspective_block(layer, sun)) if AERIAL else {})))
     return base, variants
 
 
@@ -417,10 +417,10 @@ def collect(ctx):
                                      % (jid, m["cover"], m["closed"], m["rel"][0], m["rel"][1], m["rel"][2], m["rel"][3], m["display"][1], m["display"][2],
                                         m.get("first_km_p10_p50", [0, float("nan")])[1], m.get("tau_p50", float("nan")), m.get("steps_mean", float("nan"))))
                         metrics.append(Metric.info("e40far.%s.rel_p90" % jid, m["rel"][2]))
-                        if HAZE and lum is not None:
+                        if AERIAL and lum is not None:
                             c = composite_words(lum, cam, tint, sun)
                             results[jid]["composite"] = c
-                            lines.append("   %-34s HAZE: cloud over the sky (alpha above 0.5) rgb %.3f %.3f %.3f luma %.3f, sky behind it rgb %.3f %.3f %.3f luma %.3f, (G-R)/(B-R) %.2f against %.2f"
+                            lines.append("   %-34s AERIAL PERSPECTIVE: cloud over the sky (alpha above 0.5) rgb %.3f %.3f %.3f luma %.3f, sky behind it rgb %.3f %.3f %.3f luma %.3f, (G-R)/(B-R) %.2f against %.2f"
                                          % ((jid,) + tuple(c["rgb"]) + (c["luma"],) + tuple(c["sky_rgb"]) + (c["sky_luma"], c["hue"], c["sky_hue"])))
                 if row:
                     tiles[(cloud, sun, march)] = np.concatenate(row, axis=1)

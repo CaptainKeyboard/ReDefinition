@@ -83,28 +83,28 @@ VIEWS = ("ground", "above", "sun")
 
 # E40TY_NOLIGHT=1: the same pictures with every light factor of the cfg at 1 (the control of the type and layer light response), under the names e40-ty-nolight-*.
 NOLIGHT = os.environ.get("E40TY_NOLIGHT") == "1"
-# E40TY_SHAPE=0: the same pictures without the types' height-shaped threshold and without the fibre stretch (the jobs carry neither; the key layers.profileShape that scaled the
+# E40TY_SHAPE=0: the same pictures without the types' height-shaped threshold and without the filament stretch (the jobs carry neither; the key layers.profileShape that scaled the
 # threshold is gone), under the names e40-ty-shape0-* (the control of the shape keys of E40 L2 D1).
 SHAPE_SCALE = float(os.environ["E40TY_SHAPE"]) if os.environ.get("E40TY_SHAPE") else None
 NOSHAPE = SHAPE_SCALE == 0.0
 # E40TY_SPHERE=<scale>: the noise lattice's vertical scale (the body key sphereScale; 1: as today, below 1 the features are longer in the vertical), under the names e40-ty-sphere<scale>-*.
 SPHERE = float(os.environ["E40TY_SPHERE"]) if os.environ.get("E40TY_SPHERE") else None
 # E40TY_CFG=<path>: the layers and types are read from that cfg instead of the shipped one (the "before" of a cfg change: a copy of the cfg of the commit before), E40TY_WIND=0: no layer wind
-# (the fibres lie along the pole, as before E40 L5), E40TY_TAG=<text>: a part of the picture names (e40-ty-<text>-...).
+# (the filaments lie along the pole, as before E40 L5), E40TY_TAG=<text>: a part of the picture names (e40-ty-<text>-...).
 CFG_PATH = os.environ.get("E40TY_CFG") or e40o.CFG
 NOWIND = os.environ.get("E40TY_WIND") == "0"
 TAG = os.environ.get("E40TY_TAG")
 NAME = ("e40-ty-nolight" if NOLIGHT else "e40-ty-shape%g" % SHAPE_SCALE if SHAPE_SCALE is not None else "e40-ty") + ("-sphere%g" % SPHERE if SPHERE is not None else "") + ("-" + TAG if TAG else "")
 
-# The layer wind of a type's job in m/s as (east, north) (E40 L5 shape): the cirrus fibres lie along it. The sheet's cirrus is blown from the south-west, 25 m/s.
+# The layer wind of a type's job in m/s as (east, north) (E40 L5 shape): the cirrus filaments lie along it. The sheet's cirrus is blown from the south-west, 25 m/s.
 WIND_EN = {"cirrus": (17.7, 17.7), "cirrostratus": (17.7, 17.7)}
 
-LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "fibreStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "fibreMinWindMs",
-               "fibreTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth", "cellPitch",
-               "cellBillow", "cellBand", "cellFine")
+LAYER_EXTRA = ("softnessScale", "waterPower", "lightAmbient", "filamentStretch", "lightIsotropy", "verticalScale", "ambientMs", "ambientDecay", "lightPlateau", "shapeSmoothing", "filamentMinWindMs",
+               "filamentTurnSeconds", "topReach", "topRefMs", "topFullMs", "anvilType", "anvilSeconds", "anvilUpdraftMs", "anvilScale", "lightCellWidth", "cellPitch",
+               "cellBulge", "cellBand", "cellFine")
 # E40TY_NOSMOOTH=1: the same pictures without the shape smoothing and the top-from-updraft numbers of the layers (the "before" of E40 L6 shape on the same player), under the tag given.
 NOSMOOTH = os.environ.get("E40TY_NOSMOOTH") == "1"
-TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "headLight", "baseAmbient", "headAmbient", "shapeSmoothing", "topClose", "outflow")
+TYPE_EXTRA = ("baseGain", "riseShare", "densityScale", "baseLight", "topLight", "baseAmbient", "topAmbient", "shapeSmoothing", "topClose", "outflow")
 
 
 def lift_samples(type_node):
@@ -141,9 +141,9 @@ def cfg_extras():
                 keys = lift_keys(t)
                 tk[e40o.val(t, "name")]["liftX"] = [k[0] for k in keys]
                 tk[e40o.val(t, "name")]["liftY"] = [k[1] for k in keys]
-            # CLOUDR1: the type's heap preset (a name), rim exponent and cavity, as the game's type reads them (LayersJobType.heap, edgePower, cavity)
-            if e40o.val(t, "heap") is not None:
-                tk[e40o.val(t, "name")]["heap"] = str(e40o.val(t, "heap")).strip()
+            # CLOUDR1: the type's cumuliform preset (a name), rim exponent and cavity, as the game's type reads them (LayersJobType.cumuliform, edgePower, cavity)
+            if e40o.val(t, "cumuliform") is not None:
+                tk[e40o.val(t, "name")]["cumuliform"] = str(e40o.val(t, "cumuliform")).strip()
             for k in ("edgePower", "cavity"):
                 if e40o.val(t, k) is not None:
                     tk[e40o.val(t, "name")][k] = float(e40o.val(t, k))
@@ -186,7 +186,7 @@ def job_layer(spec, extras, layers_by_name):
     layer = layers_by_name[layer_name]
     lk, tk = extras[layer_name]
     jl = e40o.job_layer(layer, const_map(map_value), const_map(type_value(layer, type_name)))
-    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))
+    jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("filamentStretch", "verticalScale"))
                and not (NOSMOOTH and k in ("shapeSmoothing", "topReach"))})
     if spec[1] in WIND_EN and not NOWIND:
         # the layer's wind in world space: east and north at the site (the map frame: x towards longitude 0, y towards 90 east, z north)
@@ -194,7 +194,7 @@ def job_layer(spec, extras, layers_by_name):
         east, north = WIND_EN[spec[1]]
         jl["wind"] = [-math.sin(lon) * east, math.cos(lon) * east, north]
     for t in jl["types"]:
-        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+        t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "topLight", "baseAmbient", "topAmbient")) and not (NOSHAPE and k == "lift")
                   and not (NOSMOOTH and k == "shapeSmoothing")})
     return jl
 
@@ -275,10 +275,10 @@ def cb_jobs(layers_by_name, extras):
     for key, type_name in CB_TOWERS:
         for view in CB_VIEWS:
             jl = e40o.job_layer(layer, cov_name, "cbcell-typ.r8" if type_name is None else cb_const_map(type_value(layer, type_name)))
-            jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("fibreStretch", "verticalScale"))
+            jl.update({k: v for k, v in lk.items() if not (NOLIGHT and k.startswith("light")) and not (NOSHAPE and k in ("filamentStretch", "verticalScale"))
                        and not (NOSMOOTH and k in ("shapeSmoothing", "topReach"))})
             for t in jl["types"]:
-                t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "headLight", "baseAmbient", "headAmbient")) and not (NOSHAPE and k == "lift")
+                t.update({k: v for k, v in tk.get(t["name"], {}).items() if not (NOLIGHT and k in ("baseLight", "topLight", "baseAmbient", "topAmbient")) and not (NOSHAPE and k == "lift")
                           and not (NOSMOOTH and k == "shapeSmoothing")})
             cam = cb_camera(view, SIZE)
             jobs.append(lay.job(jid(key, view), "lum", cam, [jl], SIZE[0], SIZE[1], planet=R, mapWidth=CB_MAP[0], mapHeight=CB_MAP[1],
@@ -333,34 +333,34 @@ def cb_anvil_jobs(layers_by_name, extras):
     return jobs, heights
 
 
-# E40TY_HAZE=before|after: the same pictures with the pass's aerial perspective on at Scatterer's air of Kerbin (E40 T1 tint), the in-scatter as the product gives it BEFORE the package (one
+# E40TY_AERIAL=before|after: the same pictures with the pass's aerial perspective on at Scatterer's air of Kerbin (E40 T1 tint), the in-scatter as the product gives it BEFORE the package (one
 # colour, bluer than the sun by the exponent 0.35, inside the stage's white-point division) or AFTER (the short-path colour the sun's own, the horizon colour the same 0.35, both
 # multiplied by the tint so that the division cancels). Use it with E40TY_TAG=<text> so that the names differ (the picture names are e40-ty-<tag>-...).
-HAZE = os.environ.get("E40TY_HAZE")
-# E40TY_HAZE_BLUE=<x>: the body key hazeBlue of the "after" colours (the default is the cfg's 0.35), E40TY_HAZE_NEAR_BLUE=<x>: hazeNearBlue (0).
-HAZE_SHARE, HAZE_BLUE, HAZE_NEAR_BLUE = 0.23, float(os.environ.get("E40TY_HAZE_BLUE", 0.35)), float(os.environ.get("E40TY_HAZE_NEAR_BLUE", 0.0))
-# E40TY_HAZE_TINT=r,g,b: the body keys hazeTintR / G / B (E40 FL far), a gain on the far in-scatter colour of the "after" haze (1,1,1: none).
-HAZE_TINT_GAIN = np.array([float(x) for x in os.environ.get("E40TY_HAZE_TINT", "1,1,1").split(",")])
+AERIAL = os.environ.get("E40TY_AERIAL")
+# E40TY_AERIAL_BLUE=<x>: the body key aerialPerspectiveBlue of the "after" colours (the default is the cfg's 0.35), E40TY_AERIAL_NEAR_BLUE=<x>: aerialPerspectiveNearBlue (0).
+AERIAL_SHARE, AERIAL_BLUE, AERIAL_NEAR_BLUE = 0.23, float(os.environ.get("E40TY_AERIAL_BLUE", 0.35)), float(os.environ.get("E40TY_AERIAL_NEAR_BLUE", 0.0))
+# E40TY_AERIAL_TINT=r,g,b: the body keys aerialPerspectiveTintR / G / B (E40 FL far), a gain on the far in-scatter colour of the "after" aerial perspective (1,1,1: none).
+AERIAL_TINT_GAIN = np.array([float(x) for x in os.environ.get("E40TY_AERIAL_TINT", "1,1,1").split(",")])
 SC_RAYLEIGH = (0.0153407799e-3, 0.0357074998e-3, 0.0875488967e-3)
 SC_MIE, SC_HR, SC_HM = 0.0121406196e-3 / 0.9, 3840.0, 1000.0
 
 
-def haze_block(layer):
-    """The job's far block with the in-scatter colours of the sheet's sun (the grey 2.35 of the pass) for the layer's white tint; None without E40TY_HAZE."""
-    if not HAZE:
+def aerial_perspective_block(layer):
+    """The job's far block with the in-scatter colours of the sheet's sun (the grey 2.35 of the pass) for the layer's white tint; None without E40TY_AERIAL."""
+    if not AERIAL:
         return None
     ray = np.array(SC_RAYLEIGH)
 
     def inscatter(exponent):
-        return np.maximum(2.35 * HAZE_SHARE * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
+        return np.maximum(2.35 * AERIAL_SHARE * (ray / ray.mean()) ** exponent, np.array(AMBIENT_TOP))
 
-    far = dict(haze=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, hazeStrength=1.0)
-    if HAZE == "before":
-        far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE)]
+    far = dict(aerialPerspective=1, shapeMean=0, policy=0, minSamples=0, rayleigh=list(SC_RAYLEIGH), mie=SC_MIE, rayleighHeight=SC_HR, mieHeight=SC_HM, aerialPerspectiveStrength=1.0)
+    if AERIAL == "before":
+        far["inscatter"] = [float(x) for x in inscatter(AERIAL_BLUE)]
         return far
     tint = white_tint(layer["inner"] + 0.25 * (layer["outer"] - layer["inner"]))
-    far["inscatter"] = [float(x) for x in inscatter(HAZE_BLUE) * tint * HAZE_TINT_GAIN]
-    far["inscatterNear"] = [float(x) for x in inscatter(HAZE_NEAR_BLUE) * tint]
+    far["inscatter"] = [float(x) for x in inscatter(AERIAL_BLUE) * tint * AERIAL_TINT_GAIN]
+    far["inscatterNear"] = [float(x) for x in inscatter(AERIAL_NEAR_BLUE) * tint]
     return far
 
 
@@ -378,7 +378,7 @@ def build_jobs():
                                       sun=lay.sun_vector(cam.pos, 0.0, SUN_ELEVATION), sunColour=[2.35, 2.35, 2.35], ambientTop=AMBIENT_TOP, ambientBottom=AMBIENT_BOTTOM,
                                       soft=SOFTNESS, maxSteps=256, minStep=4.0, jitter=0.0, earlyOut=0.001, sunSteps=3,
                                       **(dict(noise=dict(sphere=SPHERE)) if SPHERE is not None else {}),
-                                      **(dict(far=haze_block(layers_by_name[spec[2]])) if HAZE else {})))
+                                      **(dict(far=aerial_perspective_block(layers_by_name[spec[2]])) if AERIAL else {})))
     cb, heights = cb_jobs(layers_by_name, extras)
     lum.extend(cb)
     anvil, anvil_heights = cb_anvil_jobs(layers_by_name, extras)
@@ -515,7 +515,7 @@ def plane_points(cam, altitude_m):
     return rel @ east, rel @ north, t, np.degrees(np.arcsin(np.clip(d @ up, -1.0, 1.0)))
 
 
-def fibre_stats(tau, cam, altitude_m, axis_en=(1.0, 1.0), min_elevation=20.0, step_m=100.0):
+def filament_stats(tau, cam, altitude_m, axis_en=(1.0, 1.0), min_elevation=20.0, step_m=100.0):
     """The size of the structure in an optical-depth picture (the cirrus rows; a PLAYER number, not a game number): the pixels above `min_elevation` are laid on the plane of the layer's
     middle (`altitude_m`), resampled to a grid of `step_m`, and the autocorrelation of the field (the mean taken out, the empty corners masked out) is measured: the full width at half
     maximum of the autocorrelation across and along the layer's wind axis `axis_en` (east, north), in m, the elongation along / across, the direction of the longest axis against the wind
@@ -634,11 +634,11 @@ def collect(ctx):
             gn.save_png(os.path.join(out_dir, "%s-%s-%s-aid.png" % (NAME, family, key)), row["aid"])
             results.setdefault(key, {})["tau_ground_p10_p50_p90"] = [float(x) for x in np.percentile(tau[tau > 0.03], [10, 50, 90])] if (tau > 0.03).any() else None
             if family == "cirrus":
-                fs = fibre_stats(tau, cam, 0.5 * (layer["inner"] + layer["outer"]), axis_en=WIND_EN.get(key, (1.0, 1.0)))
-                results[key]["fibres_ground"] = fs
+                fs = filament_stats(tau, cam, 0.5 * (layer["inner"] + layer["outer"]), axis_en=WIND_EN.get(key, (1.0, 1.0)))
+                results[key]["filaments_ground"] = fs
                 if fs:
-                    metrics.append(Metric.info("e40ty.%s.fibre_across_m" % key, fs["across_m"]))
-                    metrics.append(Metric.info("e40ty.%s.fibre_elongation" % key, fs["elongation"]))
+                    metrics.append(Metric.info("e40ty.%s.filament_across_m" % key, fs["across_m"]))
+                    metrics.append(Metric.info("e40ty.%s.filament_elongation" % key, fs["elongation"]))
                     lines.append("   %-14s ground: PLAYER structure of the optical depth on the layer's middle plane (elevation above 20 degrees, %d px): width across the wind axis %.0f m "
                                  "(autocorrelation FWHM; %.1f degrees at the median range %.1f km), along it %s%.0f m, elongation %s%.1f, the longest axis %.0f degrees off the wind"
                                  % (key, fs["pixels"], fs["across_m"], fs["across_deg"], fs["slant_m"] / 1000.0, ">" if fs["along_bounded"] else "", fs["along_m"],
@@ -762,7 +762,7 @@ def selftest():
     stratus = [j for j in lum if j["id"] == "ty-stratus-ground"][0]["layers"][0]
     assert abs([t for t in stratus["types"] if t["name"] == "Stratus"][0]["densityScale"] - 0.22) < 1e-6
     assert stratus["softnessScale"] == 1.5 and lum[0]["soft"] == SOFTNESS
-    # the fibre measure on a synthetic field of known size: white noise smoothed with sigma 400 m across and 4 km along the north axis, seen from the ground at 35 degrees (the sheet's view).
+    # the filament measure on a synthetic field of known size: white noise smoothed with sigma 400 m across and 4 km along the north axis, seen from the ground at 35 degrees (the sheet's view).
     # The autocorrelation of such a field is Gaussian with sigma times 1.414, so its FWHM is 2.355 x 1.414 x sigma: 1.33 km across, 13.3 km along.
     from scipy.ndimage import gaussian_filter, map_coordinates
     step, half_extent = 50.0, 100000.0
@@ -773,7 +773,7 @@ def selftest():
     cam = view_camera(spec[0] if spec else TYPES[0], "ground", AUX_SIZE)
     e, n, _, _ = plane_points(cam, 9500.0)
     tau = np.where(np.isfinite(e), map_coordinates(field, [np.nan_to_num(n) / step + size / 2.0, np.nan_to_num(e) / step + size / 2.0], order=1, mode="wrap"), 0.0)
-    fs = fibre_stats(tau, cam, 9500.0, axis_en=(0.0, 1.0))
+    fs = filament_stats(tau, cam, 9500.0, axis_en=(0.0, 1.0))
     assert fs is not None and abs(fs["across_m"] / 1333.0 - 1.0) < 0.3 and fs["elongation"] > 4.0, fs
     tint = white_tint()
     assert abs(tint @ np.array([0.2126, 0.7152, 0.0722]) - 1.0) < 1e-6 and tint[2] < 1.0 < tint[0]

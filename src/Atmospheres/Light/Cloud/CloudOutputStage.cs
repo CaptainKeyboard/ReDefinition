@@ -2,7 +2,7 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The units of the own cloud pass against the scene it is drawn into (K-T2d, start 44: the deck came out about 30 times darker than the sky next to it).
+    // The units of the own cloud pass against the scene it is drawn into (K-T2d, start 44: the low stratiform rain layer came out about 30 times darker than the sky next to it).
     //
     // Two facts of the scene, one stage each:
     //  1. The pass is radiometric. Its sun colour is an irradiance E and a thick, white, Lambertian top returns E cos(theta) / pi. Unity's legacy lights have no 1/pi:

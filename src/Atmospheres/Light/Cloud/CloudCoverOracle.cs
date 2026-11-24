@@ -140,7 +140,7 @@ namespace ReDefinition.Atmospheres
                             double erosion = e0 + (e1 - e0) * f;
                             // E40 L6 shape: the shape noise is smoothed by the type (the shader reads it from the type info texture).
                             prm.ShapeLod = CloudShapeModel.SmoothingLod(table.SmoothingOf(typeValue), set != null ? set.ShapeN : 0);
-                            prm.HeapPreset = table.HeapAtTypeValue(typeValue);
+                            prm.CumuliformPreset = table.CumuliformAtTypeValue(typeValue);
                             prm.SmoothingScales = table.SmoothingOf(typeValue);
                             double s0 = CloudShapeModel.Share(set, ref prm, x, y, z, layer.ClearSkyMap(cov), coverage, edge, amount, erosion, true, dt);
                             if (s0 <= 0.0) continue;

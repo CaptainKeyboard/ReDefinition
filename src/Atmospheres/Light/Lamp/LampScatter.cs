@@ -25,7 +25,7 @@ namespace ReDefinition.Atmospheres
     //   Host   after the upscaler through ReDefinition.Api with the host's render-size depth. It is NOT selectable until the exposure
     //          rule below exists: the composite needs Tuning flag lamp.hostAllowed (default false; the series probe sets it for its own
     //          Host measurement, E40 sets it together with lamp.hostProven.<vendor> once the exposure factor is in). The colour is
-    //          scaled by lamp.hostGain; the luminance-relative exposure rule of the veil (scale by the same factor as the veil) is not
+    //          scaled by lamp.hostGain; the luminance-relative exposure rule of the precipitation extinction (scale by the same factor as it) is not
     //          applied here [VERIFY: needs the image-luminance capture of PrecipPass, which is not a shared service]. weatherCompose
     //          Host and Auto therefore both give Scene today.
     //
@@ -454,8 +454,8 @@ namespace ReDefinition.Atmospheres
             foreach (var kv in states) if (!kv.Value.Seen) stale.Add(kv.Key);
             for (int k = 0; k < stale.Count; k++) states.Remove(stale[k]);
 
-            // Drift of the flakes the glints ride on: the wind and the fall, in the world.
-            drift += (windAxisE * view.WindWorld.x + windAxisN * view.WindWorld.y + windAxisU * (view.WindWorld.z - view.FlakeFallMS)) * dt;
+            // Drift of the hydrometeors the glints ride on: the wind and the fall, in the world.
+            drift += (windAxisE * view.WindWorld.x + windAxisN * view.WindWorld.y + windAxisU * (view.WindWorld.z - view.HydrometeorFallMS)) * dt;
             // The noise table repeats every 256 cells in each axis: wrapping the drift by that period is seamless. A floating-origin
             // or Krakensbane shift moves the world positions the pattern is read at and shows as one jump of the glints [VERIFY].
             float period = 256f * t.GlintSizeM;
@@ -526,7 +526,7 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The wind and the up axis in the world frame, for the drift of the flakes (10 Hz).
+        // The wind and the up axis in the world frame, for the drift of the hydrometeors (10 Hz).
         private void UpdateWind(Camera cam, CelestialBody body, WeatherView view)
         {
             BodyFrame.Compute(body, cam.transform.position, ref basis);

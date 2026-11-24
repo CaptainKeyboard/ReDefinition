@@ -1,7 +1,7 @@
 """The series of the noise and shape model (package T02), run through tools/build_weather_player.py --series T02-noise:
 
   T02-noise   the scene 'layers' of the weather player draws the own cloud system's layer shell with the real shape model (the shader
-              ReDefinition/AtmospheresLayers and its include ReDefinitionAtmospheresNoise.cginc, the generated volumes) on the deck of the
+              ReDefinition/AtmospheresLayers and its include ReDefinitionAtmospheresNoise.cginc, the generated volumes) on the test layer of the
               parity checks R02 (tests/data/parity/checks.json) and judges
                 R02-noise-spectrum    the spectrum slope of the alpha stripes in three octave bands (band 1.3 to 2.6)
                 R02-noise-repetition  the autocorrelation of a 40 x 20 km optical-depth map at the volume's tile distance (<= 0.15)
@@ -10,7 +10,7 @@
                 the pass against the CPU model on the same rays (noise_model.py: optical depth error)
                 the flow map: the direction the pattern moves in against the map's direction (<= 5 deg) in two patches
                 the generation time and the bytes of the volumes at the Medium tier (reported, limits [proposed])
-              and writes the pictures of the view table (a 40 km deck from 8 km, an edge at 500 m: natural + aid, with the A/B variants
+              and writes the pictures of the view table (a 40 km test layer from 8 km, an edge at 500 m: natural + aid, with the A/B variants
               curl off, untiling off, noise off) and the aid plots (spectrum, autocorrelation map).
 
 The reference column of R02 is the harness's own (parity_run.py reference); the TVC column is TV-NOISE-STRIPE of tests/data/parity/tvc-capture.md.
@@ -41,10 +41,10 @@ INPUT = os.path.join(BUILD, "T02-in")
 OURS = os.path.join(BUILD, "T02-ours")
 R = pr.KERBIN_RADIUS
 
-SCALE = 375.0                      # the noise scale of the test deck: the shape's finest lattice cell (m)
-DECK = (2200.0, 2500.0)            # the deck of the harness's noise scenes
+SCALE = 375.0                      # the noise scale of the test layer: the shape's finest lattice cell (m)
+TEST_LAYER = (2200.0, 2500.0)            # the test layer of the harness's noise scenes
 HIGH = 300000.0                    # the camera's height above sea level for the nadir jobs (m)
-MEASURE_STEPS = 24                 # march steps through the 300 m deck of the measurement jobs (12.5 m)
+MEASURE_STEPS = 24                 # march steps through the 300 m test layer of the measurement jobs (12.5 m)
 CPU_W, CPU_H = 128, 64             # the pixels of the job that is compared with the CPU model
 FLOW_W, FLOW_H = 4096, 2048
 # The flow map's four quadrants around longitude 0, the equator: the direction (deg, east through north) of each. Distinct, so that a
@@ -76,7 +76,7 @@ def slab_type(name, base, top, profile, erosion):
 
 
 def layer(inner, outer, sigma, types, coverage, softness, noise_scale, noise_amount=1.0, **kw):
-    d = dict(name="deck", inner=float(inner), outer=float(outer), sigma=float(sigma), coverage=float(coverage), softness=float(softness), kind=0,
+    d = dict(name="layer", inner=float(inner), outer=float(outer), sigma=float(sigma), coverage=float(coverage), softness=float(softness), kind=0,
              fadeNear=0.0, fadeFar=0.0, coverageMap="", typeMap="", noiseAmount=float(noise_amount), noiseScale=float(noise_scale), shift=0.0,
              emission=[0.0, 0.0, 0.0], types=types, flowAmplitude=0.0, flowLooped=0, colourStrength=0.0, rise=0.0, drift=[0.0, 0.0, 0.0])
     d.update(kw)
@@ -94,17 +94,17 @@ def job(job_id, mode, cam, layers, width, height, noise=None, sun=(0.0, 0.0, 1.0
     return j
 
 
-def deck_layer(tau_vertical, erosion=0.5, **kw):
-    """The deck of the checks as a layer of the pass: the coverage threshold at the middle of the noise (coverage 0), the layer default
+def test_layer(tau_vertical, erosion=0.5, **kw):
+    """The test layer of the checks as a layer of the pass: the coverage threshold at the middle of the noise (coverage 0), the layer default
     soft edge 0.15 on the noise value, vertical optical depth tau_vertical when fully covered."""
-    thick = DECK[1] - DECK[0]
-    return layer(DECK[0], DECK[1], tau_vertical / thick, [slab_type("cumulus", 0.0, 1.0, (1.0, 1.0), erosion)], 0.0, 0.15, SCALE, **kw)
+    thick = TEST_LAYER[1] - TEST_LAYER[0]
+    return layer(TEST_LAYER[0], TEST_LAYER[1], tau_vertical / thick, [slab_type("cumulus", 0.0, 1.0, (1.0, 1.0), erosion)], 0.0, 0.15, SCALE, **kw)
 
 
 def nadir(width, height, pixel_m, north_m=0.0):
     """A camera 300 km above longitude 0 at `north_m` north of the equator looking straight down (image columns run east), with square
-    pixels of `pixel_m` on the deck's middle."""
-    dist = HIGH - 0.5 * (DECK[0] + DECK[1])
+    pixels of `pixel_m` on the test layer's middle."""
+    dist = HIGH - 0.5 * (TEST_LAYER[0] + TEST_LAYER[1])
     half = height * pixel_m * 0.5 / dist
     lat = north_m / R
     pos = [(R + HIGH) * math.cos(lat), 0.0, (R + HIGH) * math.sin(lat)]
@@ -155,21 +155,21 @@ def build_jobs():
     for v in SPEC_VARIANTS:
         for k in range(SPEC_TILES):
             cam = nadir(800, 240, 50.0, north_m=(k - 0.5 * (SPEC_TILES - 1)) * 12000.0)
-            jobs.append(job("N-spec-%s-%d" % (v or "on", k), "aux", cam, [deck_layer(1.0)], 800, 240, noise=noise_block(v)))
+            jobs.append(job("N-spec-%s-%d" % (v or "on", k), "aux", cam, [test_layer(1.0)], 800, 240, noise=noise_block(v)))
     # R02 repetition: 200 x 100 pixels of 200 m (40 x 20 km), optical depth 6
     cam = nadir(200, 100, 200.0)
     for v in SPEC_VARIANTS:
-        jobs.append(job("N-rep-%s" % (v or "on"), "aux", cam, [deck_layer(6.0)], 200, 100, noise=noise_block(v)))
+        jobs.append(job("N-rep-%s" % (v or "on"), "aux", cam, [test_layer(6.0)], 200, 100, noise=noise_block(v)))
     # the pass against the CPU model on the same rays: 128 x 64 pixels of 200 m (25.6 x 12.8 km: several tiles and edges), optical depth 1
     cam = nadir(CPU_W, CPU_H, 200.0)
-    jobs.append(job("N-cpu", "aux", cam, [deck_layer(1.0)], CPU_W, CPU_H, noise=noise_block("")))
+    jobs.append(job("N-cpu", "aux", cam, [test_layer(1.0)], CPU_W, CPU_H, noise=noise_block("")))
     # the flow map: two phases, a pass each, 400 x 200 pixels of 50 m (20 x 10 km) over longitude 0
     name = flow_map_file()
     cam = nadir(400, 200, 50.0)
     for k, t in enumerate(FLOW_TIMES):
         noise = noise_block("")
         noise.update(flowMap=name, mapWidth=FLOW_W, mapHeight=FLOW_H, flowTime=float(t))
-        jobs.append(job("N-flow-%d" % k, "aux", cam, [deck_layer(6.0, flowAmplitude=FLOW_AMPLITUDE, flowLooped=0)], 400, 200, noise=noise))
+        jobs.append(job("N-flow-%d" % k, "aux", cam, [test_layer(6.0, flowAmplitude=FLOW_AMPLITUDE, flowLooped=0)], 400, 200, noise=noise))
     return jobs + picture_jobs()
 
 
@@ -248,10 +248,10 @@ def picture_jobs():
         views.append(job("V-%s" % view_id, "color", cam, [view_layer()], size[0], size[1], noise=noise_block(variant), sun=sun_vector(cam.pos, sun_az, sun_el),
                          maxSteps=steps, rayLimit=ray_limit, minStep=12.0, stepGrowth=0.0002, jitter=0.0, earlyOut=0.01, sunSteps=4))
 
-    # a 40 km deck from 8 km: pitch -9 degrees, 60 degrees of view, looking east along the equator
+    # a 40 km test layer from 8 km: pitch -9 degrees, 60 degrees of view, looking east along the equator
     cam = pr.Camera([R + 8000.0, 0.0, 0.0], 90.0, -9.0, size[0], size[1], 60.0)
     for v in ("", "nocurl", "nountile", "nonoise", "nolod"):
-        add("deck40-%s" % (v or "on"), cam, v)
+        add("layer40-%s" % (v or "on"), cam, v)
     # the fractal edge from outside the cloud: the camera at the layer's middle height in clear air, the wall 1.5 km (and 2 km) east of it,
     # a side view. Sun toward the wall and low (az 90, 12 deg: the edge is backlit, the silver lining), and the sun behind the camera (the lit face).
     east, north, _ = edge_site()
@@ -345,8 +345,8 @@ def cpu_parity(folder):
     origin, dirs = cpu_rays(cam, None)
     vols = nm.Volumes(seed=1).quantized()
     prm = model_params(1, 0)
-    thick = DECK[1] - DECK[0]
-    ref = nm.planet_ray_tau(vols, prm, origin, dirs, R, DECK[0], DECK[1], 1.0 / thick, MEASURE_STEPS, 1.0, 0.0).reshape(CPU_H, CPU_W)
+    thick = TEST_LAYER[1] - TEST_LAYER[0]
+    ref = nm.planet_ray_tau(vols, prm, origin, dirs, R, TEST_LAYER[0], TEST_LAYER[1], 1.0 / thick, MEASURE_STEPS, 1.0, 0.0).reshape(CPU_H, CPU_W)
     got = plane(folder, "N-cpu", "tau")
     m = ref > 0.1
     rel = np.abs(got[m] - ref[m]) / ref[m]
@@ -428,7 +428,7 @@ def difference_pictures(folder, out_dir):
     two differ. Returns {pair: (mean difference over the region, share of pixels that differ)}."""
     from PIL import Image
     out = {}
-    pairs = (("deck40-on", "deck40-nocurl"), ("deck40-on", "deck40-nountile"), ("deck40-on", "deck40-nonoise"), ("deck40-on", "deck40-nolod"),
+    pairs = (("layer40-on", "layer40-nocurl"), ("layer40-on", "layer40-nountile"), ("layer40-on", "layer40-nonoise"), ("layer40-on", "layer40-nolod"),
              ("edge1500-back-on", "edge1500-back-nolod"),
              ("edge1500-back-on", "edge1500-back-nocurl"), ("edge1500-back-on", "edge1500-back-nonoise"),
              ("edge1500-front-on", "edge1500-front-nocurl"), ("edge1500-front-on", "edge1500-front-nonoise"))
@@ -524,7 +524,7 @@ def collect(ctx):
     east, north, score = edge_site()
     out.append(Metric.info("edge.site_score", score))
     out.append(Metric.flag("edge.site_found", score > 0.0))
-    for view in ("deck40-on", "deck40-nocurl", "deck40-nountile", "deck40-nonoise", "deck40-nolod", "edge1500-back-nolod", "edge1500-back-on", "edge1500-back-nocurl", "edge1500-back-nonoise",
+    for view in ("layer40-on", "layer40-nocurl", "layer40-nountile", "layer40-nonoise", "layer40-nolod", "edge1500-back-nolod", "edge1500-back-on", "edge1500-back-nocurl", "edge1500-back-nonoise",
                  "edge1500-front-on", "edge1500-front-nocurl", "edge1500-front-nonoise", "edge2000-back-on"):
         ok = os.path.isfile(os.path.join(folder, "V-%s.png" % view)) and os.path.isfile(os.path.join(folder, "V-%s-aid.png" % view))
         out.append(Metric.flag("view.%s" % view, ok))

@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
 {
     // Series K-WB (audit A2, owner 2026-11-19: the scene's white balance must hold on every body with clouds, not only on Kerbin): the main mod's probe sets the
     // command pod down on the body the start names (-redefinitionProbeLand <body>). This probe opens the weather field's and the own pass's switches (as
-    // T09Probe does), picks the time whose cloud cover at the pod is nearest one half among those with the sun 25 to 45 degrees up (a clear sky compares nothing, a closed deck shows no heaps), sets the
+    // T09Probe does), picks the time whose cloud cover at the pod is nearest one half among those with the sun 25 to 45 degrees up (a clear sky compares nothing, a closed cloud layer shows no mounds), sets the
     // pod down 40 m above the ground and holds it (the camera stands above grass and scatter), waits for the pass and saves the screen without the UI as the
     // player sees it from two camera poses, each at the slider's strengths 0, 0.25, 0.5 and 1.
     // Pictures: wb-<body>-p<pose>-s<strength in percent>.png in the series picture folder. Rows: WB.body, WB.cover, WB.sun_elev_deg, WB.tint_r/g/b, WB.pictures.
@@ -86,7 +86,7 @@ namespace ReDefinition.Atmospheres
                     WeatherSample ws;
                     if (!WeatherHub.Sample(bodyIndex, podLat, podLon, 3000.0, t, out ws)) continue;
                     answered++;
-                    // The cover nearest TargetCover: single heaps with sky between them (the owner, 2026-11-19: a closed deck shows no puffs and no detail).
+                    // The cover nearest TargetCover: single mounds with sky between them (the owner, 2026-11-19: a closed cloud layer shows no puffs and no detail).
                     if (bestCover < 0.0 || Math.Abs(ws.CloudCover01 - TargetCover) < Math.Abs(bestCover - TargetCover))
                     {
                         bestCover = ws.CloudCover01;

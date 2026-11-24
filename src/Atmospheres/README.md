@@ -25,13 +25,13 @@ The atmospheres (the season clock, the snow and the storm cells) as a mod of its
 | `src/Atmospheres/ReflectLink.cs` | The member lookups of the links, with the names that were missing. |
 | `src/Atmospheres/StormModel.cs` | The storm draw of a slot, the envelope and the band schedule from time, latitude, season and seed. |
 | `src/Atmospheres/StormCells.cs` | The storm cells: place, radius, life and drift as pure functions of seed and time; intensity at a point. |
-| `src/Atmospheres/StormLook.cs` | What an intensity looks like: visibility, fog, veil, flakes, ambient light. |
+| `src/Atmospheres/StormLook.cs` | What an intensity looks like: visibility, fog, whiteout, flakes, ambient light. |
 | `src/Atmospheres/StormEffect.cs` | The storm in flight: lifecycle, the target intensity, the order of the steps, the failure guard. |
 | `src/Atmospheres/FogController.cs` | The fog bookkeeping of a storm: saved, written and the decision to put it back. |
 | `src/Atmospheres/StormLog.cs` | The log lines of a storm, built from plain values. |
-| `src/Atmospheres/StormVeil.cs`, `StormFlakes.cs`, `StormAmbient.cs`, `AmbientTracker.cs` | The whiteout veil, the falling snow, the lowered ambient light and its tracker. |
+| `src/Atmospheres/StormVeil.cs`, `StormFlakes.cs`, `StormAmbient.cs`, `AmbientTracker.cs` | The whiteout, the falling snow, the lowered ambient light and its tracker. |
 | `src/Atmospheres/StormCull.cs` | The terrain layer left out beyond what the storm's fog shows (`stormCullDistance`). |
-| `src/Atmospheres/StormVolume.cs`, `StormVolumeMath.cs`, `StormNoise.cs`, `StormShaders.cs` | The snow veil of the cells in the world, raymarched: the pool, the numbers it is fed, the noise, the shaders. |
+| `src/Atmospheres/StormVolume.cs`, `StormVolumeMath.cs`, `StormNoise.cs`, `StormShaders.cs` | The snow praecipitatio of the cells in the world, raymarched: the pool, the numbers it is fed, the noise, the shaders. |
 | `src/Atmospheres/OrbitMask.cs` | The snow mask as pixels of an equirectangular map, in the PQS texture convention; pure, runs on a worker thread. |
 | `src/Atmospheres/OrbitSnow.cs` | Kerbin's scaled-space planet: the polling, the worker, the generation counter, the restore. |
 | `src/Atmospheres/OrbitTextures.cs`, `OrbitHeights.cs` | The textures and the overlay of the orbit snow, and the height grid read from the PQS. |
@@ -45,9 +45,9 @@ The atmospheres (the season clock, the snow and the storm cells) as a mod of its
 - `SnowPqsMod` is a child of Kerbin's PQS, ordered after the colour mods. It turns the vertex colour toward snow when a quad is built and keeps what it needs to paint the quad again.
 - `SnowRefresher` adds the mod, then follows `groundRefreshMode`: `Live` paints built quads again (`LiveRepainter`), `Rebuild` builds the terrain anew where no vessel needs it (`GroundRebuilder`), `Off` leaves built ground alone. Without a phase (no Kerbin yet, nothing forced) nothing is painted.
 - `ParallaxLink` tells Parallax's terrain and scatters that a quad's colours changed, the way Parallax does itself.
-- Storms are cells on the planet (`StormCells`, from the `StormModel` rule). `StormEffect` reads the intensity at the flight camera and sets the fog, the veil, the flakes, the ambient light and EVE's snow field, and `StormVolume` draws the cells from afar.
+- Storms are cells on the planet (`StormCells`, from the `StormModel` rule). `StormEffect` reads the intensity at the flight camera and sets the fog, the whiteout, the flakes, the ambient light and EVE's snow field, and `StormVolume` draws the cells from afar.
 - `EveRainLink` replaces EVE's rain by its snow where the ground is snow or ice, whether or not a storm runs.
-- The atmospheres are made to run with EVE's volumetric clouds. By default (`stormClouds = Existing`) the cell is part of EVE's weather: `EveLayerStorm` composites it into the coverage and type maps of Kerbin's base layer (its cell type is Cumulus, denser than the Stratus deck) and weather layers (Polar-snow) and draws it into the picture of the base layer's 2D layer, so it is lit and textured as the clouds around it. The falling snow is EVE's particle field on the mod's own snow layer (`EveCellLayer`, which `Own` also uses for the cloud). `StormVolume` draws the snow veil under the cloud only. Without EVE's volumetric clouds there are no cells (`StormEffect` logs it once); the ground and orbit snow go on. The mod's own flakes (`StormFlakes`, setting `stormOwnFlakes`) fall where EVE has no snow field.
+- The atmospheres are made to run with EVE's volumetric clouds. By default (`stormClouds = Existing`) the cell is part of EVE's weather: `EveLayerStorm` composites it into the coverage and type maps of Kerbin's base layer (its cell type is Cumulus, denser than the Stratus layer) and weather layers (Polar-snow) and draws it into the picture of the base layer's 2D layer, so it is lit and textured as the clouds around it. The falling snow is EVE's particle field on the mod's own snow layer (`EveCellLayer`, which `Own` also uses for the cloud). `StormVolume` draws the snow veil under the cloud only. Without EVE's volumetric clouds there are no cells (`StormEffect` logs it once); the ground and orbit snow go on. The mod's own flakes (`StormFlakes`, setting `stormOwnFlakes`) fall where EVE has no snow field.
 - `OrbitSnow` draws the same snow over the colour map of the scaled planet for the orbit and map view.
 - Every step that can fail logs once and puts back what it changed: the storm effect, the orbit snow, the live refresh and the links switch themselves off for the session.
 - The storms add no image effect and no command buffer, so the upscalers and raytracing of ReDefinition are not touched.

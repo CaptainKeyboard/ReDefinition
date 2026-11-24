@@ -30,7 +30,7 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
         [TestMethod]
         public void TheDiscsCoverTheShareTheTablePromises()
         {
-            // Up to a share of 0.45 no disc reaches the radius cap; above it the cap takes a little (the deck blend takes over at 0.8).
+            // Up to a share of 0.45 no disc reaches the radius cap; above it the cap takes a little (the closed-layer blend takes over at 0.8).
             foreach (double f in new[] { 0.05, 0.15, 0.25, 0.35, 0.45 })
             {
                 double c = Covered(f, 40000, 7);
@@ -85,10 +85,10 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
         }
 
         [TestMethod]
-        public void TheCoverIsTheMapAboveTheDeckShare()
+        public void TheCoverIsTheMapAboveTheClosedLayerShare()
         {
             double reach, wMap;
-            // A map value whose share is 1 (a narrow noise swing, 0.1, keeps the whole ramp above the edge): the deck, the map's own value.
+            // A map value whose share is 1 (a narrow noise swing, 0.1, keeps the whole ramp above the edge): the closed cloud layer, the map's own value.
             Assert.AreEqual(1.0, CloudCells.Share(1.0, 0.35, 0.15, 0.1), 1e-9);
             double c = CloudCells.Cover(1.0, 0.3, 0.5, Pitch, Rm, 0.35, 0.15, 0.1, 0.0, Seed, out reach, out wMap);
             Assert.AreEqual(1.0, wMap, 1e-9);
@@ -112,7 +112,7 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             Assert.AreEqual(0.0, CloudCells.CellBody(Disc(1.5), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
             // At the centre, on the base, the depth is the shorter semi-axis (725 m) over a band of 10 m: fully inside.
             Assert.AreEqual(1.0, CloudCells.CellBody(Disc(0.0), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
-            // On the ellipsoid's surface (x at the visible radius, h 0) with the billow rank at its mean and no fine octaves: the depth is 0, the share half.
+            // On the ellipsoid's surface (x at the visible radius, h 0) with the bulge rank at its mean and no fine octaves: the depth is 0, the share half.
             Assert.AreEqual(0.5, CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 0.5, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0), 1e-12);
             // A rank above the mean moves the surface out: the same point is inside.
             Assert.IsTrue(CloudCells.CellBody(Disc(CloudCells.EdgeX), 0.0, 1.0, 0.0, 0.0, 1000.0, 0.5, 10.0, 0.0) > 0.5);

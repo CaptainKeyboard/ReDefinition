@@ -74,14 +74,14 @@ namespace AtmoSim.Core
         public double BaseShare, TopShare, StableShare;
         // The relative humidity of the surface air (the mixed layer's, SurfaceHumidity) that sets the base, and its dew point (K).
         public double SurfaceHumidity, SurfaceDewPointK;
-        // Net large-scale ascent 0 to 1 (uplift beyond the descent): where it is above 0 the mixed layer has no equilibrium cap; deep convection is the cells' and the deck the
+        // Net large-scale ascent 0 to 1 (uplift beyond the descent): where it is above 0 the mixed layer has no equilibrium cap; deep convection is the cells' and the low stratiform layer the
         // dynamic cloud's, so StableShare keeps its value at no net motion there (StableShareOf).
         public double Ascent01;
-        // The sky shares, as seen, of the column's cloud (the field's Coverage = 1 - exp(-3 CloudWater)), split by the parts of its cloud water: HeapAmount the heap family (the
-        // convective water: cells and trade-wind cumulus, plus the humidity background where it is shallow cumulus), SheetAmount the rest (the deck from the dynamic lift and fronts,
-        // DeckAmount, plus the background where it is no cumulus). HeapAmount + SheetAmount = Coverage <= 1; each part is the coverage times its share of the cloud water.
-        public double HeapAmount, SheetAmount, DeckAmount;
-        // The share of the humidity background that is shallow cumulus (the instability, where convection has depth below the stable layer and no deck saturates the column).
+        // The sky shares, as seen, of the column's cloud (the field's Coverage = 1 - exp(-3 CloudWater)), split by the parts of its cloud water: CumuliformAmount the cumuliform family (the
+        // convective water: cells and trade-wind cumulus, plus the humidity background where it is shallow cumulus), StratiformAmount the rest (the low stratiform layer from the dynamic lift and fronts,
+        // LowStratiformAmount, plus the background where it is no cumulus). CumuliformAmount + StratiformAmount = Coverage <= 1; each part is the coverage times its share of the cloud water.
+        public double CumuliformAmount, StratiformAmount, LowStratiformAmount;
+        // The share of the humidity background that is shallow cumulus (the instability, where convection has depth below the stable layer and no low stratiform layer saturates the column).
         public double ShallowShare;
         // The relative humidity at the low, middle and high level of the troposphere (BodyParams.SkyLevelLow/Mid/HighShare), 0 to 1.
         public double RhLow, RhMid, RhHigh;
@@ -106,7 +106,7 @@ namespace AtmoSim.Core
         // The height of the stable layer as a share of the troposphere. Mixed-layer equilibrium z_i = w_e / D with w_e proportional to the forcing over the inversion jump
         // (Bretherton, Atm S 547 lecture 16, eqs. 16.33, 16.38a, 16.39: "The inversion height is increased by more radiative cooling, weaker subsidence or a weaker inversion
         // jump"). nu = descent - min(1, uplift) is the net large-scale descent; D grows as 1 + SkyDescentGain nu, the jump as 1 + SkyInversionGain nu (descent warms the air above the
-        // layer). Where nu <= 0 there is no subsidence to balance the entrainment: that regime has no equilibrium, and the column's depth is the deck's and the cells', not the mixed
+        // layer). Where nu <= 0 there is no subsidence to balance the entrainment: that regime has no equilibrium, and the column's depth is the low stratiform layer's and the cells', not the mixed
         // layer's, so the share stays at its value for nu = 0 (continuous at the regime edge).
         public static double StableShareOf(BodyParams b, double heating01, double descent01, double uplift)
         {
@@ -168,19 +168,19 @@ namespace AtmoSim.Core
             double top = zs > zc ? zs : zc;
 
             // which part of the humidity background is shallow cumulus: the instability where the layer has depth below its cap (ramped over the inversion's width), on the part of
-            // the ground the deck leaves in the sun (the deck's own cover by the field's cover law 1 - exp(-3 water); under a deck no surface-driven cumulus, stack rule S7)
+            // the ground the low stratiform layer leaves in the sun (the layer's own cover by the field's cover law 1 - exp(-3 water); under a low stratiform layer no surface-driven cumulus, stack rule S7)
             double bg = w.CloudBackground > 0.0 ? w.CloudBackground : 0.0, dyn = w.CloudDynamic > 0.0 ? w.CloudDynamic : 0.0, conv = w.CloudConvective > 0.0 ? w.CloudConvective : 0.0;
             double ramp = DMath.SmoothStep(0.0, b.SkyInversionWidth * zi, depth);
             double shallow = x * ramp * DMath.Exp(-3.0 * dyn);
-            double heapW = conv + bg * shallow, total = heapW + dyn + bg * (1.0 - shallow);
+            double cumuliformW = conv + bg * shallow, total = cumuliformW + dyn + bg * (1.0 - shallow);
             double cover = DMath.Clamp(w.Coverage, 0.0, 1.0);
-            double heap = total > 0.0 ? cover * heapW / total : 0.0;
+            double cumuliform = total > 0.0 ? cover * cumuliformW / total : 0.0;
 
             s.BaseM = zb; s.TopM = top; s.StableM = zi;
             s.BaseShare = h > 0.0 ? zb / h : 0.0; s.TopShare = h > 0.0 ? top / h : 0.0; s.StableShare = si;
             s.SurfaceHumidity = rhS; s.SurfaceDewPointK = td;
             s.Ascent01 = up > w.Descent01 ? up - w.Descent01 : 0.0;
-            s.HeapAmount = heap; s.SheetAmount = cover - heap; s.DeckAmount = total > 0.0 ? cover * dyn / total : 0.0;
+            s.CumuliformAmount = cumuliform; s.StratiformAmount = cover - cumuliform; s.LowStratiformAmount = total > 0.0 ? cover * dyn / total : 0.0;
             s.ShallowShare = shallow;
             s.WarmFront01 = w.WarmFront01; s.ColdFront01 = w.ColdFront01; s.FrontAmp01 = w.FrontAmp01; s.FrontSurfaceShare = w.FrontSurfaceShare;
 
@@ -197,7 +197,7 @@ namespace AtmoSim.Core
 
         // The relative humidity at a level (share of the troposphere) of a derived column. The mixed layer (surface air lifted dry-adiabatically) blends into the free troposphere over the
         // inversion's width around the stable layer. The free troposphere: its humidity raised toward saturation by the strongest of the dynamic lift (up to the stratiform rain onset),
-        // the front (the overrunning warm air above the frontal surface, near a front), and the heap clouds between base and top (their sky share). Every edge is a smooth step whose
+        // the front (the overrunning warm air above the frontal surface, near a front), and the cumuliform clouds between base and top (their sky share). Every edge is a smooth step whose
         // width scales with its layer's depth, so the profile is continuous in height and in time.
         public static double HumidityAt(BodyParams b, ref Weather w, ref SkyColumn s, double share)
         {
@@ -212,7 +212,7 @@ namespace AtmoSim.Core
             if (front > boost) boost = front;
             double wc = b.SkyInversionWidth * (s.TopM - s.BaseM > zi ? s.TopM - s.BaseM : zi);
             double gate = DMath.SmoothStep(s.BaseM - wc, s.BaseM + wc, z) * (1.0 - DMath.SmoothStep(s.TopM - wc, s.TopM + wc, z));
-            double conv = s.HeapAmount * gate;
+            double conv = s.CumuliformAmount * gate;
             if (conv > boost) boost = conv;
             double rhFree = r + (1.0 - r) * boost;
             double rh = mixed * rhMixed + (1.0 - mixed) * rhFree;

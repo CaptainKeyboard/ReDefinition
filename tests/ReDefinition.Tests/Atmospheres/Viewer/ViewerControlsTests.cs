@@ -69,14 +69,14 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         public void AWeatherOverrideIsInASetOnlyOnceTheKeyListKnowsTheLayer()
         {
             var store = new FakeViewerRig.Store();
-            string deck = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
-            store.SetOverride(deck, 1f);
+            string lowStratiformKey = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
+            store.SetOverride(lowStratiformKey, 1f);
             var list = new ViewerKeyList();
             list.Sync(new string[0]);
             Assert.AreEqual(0, OptionSet.Capture(store, new string[0], list.Names).Overrides.Count, "the list built without the stack does not know the key");
             list.Sync(FakeViewerRig.KerbinLayers.Select(l => l.Name).ToArray());
             OptionSet set = OptionSet.Capture(store, new string[0], list.Names);
-            Assert.AreEqual(1f, set.Overrides[deck]);
+            Assert.AreEqual(1f, set.Overrides[lowStratiformKey]);
         }
 
         // --- A/B and the presets hold the forced precipitation and the weather ---
@@ -89,29 +89,29 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         }
 
         [TestMethod]
-        public void AFlipAcrossRainDeckAndTheFieldPutsBackTheRainAndTheWeatherLabel()
+        public void AFlipAcrossRainLowStratiformAndTheFieldPutsBackTheRainAndTheWeatherLabel()
         {
             var rig = new FakeViewerRig();
             rig.ToggleWindow();
             double level0 = rig.Setting(AtmospheresSettings.Keys.ForceLevel), type0 = rig.Setting(AtmospheresSettings.Keys.ForceType);
             rig.StoreA();
-            rig.SetWeather(ViewerWeather.RainDeck);
+            rig.SetWeather(ViewerWeather.RainLowStratiform);
             Assert.AreEqual(0.6, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9);
             Assert.AreEqual((double)(int)ForceType.Rain, rig.Setting(AtmospheresSettings.Keys.ForceType));
-            string deck = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
-            Assert.IsTrue(rig.HasOverride(deck));
+            string lowStratiformKey = CloudLookTuning.TuneMapOverride + FakeViewerRig.KerbinLayers[0].Name;
+            Assert.IsTrue(rig.HasOverride(lowStratiformKey));
 
             rig.FlipAB();
             Assert.AreEqual(ViewerWeather.Field, rig.CurrentWeather, "A was the field's weather");
             Assert.AreEqual(level0, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9, "the rain of the other side is gone");
             Assert.AreEqual(type0, rig.Setting(AtmospheresSettings.Keys.ForceType));
-            Assert.IsFalse(rig.HasOverride(deck), "and its overrides with it");
+            Assert.IsFalse(rig.HasOverride(lowStratiformKey), "and its overrides with it");
 
             rig.FlipAB();
-            Assert.AreEqual(ViewerWeather.RainDeck, rig.CurrentWeather, "B is Rain Deck again");
+            Assert.AreEqual(ViewerWeather.RainLowStratiform, rig.CurrentWeather, "B is Nimbostratus Rain again");
             Assert.AreEqual(0.6, rig.Setting(AtmospheresSettings.Keys.ForceLevel), 1e-9);
             Assert.AreEqual((double)(int)ForceType.Rain, rig.Setting(AtmospheresSettings.Keys.ForceType));
-            Assert.IsTrue(rig.HasOverride(deck));
+            Assert.IsTrue(rig.HasOverride(lowStratiformKey));
         }
 
         [TestMethod]
@@ -121,7 +121,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             store.Settings[AtmospheresSettings.Keys.ForceLevel] = 0.6;
             store.Settings[AtmospheresSettings.Keys.ForceType] = (double)(int)ForceType.Rain;
             List<string> settings = ViewerOptionKeys.Settings(new[] { AtmospheresSettings.Keys.CloudSoftness });
-            OptionSet set = OptionSet.Capture(store, settings, new string[0], ViewerWeather.RainDeck);
+            OptionSet set = OptionSet.Capture(store, settings, new string[0], ViewerWeather.RainLowStratiform);
             string path = Path.Combine(Path.GetTempPath(), "cloud-viewer-weather-" + Guid.NewGuid().ToString("N") + ".cfg");
             OptionSet back;
             try
@@ -134,7 +134,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 File.Delete(path);
             }
             Assert.IsNotNull(back);
-            Assert.AreEqual(ViewerWeather.RainDeck, back.Weather);
+            Assert.AreEqual(ViewerWeather.RainLowStratiform, back.Weather);
             Assert.AreEqual(0.6, back.Settings[AtmospheresSettings.Keys.ForceLevel], 1e-9);
             Assert.AreEqual((double)(int)ForceType.Rain, back.Settings[AtmospheresSettings.Keys.ForceType]);
             Assert.AreEqual(ViewerWeather.Field, OptionSet.FromNode(new ConfigNode()).Weather, "a file without a weather: the field's");

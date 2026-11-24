@@ -28,7 +28,7 @@ namespace ReDefinition.Atmospheres
 
     internal static class AnvilMap
     {
-        // The most a source reaches, in texels (a guard against a deck-sized source: its anvil is cut there).
+        // The most a source reaches, in texels (a guard against a layer-sized source: its anvil is cut there).
         internal const int MaxReachTexels = 64;
 
         // The updraft of a full-strength tower (m/s): the layer's own number where the cfg gives one (anvilUpdraftMs above 0), else the body's (the generator's full-strength cell: sqrt(B g H)).

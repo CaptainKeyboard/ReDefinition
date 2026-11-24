@@ -69,9 +69,9 @@ namespace ReDefinition.Tests
         [DataRow("blizzardVisibilityM", "1", "20")]
         [DataRow("blizzardVisibilityM", "9999", "500")]
         [DataRow("blizzardVisibilityM", "NaN", "60")]
-        [DataRow("veilStrength", "-1", "0")]
-        [DataRow("veilStrength", "9", "0.95")]
-        [DataRow("veilStrength", "abc", "0.85")]
+        [DataRow("precipExtinctionStrength", "-1", "0")]
+        [DataRow("precipExtinctionStrength", "9", "0.95")]
+        [DataRow("precipExtinctionStrength", "abc", "0.85")]
         [DataRow("skyDimming", "-1", "0")]
         [DataRow("skyDimming", "9", "1")]
         [DataRow("skyDimming", "NaN", "0.6")]
@@ -151,7 +151,7 @@ namespace ReDefinition.Tests
                 "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "windShear", "layerWindSteering", "verticalMotion", "anvilTilt", "solarDimming", "solarDimmingStrength",
                 "visibilityExport", "genEnabled", "simGrid", "simLevels", "simSliceMs", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
-                "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
+                "stormCullDistance", "visibilityExtinctionBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "vehicleCoverMethod", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
                 "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",

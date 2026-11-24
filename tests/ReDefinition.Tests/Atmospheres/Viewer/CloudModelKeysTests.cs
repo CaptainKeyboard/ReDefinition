@@ -22,8 +22,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         {
             string[] global =
             {
-                CloudLookTuning.TuneHeap, CloudLookTuning.TuneEdgePower, CloudLookTuning.TuneCavity, CloudLookTuning.TuneHeapFootLod, CloudLookTuning.TuneHeapIso,
-                CloudLookTuning.TuneNoiseBlend, CloudLookTuning.TuneNoiseBlendExp, CloudLookTuning.TuneNoiseBlendCell, CloudLookTuning.TuneHeapDetail
+                CloudLookTuning.TuneCumuliform, CloudLookTuning.TuneEdgePower, CloudLookTuning.TuneCavity, CloudLookTuning.TuneCumuliformFootLod, CloudLookTuning.TuneCumuliformIso,
+                CloudLookTuning.TuneNoiseBlend, CloudLookTuning.TuneNoiseBlendExp, CloudLookTuning.TuneNoiseBlendCell, CloudLookTuning.TuneCumuliformDetail
             };
             foreach (string key in global)
             {
@@ -37,21 +37,21 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(KeyLiveness.FrameHistory, Key(CloudLookTuning.TuneLightErosion).Liveness);
             Assert.AreEqual(8f, Key(CloudLookTuning.TuneLightErosion).Max);
             Assert.AreEqual(KeySection.Quality, Key(OwnCloudOptions.TuneCatmull).Section);
-            Assert.AreEqual(KeyMarker.AfterVolumeRebuild, Key(CloudLookTuning.TuneHeapDetail).Marker);
-            Assert.AreEqual(KeyLiveness.Volume, Key(CloudLookTuning.TuneHeapDetail).Liveness);
+            Assert.AreEqual(KeyMarker.AfterVolumeRebuild, Key(CloudLookTuning.TuneCumuliformDetail).Marker);
+            Assert.AreEqual(KeyLiveness.Volume, Key(CloudLookTuning.TuneCumuliformDetail).Liveness);
             Assert.AreEqual("volume", CloudKeyRegistry.MarkerShort(KeyMarker.AfterVolumeRebuild));
-            Assert.AreEqual(KeyMarker.Live, Key(CloudLookTuning.TuneHeap).Marker);
-            Assert.AreEqual(-1f, Key(CloudLookTuning.TuneHeap).Min);
-            Assert.AreEqual((float)HeapModel.PresetCount, Key(CloudLookTuning.TuneHeap).Max);
+            Assert.AreEqual(KeyMarker.Live, Key(CloudLookTuning.TuneCumuliform).Marker);
+            Assert.AreEqual(-1f, Key(CloudLookTuning.TuneCumuliform).Min);
+            Assert.AreEqual((float)CumuliformModel.PresetCount, Key(CloudLookTuning.TuneCumuliform).Max);
         }
 
         [TestMethod]
         public void ThePerLayerKeysOfTheNewModelCoverEveryLayerWithTheReadersRange()
         {
-            CloudKey heap = Key(CloudLookTuning.TuneHeapLayer + "Kerbin-cumulus");
-            Assert.AreEqual(-1f, heap.Default);
-            Assert.AreEqual((float)HeapModel.PresetCount, heap.Max);
-            Assert.IsFalse(heap.RangeEstimated);
+            CloudKey cumuliform = Key(CloudLookTuning.TuneCumuliformLayer + "Kerbin-cumulus");
+            Assert.AreEqual(-1f, cumuliform.Default);
+            Assert.AreEqual((float)CumuliformModel.PresetCount, cumuliform.Max);
+            Assert.IsFalse(cumuliform.RangeEstimated);
             Assert.AreEqual(KeySection.Edge, Key(CloudLookTuning.TuneEdgePowerLayer + "Laythe-cirrus").Section);
             Assert.AreEqual(1f, Key(CloudLookTuning.TuneCavityLayer + "x").Max);
             List<CloudKey> keys = CloudKeyRegistry.Expand(new[] { "Kerbin-cumulus" });
@@ -98,10 +98,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 
             var layers = new[] { "Kerbin-weather-rain", "Kerbin-cumulus", "Kerbin-cumulonimbus", "Kerbin-cirrus" };
             OptionSet set = ViewerPresetBook.FromSlot(before, layers);
-            Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneHeapLayer + "Kerbin-cumulus"]);
+            Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCumuliformLayer + "Kerbin-cumulus"]);
             Assert.AreEqual(2f, set.Overrides[CloudLookTuning.TuneEdgePowerLayer + "Kerbin-cumulus"]);
             Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCavityLayer + "Kerbin-cumulus"]);
-            Assert.IsFalse(set.Overrides.ContainsKey(CloudLookTuning.TuneHeapLayer + "Kerbin-cumulonimbus"), "the cumulonimbus layer does not end with cumulus");
+            Assert.IsFalse(set.Overrides.ContainsKey(CloudLookTuning.TuneCumuliformLayer + "Kerbin-cumulonimbus"), "the cumulonimbus layer does not end with cumulus");
             Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCells], "the look before has no single clouds");
             Assert.AreEqual(7, set.Overrides.Count, "three layer keys and the blend, the erosion, the Catmull and the cells key");
 

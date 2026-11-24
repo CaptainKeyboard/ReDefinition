@@ -135,7 +135,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void ACirrusPixelTakenOnTheFirstLayersSphereIsWrongByPixelsAndTheLayerModelIsNot()
         {
-            // The old reprojection took every pixel on the first layer's sphere (cumulus at 2 km); at a pixel of the cirrus deck at 8 km the history was read from the wrong place,
+            // The old reprojection took every pixel on the first layer's sphere (cumulus at 2 km); at a pixel of the cirrus layer at 8 km the history was read from the wrong place,
             // and a vector built the same way would have been off by this much.
             foreach (double[] row in new[] { new[] { 5.0, 0.3 }, new[] { 40.0, 2.5 } })
             {

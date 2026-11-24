@@ -29,9 +29,9 @@ namespace ReDefinition.Atmospheres
     internal static class VolumeMath
     {
         internal const int StepsLow = 16, StepsMid = 32, StepsHigh = 64;
-        internal const int CurtainStepsLow = 4, CurtainStepsMid = 8, CurtainStepsHigh = 16;
-        // The curtain's share S at which the step count goes up (S in (0, 0.3), (0.3, 0.7), above).
-        internal const float CurtainStepEdge1 = 0.3f, CurtainStepEdge2 = 0.7f;
+        internal const int PraecipitatioStepsLow = 4, PraecipitatioStepsMid = 8, PraecipitatioStepsHigh = 16;
+        // The praecipitatio's share S at which the step count goes up (S in (0, 0.3), (0.3, 0.7), above).
+        internal const float PraecipitatioStepEdge1 = 0.3f, PraecipitatioStepEdge2 = 0.7f;
         // The least ray length worth marching, in metres.
         internal const float MinRayM = 1f;
         // The window texture's largest side the pass accepts, per axis.
@@ -45,14 +45,14 @@ namespace ReDefinition.Atmospheres
             return StepsHigh;
         }
 
-        // The curtain's step count by its share S: 4 below 0.3, 8 up to 0.7, 16 above; 0 where S is 0 (the curtain is not drawn).
+        // The praecipitatio's step count by its share S: 4 below 0.3, 8 up to 0.7, 16 above; 0 where S is 0 (the praecipitatio is not drawn).
         // Separate from the slab's march quality.
-        internal static int CurtainSteps(float share)
+        internal static int PraecipitatioSteps(float share)
         {
             if (!(share > 0f)) return 0;
-            if (share < CurtainStepEdge1) return CurtainStepsLow;
-            if (share < CurtainStepEdge2) return CurtainStepsMid;
-            return CurtainStepsHigh;
+            if (share < PraecipitatioStepEdge1) return PraecipitatioStepsLow;
+            if (share < PraecipitatioStepEdge2) return PraecipitatioStepsMid;
+            return PraecipitatioStepsHigh;
         }
 
         // The resolution factor the setting volumeResolution asks for, snapped to 1, 0.5 or 0.25; anything else is full resolution.
@@ -185,8 +185,8 @@ namespace ReDefinition.Atmospheres
         public float CloudWaterRef, CurlStrength, StepGrowth;
         // The noise tile of the erosion and of the base shape, m; the wind slant (m of shift per m of height).
         public float ErosionTileM, ShapeTileM, WindSlant;
-        // The transmittance below which the march ends, and the deck's coverage multiplier.
-        public float TransmittanceCut, DeckCoverage;
+        // The transmittance below which the march ends, and the layer slab's coverage multiplier.
+        public float TransmittanceCut, LayerSlabCoverage;
 
         // Every knob with its default and range; the tuning package lists the same.
         internal static readonly VolumeKnob[] Knobs =
@@ -206,7 +206,7 @@ namespace ReDefinition.Atmospheres
             new VolumeKnob("volume.shapeTileM", 9000f, 2000f, 30000f),
             new VolumeKnob("volume.windSlant", 0.25f, 0f, 1f),
             new VolumeKnob("volume.transmittanceCut", 0.03f, 0.005f, 0.2f),
-            new VolumeKnob("volume.deckCoverage", 1f, 0f, 1.5f),
+            new VolumeKnob("volume.layerSlabCoverage", 1f, 0f, 1.5f),
         };
 
         internal static VolumeLook Read(TuningGet get)
@@ -227,7 +227,7 @@ namespace ReDefinition.Atmospheres
             look.ShapeTileM = get("volume.shapeTileM", 9000f);
             look.WindSlant = get("volume.windSlant", 0.25f);
             look.TransmittanceCut = get("volume.transmittanceCut", 0.03f);
-            look.DeckCoverage = get("volume.deckCoverage", 1f);
+            look.LayerSlabCoverage = get("volume.layerSlabCoverage", 1f);
             return look;
         }
     }

@@ -42,14 +42,14 @@ namespace ReDefinition.WeatherPlayer
                         RiseShare = jt.riseShare,
                         DensityScale = jt.densityScale,
                         BaseLight = jt.baseLight,
-                        HeadLight = jt.headLight,
+                        TopLight = jt.topLight,
                         BaseAmbient = jt.baseAmbient,
-                        HeadAmbient = jt.headAmbient,
+                        TopAmbient = jt.topAmbient,
                         Lift = lift,
                         ShapeSmoothing = jt.shapeSmoothing,
                         TopClose = jt.topClose >= 0f ? jt.topClose : CloudTypeDef.DefaultTopClose,
                         Outflow = jt.outflow,
-                        Heap = HeapModel.PresetOf(string.IsNullOrEmpty(jt.heap) ? "none" : jt.heap),
+                        Cumuliform = CumuliformModel.PresetOf(string.IsNullOrEmpty(jt.cumuliform) ? "none" : jt.cumuliform),
                         EdgePower = jt.edgePower,
                         Cavity = jt.cavity
                     });
@@ -66,11 +66,11 @@ namespace ReDefinition.WeatherPlayer
                     SoftnessScale = jl.softnessScale,
                     WaterPower = jl.waterPower,
                     LightAmbient = jl.lightAmbient,
-                    FibreStretch = jl.fibreStretch,
+                    FilamentStretch = jl.filamentStretch,
                     VerticalScale = jl.verticalScale,
                     ShapeSmoothing = jl.shapeSmoothing,
-                    FibreMinWindMs = jl.fibreMinWindMs,
-                    FibreTurnSeconds = jl.fibreTurnSeconds,
+                    FilamentMinWindMs = jl.filamentMinWindMs,
+                    FilamentTurnSeconds = jl.filamentTurnSeconds,
                     TopReach = jl.topReach,
                     TopRefMs = jl.topRefMs,
                     TopFullMs = jl.topFullMs,
@@ -82,7 +82,7 @@ namespace ReDefinition.WeatherPlayer
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,
                     CellPitchM = jl.cellPitch,
-                    CellBillow = jl.cellBillow >= 0f ? jl.cellBillow : CloudLayerDef.DefaultCellBillow,
+                    CellBulge = jl.cellBulge >= 0f ? jl.cellBulge : CloudLayerDef.DefaultCellBulge,
                     CellBandM = jl.cellBand >= 0f ? jl.cellBand : CloudLayerDef.DefaultCellBandM,
                     CellFine = jl.cellFine >= 0f ? jl.cellFine : CloudLayerDef.DefaultCellFine,
                     AmbientMs = jl.ambientMs >= 0f ? jl.ambientMs : CloudLayerDef.DefaultAmbientMs,
@@ -157,9 +157,9 @@ namespace ReDefinition.WeatherPlayer
             if (job.far != null)
             {
                 FarViewSettings far = frame.Far;
-                far.Haze = job.far.haze != 0;
+                far.AerialPerspective = job.far.aerialPerspective != 0;
                 far.ShapeMean = job.far.shapeMean != 0;
-                far.HazeStrength = job.far.hazeStrength;
+                far.AerialPerspectiveStrength = job.far.aerialPerspectiveStrength;
                 far.MiePerM = job.far.mie;
                 far.RayleighHeightM = job.far.rayleighHeight;
                 far.MieHeightM = job.far.mieHeight;
@@ -212,7 +212,7 @@ namespace ReDefinition.WeatherPlayer
                 Vector3 drift = jl.drift != null && jl.drift.Length >= 3 ? V(jl.drift) : Vector3.zero;
                 noise.SetState(l, drift, jl.rise);
             }
-            noise.BlockOnHeap = true;   // CLOUDR1: a frame is never drawn with the shape volume where the heap volume is asked for
+            noise.BlockOnCumuliform = true;   // CLOUDR1: a frame is never drawn with the shape volume where the cumuliform volume is asked for
             if (noise.Switches.Enabled) noise.EnsureReady();
         }
 

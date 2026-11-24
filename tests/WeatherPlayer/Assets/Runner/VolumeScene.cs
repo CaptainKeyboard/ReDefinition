@@ -28,9 +28,9 @@ namespace ReDefinition.WeatherPlayer
 
         private VolumeSetup setup;
         private CellSettings cell;
-        private CurtainPass curtain;
+        private PraecipitatioPass praecipitatio;
         private float coreX, coreZ, coreRadius, coreBase, coreDepth;
-        private bool curtainReady;
+        private bool praecipitatioReady;
         private readonly Action<CommandBuffer> markStart = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabStart);
 
         protected override void BuildContent()
@@ -51,9 +51,9 @@ namespace ReDefinition.WeatherPlayer
             coreRadius = radius;
             coreBase = baseAlt;
             coreDepth = depth;
-            curtain = new CurtainPass();
-            Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
-            curtainReady = curtainShader != null && curtain.Init(curtainShader, null, 0);
+            praecipitatio = new PraecipitatioPass();
+            Shader praecipitatioShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
+            praecipitatioReady = praecipitatioShader != null && praecipitatio.Init(praecipitatioShader, null, 0);
         }
 
         // The ground height under a place of the fake world.
@@ -62,36 +62,36 @@ namespace ReDefinition.WeatherPlayer
             return TerrainHeight(x, z);
         }
 
-        // Records the frame's passes: the volume on or off, the curtain on or off, at the camera's present pose.
-        private void PrepareFrame(bool volumeOn, bool curtainOn, Camera camera)
+        // Records the frame's passes: the volume on or off, the praecipitatio on or off, at the camera's present pose.
+        private void PrepareFrame(bool volumeOn, bool praecipitatioOn, Camera camera)
         {
             if (volumeOn)
                 setup.Prepare(camera, cell, FrameIndex, ClockSeconds, Vector2.zero, 0, markStart, null, null, false);
             else
                 setup.Renderer.Commands.Clear();
-            if (curtainReady)
+            if (praecipitatioReady)
             {
-                if (curtainOn)
+                if (praecipitatioOn)
                 {
                     float x = coreX, z = coreZ, ground = Ground(x, z);
-                    curtain.SetShare(1f, true);
-                    curtain.Place(0, new Vector3(x, ground, z), Vector3.up, Vector3.right, coreBase - ground, coreRadius * CurtainPass.RadiusShare, 0f, 600000.0);
-                    curtain.HideFrom(1);
-                    curtain.Light(cell.TowardsSun, cell.SunColour * 0.9f, new Color(0.72f, 0.76f, 0.82f, 1f), (float)ClockSeconds, 20f, 80000f, 0);
-                    curtain.CameraDepth(camera);
+                    praecipitatio.SetShare(1f, true);
+                    praecipitatio.Place(0, new Vector3(x, ground, z), Vector3.up, Vector3.right, coreBase - ground, coreRadius * PraecipitatioPass.RadiusShare, 0f, 600000.0);
+                    praecipitatio.HideFrom(1);
+                    praecipitatio.Light(cell.TowardsSun, cell.SunColour * 0.9f, new Color(0.72f, 0.76f, 0.82f, 1f), (float)ClockSeconds, 20f, 80000f, 0);
+                    praecipitatio.CameraDepth(camera);
                 }
                 else
                 {
-                    curtain.HideAll();
+                    praecipitatio.HideAll();
                 }
             }
         }
 
-        private IEnumerator Settle(bool volumeOn, bool curtainOn, int frames)
+        private IEnumerator Settle(bool volumeOn, bool praecipitatioOn, int frames)
         {
             for (int i = 0; i < frames; i++)
             {
-                PrepareFrame(volumeOn, curtainOn, Cam);
+                PrepareFrame(volumeOn, praecipitatioOn, Cam);
                 yield return Frames(1);
             }
         }
@@ -128,9 +128,9 @@ namespace ReDefinition.WeatherPlayer
             views.Add(new View { Name = "V1b", Pose = new CameraPose(new Vector3(cx, 2000f, cz - 25000f), 0f, -3f), SunElevation = 38f, SunAzimuth = 200f, Expect = true });
             // V2: a side view from 8 km at 500 m altitude.
             views.Add(new View { Name = "V2", Pose = new CameraPose(new Vector3(cx, 500f, cz - 8000f), 0f, -11f), SunElevation = 38f, SunAzimuth = 200f, Expect = true });
-            // V3: inside the cell at 300 m (under its base, in the curtain).
+            // V3: inside the cell at 300 m (under its base, in the praecipitatio).
             views.Add(new View { Name = "V3", Pose = new CameraPose(new Vector3(cx, Ground(cx, cz) + 300f, cz), 0f, 0f), SunElevation = 38f, SunAzimuth = 200f, Expect = false });
-            // V4: from below the deck looking up: the deck only.
+            // V4: from below the layer slab looking up: the layer slab only.
             views.Add(new View { Name = "V4", Pose = new CameraPose(new Vector3(cx, Ground(cx, cz) + 50f, cz), 0f, -75f), SunElevation = 38f, SunAzimuth = 200f, Expect = false });
             // V5: from 10 km altitude looking down at the top.
             views.Add(new View { Name = "V5", Pose = new CameraPose(new Vector3(cx, 10500f, cz - 9000f), 0f, 38f), SunElevation = 38f, SunAzimuth = 200f, Expect = true });
@@ -246,7 +246,7 @@ namespace ReDefinition.WeatherPlayer
                 yield break;
             }
             Sink.Flag("volume_ready", true);
-            Sink.Flag("curtain_ready", curtainReady);
+            Sink.Flag("praecipitatio_ready", praecipitatioReady);
 
             // --- determinism and the rebuild ---
             byte[] first = (byte[])setup.Resampler.Data.Clone();
@@ -293,7 +293,7 @@ namespace ReDefinition.WeatherPlayer
                 }
                 else
                 {
-                    // Below the deck and inside: the picture is a dark deck, not a bright structure.
+                    // Below the layer slab and inside: the picture is a dark cloud layer, not a bright structure.
                     Sink.Info("mean_luma_on." + tag, ImageStats.MeanLuma(on, ImageStats.Rect2.Whole(on)));
                 }
                 sheetNames.Add(tag);
@@ -301,7 +301,7 @@ namespace ReDefinition.WeatherPlayer
                 yield return CaptureColour(tag, sheet, sheet.Count - 1);
             }
 
-            // --- slab alone against slab and curtain at the inside view ---
+            // --- slab alone against slab and praecipitatio at the inside view ---
             View inside_ = Views()[3];
             Pose(inside_.Pose);
             SetSun(inside_.SunElevation, inside_.SunAzimuth);
@@ -312,14 +312,14 @@ namespace ReDefinition.WeatherPlayer
             yield return Grab(f => slabOnly = f);
             yield return Settle(true, true, 4);
             yield return Grab(f => both = f);
-            // The curtain alone against the clear frame at the inside view (the curtain must change the picture).
-            LumaFrame curtainOnly = null;
+            // The praecipitatio alone against the clear frame at the inside view (the praecipitatio must change the picture).
+            LumaFrame praecipitatioOnly = null;
             yield return Settle(false, true, 4);
-            yield return Grab(f => curtainOnly = f);
-            Sink.Info("curtain_only_diff.V3", MeanAbsDiff(curtainOnly, clearInside, ImageStats.Rect2.Whole(both)) / Math.Max(1e-6, ImageStats.MeanLuma(clearInside, ImageStats.Rect2.Whole(both))));
-            Sink.Info("curtain_pieces_shown", curtain.Shown);
-            Sink.Info("curtain_steps", curtain.Steps);
-            Sink.Info("slab_vs_curtain_diff.V3",MeanAbsDiff(slabOnly, both, ImageStats.Rect2.Whole(both)) / Math.Max(1e-6, ImageStats.MeanLuma(clearInside, ImageStats.Rect2.Whole(both))));
+            yield return Grab(f => praecipitatioOnly = f);
+            Sink.Info("praecipitatio_only_diff.V3", MeanAbsDiff(praecipitatioOnly, clearInside, ImageStats.Rect2.Whole(both)) / Math.Max(1e-6, ImageStats.MeanLuma(clearInside, ImageStats.Rect2.Whole(both))));
+            Sink.Info("praecipitatio_pieces_shown", praecipitatio.Shown);
+            Sink.Info("praecipitatio_steps", praecipitatio.Steps);
+            Sink.Info("slab_vs_praecipitatio_diff.V3",MeanAbsDiff(slabOnly, both, ImageStats.Rect2.Whole(both)) / Math.Max(1e-6, ImageStats.MeanLuma(clearInside, ImageStats.Rect2.Whole(both))));
 
             // --- half-resolution A/B at the 25 km view ---
             View far = Views()[1];
@@ -415,19 +415,19 @@ namespace ReDefinition.WeatherPlayer
 
     // The cost table of the volume pass (-mode scene -scene volume-cost, a timing run: the lock is exclusive and the proxy gives the GPU
     // timestamps): ms of the march and the composite at 1707x960 and 2560x1440, with the march at half and full size and 16, 32 and 64
-    // steps, and the curtain inside at 16 steps.
+    // steps, and the praecipitatio inside at 16 steps.
     [WeatherScene("volume-cost")]
     public sealed class VolumeCostScene : WeatherSceneBase
     {
         private VolumeSetup setup;
         private CellSettings cell;
-        private CurtainPass curtain;
-        private bool curtainReady;
+        private PraecipitatioPass praecipitatio;
+        private bool praecipitatioReady;
         private float coreX, coreZ, coreRadius, coreBase, coreDepth;
-        // The curtain is drawn by this buffer between its two timestamp marks (CurtainPass.Record), not by the camera's own transparent
-        // pass, so that the segment encloses the curtain's draws whatever the camera does at the events.
-        private CommandBuffer curtainBuffer;
-        private float curtainShare = 1f;
+        // The praecipitatio is drawn by this buffer between its two timestamp marks (PraecipitatioPass.Record), not by the camera's own transparent
+        // pass, so that the segment encloses the praecipitatio's draws whatever the camera does at the events.
+        private CommandBuffer praecipitatioBuffer;
+        private float praecipitatioShare = 1f;
         private readonly Action<CommandBuffer> markStart = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabStart),
             markMarched = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabMarched),
             markEnd = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabComposited);
@@ -441,34 +441,34 @@ namespace ReDefinition.WeatherPlayer
             float east, north, radius, baseAlt, depth, updraft;
             setup.Resampler.GetCore(0, out east, out north, out radius, out baseAlt, out depth, out updraft);
             coreX = east; coreZ = north; coreRadius = radius; coreBase = baseAlt; coreDepth = depth;
-            curtain = new CurtainPass();
-            Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
-            curtainReady = curtainShader != null && curtain.Init(curtainShader, null, 0);
-            curtainBuffer = new CommandBuffer { name = "volume cost curtain" };
-            if (curtainReady) curtain.SetBufferDriven(true);
-            Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, curtainBuffer);
+            praecipitatio = new PraecipitatioPass();
+            Shader praecipitatioShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
+            praecipitatioReady = praecipitatioShader != null && praecipitatio.Init(praecipitatioShader, null, 0);
+            praecipitatioBuffer = new CommandBuffer { name = "volume cost praecipitatio" };
+            if (praecipitatioReady) praecipitatio.SetBufferDriven(true);
+            Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, praecipitatioBuffer);
         }
 
-        private void PrepareFrame(bool volumeOn, bool curtainOn)
+        private void PrepareFrame(bool volumeOn, bool praecipitatioOn)
         {
             if (volumeOn) setup.Prepare(Cam, cell, FrameIndex, ClockSeconds, Vector2.zero, 0, markStart, markMarched, markEnd, false);
             else setup.Renderer.Commands.Clear();
-            if (!curtainReady) return;
-            if (curtainOn)
+            if (!praecipitatioReady) return;
+            if (praecipitatioOn)
             {
                 float ground = TerrainHeight(coreX, coreZ);
-                curtain.SetShare(curtainShare, true);
-                curtain.Place(0, new Vector3(coreX, ground, coreZ), Vector3.up, Vector3.right, coreBase - ground, coreRadius * CurtainPass.RadiusShare, 0f, 600000.0);
-                curtain.HideFrom(1);
-                curtain.Light(cell.TowardsSun, cell.SunColour * 0.9f, new Color(0.72f, 0.76f, 0.82f, 1f), (float)ClockSeconds, 20f, 80000f, 0);
-                curtain.CameraDepth(Cam);
+                praecipitatio.SetShare(praecipitatioShare, true);
+                praecipitatio.Place(0, new Vector3(coreX, ground, coreZ), Vector3.up, Vector3.right, coreBase - ground, coreRadius * PraecipitatioPass.RadiusShare, 0f, 600000.0);
+                praecipitatio.HideFrom(1);
+                praecipitatio.Light(cell.TowardsSun, cell.SunColour * 0.9f, new Color(0.72f, 0.76f, 0.82f, 1f), (float)ClockSeconds, 20f, 80000f, 0);
+                praecipitatio.CameraDepth(Cam);
             }
-            else curtain.HideAll();
-            // The curtain's marks are in the buffer every frame, so that the frame's markers have the same count with it on and off.
-            curtainBuffer.Clear();
-            WeatherGpuTimer.Mark(curtainBuffer, WeatherGpuTimer.CurtainStart);
-            if (curtainOn) curtain.Record(curtainBuffer);
-            WeatherGpuTimer.Mark(curtainBuffer, WeatherGpuTimer.CurtainEnd);
+            else praecipitatio.HideAll();
+            // The praecipitatio's marks are in the buffer every frame, so that the frame's markers have the same count with it on and off.
+            praecipitatioBuffer.Clear();
+            WeatherGpuTimer.Mark(praecipitatioBuffer, WeatherGpuTimer.PraecipitatioStart);
+            if (praecipitatioOn) praecipitatio.Record(praecipitatioBuffer);
+            WeatherGpuTimer.Mark(praecipitatioBuffer, WeatherGpuTimer.PraecipitatioEnd);
         }
 
         private static string Fixed(double v)
@@ -485,46 +485,46 @@ namespace ReDefinition.WeatherPlayer
         }
 
         // Measures one configuration over `frames` timed frames. result: 0 median frame ms, 1 mean march, 2 mean composite, 3 median
-        // curtain segment, 4 p95 frame ms, 5 smallest curtain segment (0 or less means an empty marker), 6 timed frames.
-        private IEnumerator Measure(string label, bool volumeOn, bool curtainOn, double[] result, int frames)
+        // praecipitatio segment, 4 p95 frame ms, 5 smallest praecipitatio segment (0 or less means an empty marker), 6 timed frames.
+        private IEnumerator Measure(string label, bool volumeOn, bool praecipitatioOn, double[] result, int frames)
         {
             var segments = new float[8];
             for (int i = 0; i < 40; i++)
             {
-                PrepareFrame(volumeOn, curtainOn);
+                PrepareFrame(volumeOn, praecipitatioOn);
                 yield return Frames(1);
             }
             var frameMs = new List<double>(frames);
-            var curtainSegment = new List<double>(frames);
+            var praecipitatioSegment = new List<double>(frames);
             double march = 0, composite = 0, smallest = double.MaxValue;
             int n = 0, guard = 0;
             while (n < frames && guard++ < frames * 20)
             {
-                PrepareFrame(volumeOn, curtainOn);
+                PrepareFrame(volumeOn, praecipitatioOn);
                 yield return Frames(1);
                 float total;
                 int number;
                 if (!WeatherGpuTimer.Read(segments, out total, out number)) continue;
                 frameMs.Add(total);
                 float m = segments[WeatherGpuTimer.SlabMarched - WeatherGpuTimer.SlabStart], c = segments[WeatherGpuTimer.SlabComposited - WeatherGpuTimer.SlabStart],
-                    k = segments[WeatherGpuTimer.CurtainEnd - WeatherGpuTimer.SlabStart];
+                    k = segments[WeatherGpuTimer.PraecipitatioEnd - WeatherGpuTimer.SlabStart];
                 if (m >= 0f) march += m;
                 if (c >= 0f) composite += c;
-                if (k >= 0f) { curtainSegment.Add(k); smallest = Math.Min(smallest, k); }
+                if (k >= 0f) { praecipitatioSegment.Add(k); smallest = Math.Min(smallest, k); }
                 n++;
             }
             result[0] = Percentile(frameMs, 0.5);
             result[1] = n > 0 ? march / n : double.NaN;
             result[2] = n > 0 ? composite / n : double.NaN;
-            result[3] = Percentile(curtainSegment, 0.5);
+            result[3] = Percentile(praecipitatioSegment, 0.5);
             result[4] = Percentile(frameMs, 0.95);
-            result[5] = curtainSegment.Count > 0 ? smallest : double.NaN;
+            result[5] = praecipitatioSegment.Count > 0 ? smallest : double.NaN;
             result[6] = n;
             Sink.Info("cost.frame." + label, result[0]);
             Sink.Info("cost.frame_p95." + label, result[4]);
             if (volumeOn) Sink.Info("cost.march." + label, result[1]);
             if (volumeOn) Sink.Info("cost.composite." + label, result[2]);
-            if (curtainOn) Sink.Info("cost.curtain." + label, result[3]);
+            if (praecipitatioOn) Sink.Info("cost.praecipitatio." + label, result[3]);
         }
 
         public override IEnumerator Run()
@@ -536,7 +536,7 @@ namespace ReDefinition.WeatherPlayer
             }
             Sink.Flag("cost_timers_available", true);
             // The views for the cost: the 8 km side view (the worst of the spike for the slab seen from outside), inside the cloud at 5 km
-            // altitude (the slab seen from inside) and inside the cell at 300 m (the curtain).
+            // altitude (the slab seen from inside) and inside the cell at 300 m (the praecipitatio).
             var views = new[]
             {
                 new KeyValuePair<string, CameraPose>("side8km", new CameraPose(new Vector3(coreX, 500f, coreZ - 8000f), 0f, -11f)),
@@ -545,7 +545,7 @@ namespace ReDefinition.WeatherPlayer
             };
             var sizes = new[] { new Vector2Int(1707, 960), new Vector2Int(2560, 1440) };
             var result = new double[7];
-            double worstHalf1707 = 0, worstHalf2560 = 0, worstFull1707 = 0, worstCurtain = 0;
+            double worstHalf1707 = 0, worstHalf2560 = 0, worstFull1707 = 0, worstPraecipitatio = 0;
             foreach (Vector2Int size in sizes)
             {
                 var rt = new RenderTexture(size.x, size.y, 24, RenderTextureFormat.DefaultHDR) { name = "volume cost target" };
@@ -568,26 +568,26 @@ namespace ReDefinition.WeatherPlayer
                         if (config[0] == 1f && config[1] == 32f && size.x == 1707) worstFull1707 = Math.Max(worstFull1707, ms);
                     }
                 }
-                if (curtainReady)
+                if (praecipitatioReady)
                 {
-                    // The curtain inside the cell at 300 m at 4, 8 and 16 steps (the gate share S 0.2, 0.5, 1). Two methods:
-                    // (a) the GPU segment between two marks in the buffer that draws the curtain; (b) the whole frame's GPU time with the
-                    // curtain on and off at the same pose, 600 frames each, the difference of the medians and of the 95th percentiles.
+                    // The praecipitatio inside the cell at 300 m at 4, 8 and 16 steps (the gate share S 0.2, 0.5, 1). Two methods:
+                    // (a) the GPU segment between two marks in the buffer that draws the praecipitatio; (b) the whole frame's GPU time with the
+                    // praecipitatio on and off at the same pose, 600 frames each, the difference of the medians and of the 95th percentiles.
                     Pose(new CameraPose(new Vector3(coreX, TerrainHeight(coreX, coreZ) + 300f, coreZ), 0f, 0f));
-                    yield return Measure("nocurtain.inside." + sz, false, false, result, 600);
+                    yield return Measure("nopraecipitatio.inside." + sz, false, false, result, 600);
                     double offMedian = result[0], offP95 = result[4];
                     foreach (float share in new[] { 0.2f, 0.5f, 1f })
                     {
-                        curtainShare = share;
+                        praecipitatioShare = share;
                         string steps = share < 0.3f ? "4" : share < 0.7f ? "8" : "16";
-                        yield return Measure("curtain.inside.s" + steps + "." + sz, false, true, result, 600);
-                        Sink.Info("cost.curtain_by_difference_median.s" + steps + "." + sz, result[0] - offMedian);
-                        Sink.Info("cost.curtain_by_difference_p95.s" + steps + "." + sz, result[4] - offP95);
+                        yield return Measure("praecipitatio.inside.s" + steps + "." + sz, false, true, result, 600);
+                        Sink.Info("cost.praecipitatio_by_difference_median.s" + steps + "." + sz, result[0] - offMedian);
+                        Sink.Info("cost.praecipitatio_by_difference_p95.s" + steps + "." + sz, result[4] - offP95);
                         // An empty marker (a segment of zero) fails the run.
-                        Sink.AtLeast("cost.curtain_segment_nonzero.s" + steps + "." + sz, result[5], 1e-4);
-                        if (share >= 1f && size.x == 1707) worstCurtain = result[3];
+                        Sink.AtLeast("cost.praecipitatio_segment_nonzero.s" + steps + "." + sz, result[5], 1e-4);
+                        if (share >= 1f && size.x == 1707) worstPraecipitatio = result[3];
                     }
-                    curtainShare = 1f;
+                    praecipitatioShare = 1f;
                 }
                 Cam.targetTexture = Target;
                 rt.Release();
@@ -596,7 +596,7 @@ namespace ReDefinition.WeatherPlayer
             Sink.AtMost("cost_half_32_2560x1440_ms", worstHalf2560, 1.3);
             Sink.Info("cost_full_32_1707x960_ms", worstFull1707);
             Sink.Info("cost_full_rejected", worstFull1707 > 1.5 ? 1 : 0);
-            Sink.AtMost("cost_curtain_inside_ms", worstCurtain, 0.7);
+            Sink.AtMost("cost_praecipitatio_inside_ms", worstPraecipitatio, 0.7);
         }
     }
 }

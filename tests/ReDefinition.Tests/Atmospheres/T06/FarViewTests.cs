@@ -50,7 +50,7 @@ namespace ReDefinition.Tests
             // A horizontal ray from a camera 2 km up, 50 km long: the altitude along it is a parabola, the pieces are linear in it.
             double expected = Numeric(0, 0, R + 2000.0, 1, 0, 0, 50000.0, Ray, Mie);
             Assert.AreEqual(expected, Tau(0, 0, R + 2000.0, 1, 0, 0, 50000.0), expected * 0.03);
-            // A slanted ray from 10 km down to a deck at 2 km: 90 km of path at a shallow angle.
+            // A slanted ray from 10 km down to a cloud layer at 2 km: 90 km of path at a shallow angle.
             double ang = Math.Atan2(8000.0, 90000.0);
             double dx = Math.Cos(ang), dz = -Math.Sin(ang);
             double len = 90000.0;

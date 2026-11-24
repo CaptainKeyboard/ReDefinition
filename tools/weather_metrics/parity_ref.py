@@ -540,10 +540,10 @@ class Renderer(object):
 KERBIN_RADIUS = 600000.0
 
 
-def scene_uniform_deck(base=2200.0, top=2500.0, tau_vertical=8.0, radius=KERBIN_RADIUS):
+def scene_uniform_layer(base=2200.0, top=2500.0, tau_vertical=8.0, radius=KERBIN_RADIUS):
     """A homogeneous cloud shell between two altitudes with the given vertical optical depth."""
     sigma = tau_vertical / (top - base)
-    return DensityField(radius, [Layer("deck", base, top, sigma)])
+    return DensityField(radius, [Layer("layer", base, top, sigma)])
 
 
 def slab_sun_transmission(tau, elevation_deg, phase=None, albedo=0.999, photons=400000, seed=4321, chunk=200000):
@@ -670,9 +670,9 @@ def sphere_map_lookup(grid, u):
 
 
 def scene_coverage_map(coverage, seed=7, base=2200.0, top=2500.0, tau_vertical=12.0, radius=KERBIN_RADIUS):
-    """A thick deck whose columns exist where the ranked noise map is below the coverage C (so the covered fraction is C)."""
+    """A thick cloud layer whose columns exist where the ranked noise map is below the coverage C (so the covered fraction is C)."""
     grid = value_noise_map(seed)
-    layer = Layer("deck", base, top, tau_vertical / (top - base),
+    layer = Layer("layer", base, top, tau_vertical / (top - base),
                   coverage=lambda u: (sphere_map_lookup(grid, u) < coverage).astype(np.float64))
     return DensityField(radius, [layer]), grid
 
@@ -731,9 +731,9 @@ class FbmShape(object):
         return x * x * (3.0 - 2.0 * x)
 
 
-def scene_noise_deck(shape, base=2200.0, top=2500.0, tau_vertical=6.0, radius=KERBIN_RADIUS):
-    """A deck whose extinction is modulated by a noise shape factor (the noise and repetition checks)."""
-    return DensityField(radius, [Layer("deck", base, top, tau_vertical / (top - base), shape=shape)])
+def scene_noise_layer(shape, base=2200.0, top=2500.0, tau_vertical=6.0, radius=KERBIN_RADIUS):
+    """A cloud layer whose extinction is modulated by a noise shape factor (the noise and repetition checks)."""
+    return DensityField(radius, [Layer("layer", base, top, tau_vertical / (top - base), shape=shape)])
 
 
 def alpha_image(field, camera, steps=96):

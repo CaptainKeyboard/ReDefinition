@@ -140,7 +140,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tex2Dlod(_CsTypeProfile, float4(u, v, 0, 0)).rg;
         }
 
-        // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's heap preset (CLOUDR1 P2).
+        // x base, y top, z the exponent of the type's density rim (0: the layer's; CLOUDR1 P1), w the type's cumuliform preset (CLOUDR1 P2).
         float4 TypeInfo(int li, int type)
         {
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / (2.0 * MAXL), 0, 0));
@@ -212,15 +212,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 {
                     float cellReach, wMap;
                     // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero where a round draws no sheet), as the layer pass reads them.
-                    float sheetW = 0.0;
+                    float stratiformW = 0.0;
                     [branch] if (_CellS[li].x > 0.5)
                     {
                         typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
                         typeRead = true;
-                        sheetW = CellSheetWeight(li, typeValue);
+                        stratiformW = CellStratiformWeight(li, typeValue);
                     }
                     cov = CellCover(cov, uvRaw, _CsLayerD[li].y, _CsPlanetR + 0.5 * (_CsLayerA[li].x + _CsLayerA[li].y), _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0,
-                                    (uint)_CsLayerD[li].z, sheetW, cellReach, wMap);
+                                    (uint)_CsLayerD[li].z, stratiformW, cellReach, wMap);
                     if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
                     {
                         reachM = _CsParams2.w > 0.5 && wMap <= 0.0 ? 0.7 * cellReach : 0.0;
@@ -236,7 +236,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             int tb = min(ta + 1, (int)typeCount - 1);
             float f = x2 - ta;
             float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
-            gHeapPreset = (int)(f < 0.5 ? ia.w : ib.w);
+            gCumuliformPreset = (int)(f < 0.5 ? ia.w : ib.w);
             gNoiseSm = lerp(TypeSmoothing(li, ta), TypeSmoothing(li, tb), f);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             if (share < b || share > tp || tp <= b) return 0;
@@ -245,7 +245,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float h = (share - b) / (tp - b);
             float2 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
             // CLOUD FIELD: the layer pass's single clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
-            // the march's spacing (no foot): only the deck hands the map's own value over.
+            // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
 #if !defined(CLOUD_LATTICE)
             int puff = (int)(f < 0.5 ? TypePuff(li, ta) : TypePuff(li, tb));
             [branch] if (puff > 0 && slice >= 0)
@@ -254,7 +254,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             }
 #endif
             cov -= _CsParams2.z * pf.y * (_CsLayerB[li].y + noiseBound + 0.5 * edge);
-            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the billows' rank: the threshold at the noise's mean, a unit edge, the
+            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
             // full swing); it replaces the type's lift, so the lift's bound is not asked.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
@@ -264,7 +264,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             [branch] if (body)
             {
                 float rank = NoiseShareNear(li, pc, 1.0 - _CsLayerB[li].y, _CsLayerB[li].y, 1.0, _CsNoiseD[li].x > 0.0 ? 1.0 : 0.0, 0.0);
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
             }
             else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0);

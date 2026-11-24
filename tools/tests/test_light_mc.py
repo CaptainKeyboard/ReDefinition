@@ -46,7 +46,7 @@ class PhotonWalk(unittest.TestCase):
 class CellDiffusion(unittest.TestCase):
     """E40 LM2: the cell diffusion (light_cpu.diffusion_terms) against a small photon walk of a thick slab."""
 
-    def test_the_top_of_a_thick_deck_brightens_with_the_sun_as_the_walk_does(self):
+    def test_the_top_of_a_thick_layer_brightens_with_the_sun_as_the_walk_does(self):
         from weather_metrics import light_mc_cell as M
         from weather_metrics import light_mc_slab as L
         k = L.VIEWS.index((53, 0))

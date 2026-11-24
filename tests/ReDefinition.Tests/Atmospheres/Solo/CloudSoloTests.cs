@@ -154,7 +154,7 @@ namespace ReDefinition.Tests.Atmospheres.Solo
                 Assert.AreEqual(0f, keys[CloudLookTuning.TuneMapOverride + other], other + " has an empty map");
                 Assert.IsFalse(keys.ContainsKey(CloudLookTuning.TuneTypeOverride + other), other + " has no forced type");
             }
-            foreach (CloudLayerDef l in stack) Assert.AreEqual(0f, keys[CloudLookTuning.TuneDeckRule + l.Name], l.Name + ": the deck rule is off, a constant map draws everywhere");
+            foreach (CloudLayerDef l in stack) Assert.AreEqual(0f, keys[CloudLookTuning.TuneLowStratiformRule + l.Name], l.Name + ": the low stratiform rule is off, a constant map draws everywhere");
             Assert.IsFalse(keys.ContainsKey(CloudLookTuning.TuneCellKm), "a uniform field has no cell");
             // The no-solo selection takes every key back.
             Apply(CloudSoloPlan.Overrides(stack, new SoloSelection { Layer = -1, Type = -1 }), keys);
@@ -209,7 +209,7 @@ namespace ReDefinition.Tests.Atmospheres.Solo
         {
             CloudLayerDef[] stack = Stack();
             Func<int, string, float> of = (layer, part) => CloudSoloPlan.DefaultStrength(stack[layer], stack[layer].Types.Select((t, i) => new { t, i }).First(x => x.t.Name.IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0).i);
-            Assert.AreEqual(1f, of(0, "Fog"), "a deck is closed");
+            Assert.AreEqual(1f, of(0, "Fog"), "a low stratiform layer is closed");
             Assert.AreEqual(1f, of(0, "Nimbostratus"));
             Assert.AreEqual(0.8f, of(1, "Stratocumulus"));
             Assert.AreEqual(0.5f, of(1, "humilis"));

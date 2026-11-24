@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
     //
     // The variants beside off, plain (the product's defaults) and tvc are named sets of tuning keys (GtVariants): "before" is the pass before this package.
     // The grain reading (after the pictures of a view, outside the timing window): three raw frames of the held pose read one after the other, written at full size
-    // (<variant>a / b / c), and measured over a fixed box of the picture that shows the clouds of the view (GtBox: the sky of the ground views, the deck of the view from above,
+    // (<variant>a / b / c), and measured over a fixed box of the picture that shows the clouds of the view (GtBox: the sky of the ground views, the cloud layer of the view from above,
     // the whole height inside), on both sides of the vessel:
     //   T09.grain.<view>.tstd   temporal noise: the standard deviation of a pixel's luma over the three frames, mean over the box
     //   T09.grain.<view>.blob   spatial speckle: rms of (luma - its 5 x 5 mean) of frame a over the box

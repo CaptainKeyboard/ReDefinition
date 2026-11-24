@@ -2,9 +2,9 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // The numbers the precipitation curtain (CurtainPass, shader ReDefinition/AtmospheresStormVolume) is fed with and the bounding mesh it
+    // The numbers the precipitation praecipitatio (PraecipitatioPass, shader ReDefinition/AtmospheresStormVolume) is fed with and the bounding mesh it
     // is drawn on, as pure functions so that they can be tested without the game. The tiles must match the constants of the shader.
-    internal static class CurtainMath
+    internal static class PraecipitatioMath
     {
         // The noise texture's side in voxels, and the lattice period and octaves of its noise (StormNoise.Volume).
         internal const int NoiseSize = 64, NoisePeriod = 4, NoiseOctaves = 4, NoiseSeed = 5;
@@ -27,7 +27,7 @@ namespace ReDefinition.Atmospheres
         internal const float Widening = 1.02f;
 
         // The longest a ray is marched while the camera is inside a storm, in m: 4 times the visibility, at least 1.5 times the cloud
-        // base (the veil reaches that high), and at most the cell's range.
+        // base (the praecipitatio reaches that high), and at most the cell's range.
         internal const double InsideVisibilityFactor = 4, InsideBaseFactor = 1.5;
 
         internal static double InsideRayM(double visibilityM, double baseAglM, double rangeM)

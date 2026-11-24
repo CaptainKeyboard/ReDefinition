@@ -36,7 +36,7 @@ namespace ReDefinition.Atmospheres
     //       }
     //   }
     //
-    // A layer with a group is one of several that never show at once (a weather deck of rain and one of snow): the pass draws one member of
+    // A layer with a group is one of several that never show at once (a low stratiform weather layer of rain and one of snow): the pass draws one member of
     // each group, chosen by the weather (CloudLayerSet.Select). Layers without a group are all candidates.
 
     // One cloud type of a layer: heights as shares of the layer's thickness, a vertical density profile over the type's own height, and the
@@ -48,29 +48,29 @@ namespace ReDefinition.Atmospheres
         internal float BaseGain { get; set; } = 0.3f;
         internal float RiseShare { get; set; } = 0.5f;
         internal float DensityScale { get; set; } = 1f;
-        // The type's light response by height (cfg keys baseLight, headLight, baseAmbient, headAmbient; E40 B3): see CloudTypeDef.
+        // The type's light response by height (cfg keys baseLight, topLight, baseAmbient, topAmbient; E40 B3): see CloudTypeDef.
         internal float BaseLight { get; set; } = 1f;
-        internal float HeadLight { get; set; } = 1f;
+        internal float TopLight { get; set; } = 1f;
         internal float BaseAmbient { get; set; } = 1f;
-        internal float HeadAmbient { get; set; } = 1f;
+        internal float TopAmbient { get; set; } = 1f;
         // The type's height-shaped threshold (cfg node LIFT; null: none): see CloudTypeDef.Lift.
         internal Curve Lift { get; set; }
         // The type's climate (cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // The type's own smoothing of the shape noise (cfg key shapeSmoothing; below 0: the layer's): see CloudTypeDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; } = -1f;
-        // CLOUDR1: the heap preset (cfg key heap), the exponent of the density rim (edgePower, 0: the layer's waterPower) and the cavity strength (cavity): see CloudTypeDef.
-        internal int Heap { get; set; }
+        // CLOUDR1: the cumuliform preset (cfg key cumuliform), the exponent of the density rim (edgePower, 0: the layer's waterPower) and the cavity strength (cavity): see CloudTypeDef.
+        internal int Cumuliform { get; set; }
         internal float EdgePower { get; set; }
         internal float Cavity { get; set; }
-        // CLOUD FIELD: the puffy class of the type (cfg key puff): see CloudTypeDef.Puff.
-        internal int Puff { get; set; }
+        // CLOUD FIELD: the cloud form of the type (cfg key form): see CloudTypeDef.Form.
+        internal int Form { get; set; }
         // The share of the type's height over which its top closes (cfg key topClose): see CloudTypeDef.TopClose.
         internal float TopClose { get; set; } = CloudTypeDef.DefaultTopClose;
         // How much a tower of this type feeds an anvil (cfg key outflow): see CloudTypeDef.Outflow.
         internal float Outflow { get; set; }
-        // The depth of the type's rolls (cfg key rollAmount): see CloudTypeDef.RollAmount.
-        internal float RollAmount { get; set; }
+        // The depth of the type's undulations (cfg key undulatusAmount): see CloudTypeDef.UndulatusAmount.
+        internal float UndulatusAmount { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -92,8 +92,8 @@ namespace ReDefinition.Atmospheres
             return new CloudTypeDef(Name, BaseShare, TopShare, Profile, Erosion)
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
-                BaseLight = BaseLight, HeadLight = HeadLight, BaseAmbient = BaseAmbient, HeadAmbient = HeadAmbient, Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, RollAmount = RollAmount, Heap = Heap, EdgePower = EdgePower, Cavity = Cavity, Puff = Puff
+                BaseLight = BaseLight, TopLight = TopLight, BaseAmbient = BaseAmbient, TopAmbient = TopAmbient, Lift = Lift, Climate = Climate,
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form
             };
         }
     }
@@ -157,21 +157,21 @@ namespace ReDefinition.Atmospheres
         // The type value of the layer at full precipitation (cfg key rainType; 1: the last type of the table). With fairType the type value runs from fairType at no precipitation to
         // rainType at full precipitation, so a table whose last type is not a rain cloud (altocumulus after congestus) can end its precipitation axis at the type that is.
         internal float RainType { get; set; } = 1f;
-        // How much longer the noise features are along the body's axis than across it (cfg key fibreStretch; 1: isotropic): see CloudLayerDef.FibreStretch.
-        internal float FibreStretch { get; set; } = 1f;
+        // How much longer the noise features are along the body's axis than across it (cfg key filamentStretch; 1: isotropic): see CloudLayerDef.FilamentStretch.
+        internal float FilamentStretch { get; set; } = 1f;
         // The pitch of the layer's cloud cells in m (cfg key cellPitch; 0: no cells): see CloudLayerDef.CellPitchM.
         internal float CellPitchM { get; set; }
-        // The body of a single cloud (cfg keys cellBillow, cellBand, cellFine): see CloudLayerDef.CellBillow.
-        internal float CellBillow { get; set; } = CloudLayerDef.DefaultCellBillow;
+        // The body of a single cloud (cfg keys cellBulge, cellBand, cellFine): see CloudLayerDef.CellBulge.
+        internal float CellBulge { get; set; } = CloudLayerDef.DefaultCellBulge;
         internal float CellBandM { get; set; } = CloudLayerDef.DefaultCellBandM;
         internal float CellFine { get; set; } = CloudLayerDef.DefaultCellFine;
         // The vertical scale of the layer's noise lattice (cfg key verticalScale; 0: the body's sphereScale): see CloudLayerDef.VerticalScale.
         internal float VerticalScale { get; set; }
         // The smoothing of the layer's shape noise in noise scales (cfg key shapeSmoothing; 0: none): see CloudLayerDef.ShapeSmoothing.
         internal float ShapeSmoothing { get; set; }
-        // The layer's fibre axis numbers (cfg keys fibreMinWindMs, fibreTurnSeconds): see CloudLayerDef.
-        internal float FibreMinWindMs { get; set; } = FibreAxis.DefaultMinWindMs;
-        internal float FibreTurnSeconds { get; set; } = FibreAxis.DefaultTurnSeconds;
+        // The layer's filament axis numbers (cfg keys filamentMinWindMs, filamentTurnSeconds): see CloudLayerDef.
+        internal float FilamentMinWindMs { get; set; } = FilamentAxis.DefaultMinWindMs;
+        internal float FilamentTurnSeconds { get; set; } = FilamentAxis.DefaultTurnSeconds;
         // The numbers of the tops that follow the updraft (cfg keys topReach, topRefMs, topFullMs): see CloudLayerDef.
         internal float TopReach { get; set; }
         internal float TopRefMs { get; set; } = 1.2f;
@@ -194,8 +194,8 @@ namespace ReDefinition.Atmospheres
         internal float TypePatchKm { get; set; }
         internal float TypePatchDepths { get; set; } = CloudMesoSpec.DefaultTypePatchDepths;
         internal float TypePatchBlend { get; set; } = 0.06f;
-        // What may draw the layer (cfg key deckRule = 1 and the fog keys, WeatherDeckRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
-        internal WeatherDeckRule Deck { get; set; }
+        // What may draw the layer (cfg key lowStratiformRule = 1 and the fog keys, WeatherLowStratiformRule); null: the layer is drawn wherever its coverage map passes, with the type from the precipitation.
+        internal WeatherLowStratiformRule LowStratiform { get; set; }
         internal IReadOnlyList<CloudTypeSpec> Types { get; }
 
         // The vertical optical depth through the layer's thickest type at full density and full coverage: sigma times the height of the type.
@@ -231,7 +231,7 @@ namespace ReDefinition.Atmospheres
                 NoiseAmount = NoiseAmount,
                 NoiseScaleM = NoiseScaleM,
                 FairType = FairType,
-                Deck = Deck,
+                LowStratiform = LowStratiform,
                 SoftnessScale = SoftnessScale,
                 WaterPower = WaterPower,
                 LightAmbient = LightAmbient,
@@ -241,15 +241,15 @@ namespace ReDefinition.Atmospheres
                 AmbientDecay = AmbientDecay,
                 LightCellWidth = LightCellWidth,
                 RainType = RainType,
-                FibreStretch = FibreStretch,
+                FilamentStretch = FilamentStretch,
                 CellPitchM = CellPitchM,
-                CellBillow = CellBillow,
+                CellBulge = CellBulge,
                 CellBandM = CellBandM,
                 CellFine = CellFine,
                 VerticalScale = VerticalScale,
                 ShapeSmoothing = ShapeSmoothing,
-                FibreMinWindMs = FibreMinWindMs,
-                FibreTurnSeconds = FibreTurnSeconds,
+                FilamentMinWindMs = FilamentMinWindMs,
+                FilamentTurnSeconds = FilamentTurnSeconds,
                 TopReach = TopReach,
                 TopRefMs = TopRefMs,
                 TopFullMs = TopFullMs,

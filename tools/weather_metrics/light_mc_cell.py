@@ -27,7 +27,7 @@ from weather_metrics import light_mc_slab as L  # noqa: E402
 INV4PI = 1.0 / (4.0 * math.pi)
 SPHERE_W = 2.0 * S.RADIUS          # the walk's sphere: a cell as wide as high
 PARITY_W = 1600.0                  # the parity cell: 1600 m wide
-DECK_W = 1.0e7                     # the walk's slab: no side
+LAYER_W = 1.0e7                     # the walk's slab: no side
 ELEVATIONS = (15, 30, 45, 60, 90)
 AZIMUTHS = (0, 180)
 FREE = ("cellGain", "cellBeta", "cellExtrapolation", "cellSide", "cellOctaves", "cellIncidencePower")
@@ -76,7 +76,7 @@ def sphere_image(p, g, width=SPHERE_W):
     return np.sum(g["w"] * (math.pi * src * p.albedo + floor), axis=0)
 
 
-def slab_view(p, tau, sun, elev, az, width=DECK_W, height=1200.0, n=160):
+def slab_view(p, tau, sun, elev, az, width=LAYER_W, height=1200.0, n=160):
     sigma = tau / height
     mu0 = math.sin(math.radians(sun))
     mv = abs(math.sin(math.radians(elev)))
@@ -147,7 +147,7 @@ class Walks(object):
         for tau, sun, e, a, ref in self.slab:
             if (e, a) not in ((53, 0), (-53, 0)):
                 continue
-            m = slab_view(p, tau, sun, e, a, self.width(p, DECK_W))
+            m = slab_view(p, tau, sun, e, a, self.width(p, LAYER_W))
             print("   tau %3g sun %2g %-4s walk %.3f model %.3f ratio %.2f" % (tau, sun, "top" if e > 0 else "base", ref, m, m / ref))
         for case, d in parity(p).items():
             print("  parity %-4s " % case + " ".join("%s %.2f" % (k, v) for k, v in d.items()))
@@ -168,7 +168,7 @@ class Walks(object):
         for tau, sun, e, a, ref in self.slab:
             if (e, a) not in ((53, 0), (53, 180), (-53, 0), (90, 0), (20, 90)):
                 continue
-            out.append((1.2 if e > 0 else 0.8) * math.log(slab_view(p, tau, sun, e, a, self.width(p, DECK_W)) / ref))
+            out.append((1.2 if e > 0 else 0.8) * math.log(slab_view(p, tau, sun, e, a, self.width(p, LAYER_W)) / ref))
         if self.parity0 is None:
             self.parity0 = parity(params(on=False))
         for case, d in parity(p).items():

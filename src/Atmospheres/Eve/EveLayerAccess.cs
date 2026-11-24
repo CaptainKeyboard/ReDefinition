@@ -27,7 +27,7 @@ namespace ReDefinition.Atmospheres
         // The cloud type names in the order of the layer's list.
         internal string[] TypeNames = new string[0];
         internal TypeSlots Slots = new TypeSlots(0);
-        // The deck's inner and outer sphere radius in m.
+        // The cloud layer's inner and outer sphere radius in m.
         internal float InnerRadiusM, OuterRadiusM;
         // The reason the layer is left alone, or empty.
         internal string LeftReason = "";
@@ -205,7 +205,7 @@ namespace ReDefinition.Atmospheres
 
         // The layers of a body that carry the weather maps: the ones LayerRoleDiscovery takes among the layers of the body that have a
         // coverage map and a type map (the layers weatherLayers names, or by the role of their cloud types; never the baseLayer; lowest
-        // deck first; at most cap of them). With rules null every such layer is returned and the discovery is null.
+        // layer first; at most cap of them). With rules null every such layer is returned and the discovery is null.
         // Handles of layers that are still there are kept (their binding state with them). A layer whose volume is a new object is a
         // new handle.
         internal static List<EveLayer> Scan(string bodyName, CloudRules rules, int cap, IList<EveLayer> previous, out LayerDiscovery discovery)

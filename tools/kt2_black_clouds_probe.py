@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Offline diagnosis of K-T2 start 42 (own clouds drawn black and opaque in the game): the real Kerbin layer set of
-GameData/ReDefinition/Atmospheres/Bodies/Clouds-Kerbin.cfg (rain deck, cumulus, cumulonimbus, cirrus as the game's stack holds
+GameData/ReDefinition/Atmospheres/Bodies/Clouds-Kerbin.cfg (low stratiform rain layer, cumulus, cumulonimbus, cirrus as the game's stack holds
 them) is marched by the weather player's layer scene with the frame numbers of the module (medium step quality, product cost,
 early-out 0.01, jitter 1), on uniform maps, at the K-T2 ground pose (264 m, camera elevation 18 deg, heading east), the
 zenith, and the 8.3 km 'above' pose.

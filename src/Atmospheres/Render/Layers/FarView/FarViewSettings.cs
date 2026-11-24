@@ -15,10 +15,10 @@ namespace ReDefinition.Atmospheres
     internal sealed class FarViewSettings
     {
         // Aerial perspective on or off, and a strength factor on the optical depth of the air (1: the model's coefficients).
-        public bool Haze;
-        public float HazeStrength = 1f;
-        // Asks for the aerial perspective where the cloud pass runs behind Scatterer's scattering (CloudHazePlan; the integration turns Haze on in that frame). Not uploaded.
-        public bool HazeAuto;
+        public bool AerialPerspective;
+        public float AerialPerspectiveStrength = 1f;
+        // Asks for the aerial perspective where the cloud pass runs behind Scatterer's scattering (AerialPerspectivePlan; the integration turns AerialPerspective on in that frame). Not uploaded.
+        public bool AerialPerspectiveAuto;
         // Rayleigh extinction per m at sea level (red, green, blue), aerosol extinction per m (grey), and the two scale heights in m.
         public Vector3 RayleighPerM = new Vector3(5.802e-6f, 13.558e-6f, 33.1e-6f);
         public float MiePerM = 4.44e-6f, RayleighHeightM = 8000f, MieHeightM = 1200f;
@@ -63,7 +63,7 @@ namespace ReDefinition.Atmospheres
                 D = Shader.PropertyToID("_FarD"), E = Shader.PropertyToID("_FarE");
         }
 
-        // The top of the air that counts for the haze, in m above sea level: where the denser of the two species has fallen to a thousandth.
+        // The top of the air that counts for the aerial perspective, in m above sea level: where the denser of the two species has fallen to a thousandth.
         internal static float AirTop(float rayleighHeightM, float mieHeightM)
         {
             return 7f * Mathf.Max(rayleighHeightM, mieHeightM);
@@ -71,7 +71,7 @@ namespace ReDefinition.Atmospheres
 
         internal void Upload(Material m)
         {
-            m.SetVector(Ids.A, new Vector4(Haze ? 1f : 0f, Mathf.Max(HazeStrength, 0f), Mathf.Max(RayleighHeightM, 1f), Mathf.Max(MieHeightM, 1f)));
+            m.SetVector(Ids.A, new Vector4(AerialPerspective ? 1f : 0f, Mathf.Max(AerialPerspectiveStrength, 0f), Mathf.Max(RayleighHeightM, 1f), Mathf.Max(MieHeightM, 1f)));
             m.SetVector(Ids.B, new Vector4(RayleighPerM.x, RayleighPerM.y, RayleighPerM.z, MiePerM));
             m.SetVector(Ids.C, new Vector4(Inscatter.r, Inscatter.g, Inscatter.b, 0f));
             Color near = InscatterNear ?? Inscatter;

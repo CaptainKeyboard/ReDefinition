@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneAccumulate, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneReconResolution, new[] { 0.1f, 1f } },
             { OwnCloudModule.TuneWhitePoint, new[] { 0f, 1f } },
-            // The clamps of the readers (OwnCloudOptions.Apply, CloudLookTuning.Load and the billow getters, CloudCoverShift.Clean, EdgeSettings). layers.gridFine is the main quality lever: the reader
+            // The clamps of the readers (OwnCloudOptions.Apply, CloudLookTuning.Load and the bulge getters, CloudCoverShift.Clean, EdgeSettings). layers.gridFine is the main quality lever: the reader
             // clamps it to 0.25 to 8 (the march is capped at 256 points a span), the slider shows 0.25 to 4, which holds the stops 1 (48 points), 2 (96) and 2.6667 (128) and 4 (192).
             { OwnCloudOptions.TuneGridFine, new[] { 0.25f, 4f } },
             { OwnCloudOptions.TuneLightStride, new[] { 1f, 8f } },
@@ -70,12 +70,12 @@ namespace ReDefinition.Atmospheres.Viewer
             { EdgeSettings.TunePersist, new[] { 1f, 32f } },
             { CloudLookTuning.TuneCoverCombine, new[] { 0f, 1f } },
             { CloudLookTuning.TuneFadeNearShare, new[] { 0f, 1f } },
-            { CloudLookTuning.TuneFarHaze, new[] { -1f, 2f } },
+            { CloudLookTuning.TuneAerialPerspective, new[] { -1f, 2f } },
             { CloudLookTuning.TuneCellLat, new[] { -90f, 90f } },
             { CloudLookTuning.TuneCellLon, new[] { -360f, 360f } },
-            { CloudLookTuning.TuneBillowLight, new[] { 0f, 8f } },
-            { CloudLookTuning.TuneBillowContrast, new[] { 0f, 8f } },
-            { CloudLookTuning.TuneBillowTop, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeLight, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeContrast, new[] { 0f, 8f } },
+            { CloudLookTuning.TuneBulgeTop, new[] { 0f, 8f } },
             { CloudLookTuning.TuneSoloLayer, new[] { 0f, (float)CloudLayerDef.MaxLayers } },
             { CloudCoverShift.TuneShift, new[] { -1f, 1f } },
             { CloudCoverShift.TuneShiftRain, new[] { -1f, 1f } }
@@ -86,17 +86,17 @@ namespace ReDefinition.Atmospheres.Viewer
             var map = new Dictionary<string, KeySection>(StringComparer.Ordinal);
             Put(map, KeySection.Shape,
                 CloudLookTuning.TuneSigma, CloudLookTuning.TuneNoiseSize,
-                CloudLookTuning.TuneBillowLight, CloudLookTuning.TuneBillowContrast, CloudLookTuning.TuneBillowTop, CloudLookTuning.TuneBillowFine,
-                CloudLookTuning.TuneBillowFineFreq,
-                // M2c: the stratus rolls (their amount and the length of a roll in the layer's thickness).
-                OwnCloudOptions.TuneSheetRolls, OwnCloudOptions.TuneRollLengthShare);
+                CloudLookTuning.TuneBulgeLight, CloudLookTuning.TuneBulgeContrast, CloudLookTuning.TuneBulgeTop, CloudLookTuning.TuneBulgeFine,
+                CloudLookTuning.TuneBulgeFineFreq,
+                // M2c: the stratus undulations (variety undulatus: their amount and the wavelength in the layer's thickness).
+                OwnCloudOptions.TuneUndulatus, OwnCloudOptions.TuneUndulatusWavelengthShare);
             Put(map, KeySection.Edge,
-                CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneFarHaze);
+                CloudLookTuning.TuneSoftness, CloudLookTuning.TuneFadeFar, CloudLookTuning.TuneFadeNearShare, CloudLookTuning.TuneAerialPerspective);
             Put(map, KeySection.Light,
                 OwnCloudModule.TuneSunGain, OwnCloudModule.TuneSunUnit, OwnCloudModule.TuneExposure, OwnCloudModule.TuneOutputGamma, OwnCloudModule.TuneWhitePoint,
                 OwnCloudModule.TuneWhiteAltitudeM, OwnCloudModule.TuneMoonGain, OwnCloudModule.TuneSunAirWithScatterer,
-                CloudHazePlan.TuneAirSource, CloudHazePlan.TuneColour, CloudHazePlan.TuneShare, CloudHazePlan.TuneR, CloudHazePlan.TuneG, CloudHazePlan.TuneB, CloudHazePlan.TuneSky,
-                CloudLookTuning.TuneHazeStrength,
+                AerialPerspectivePlan.TuneAirSource, AerialPerspectivePlan.TuneColour, AerialPerspectivePlan.TuneShare, AerialPerspectivePlan.TuneR, AerialPerspectivePlan.TuneG, AerialPerspectivePlan.TuneB, AerialPerspectivePlan.TuneSky,
+                CloudLookTuning.TuneAerialPerspectiveStrength,
                 OwnCloudOptions.TuneMoonMinShare, OwnCloudOptions.TuneOctaveA, OwnCloudOptions.TuneOctaveB, OwnCloudOptions.TuneOctaveC, OwnCloudOptions.TuneMsBrightness,
                 OwnCloudOptions.TuneDiffusion, OwnCloudOptions.TuneDiffusionTau, OwnCloudOptions.TuneMsIsotropy, OwnCloudOptions.TuneAmbientOcclusion, OwnCloudOptions.TuneAmbientGain,
                 OwnCloudOptions.TuneSkyTint, OwnCloudOptions.TuneAmbientFloor, OwnCloudOptions.TuneAmbientColumnTop, OwnCloudOptions.TuneCellGain, OwnCloudOptions.TuneCellBeta,
@@ -130,7 +130,7 @@ namespace ReDefinition.Atmospheres.Viewer
             return Sections.TryGetValue(key ?? "", out section);
         }
 
-        // The group of the per-layer keys by their prefix: the look factors of a layer are Shape, the rest (map and type values, deck rule, shift) Weather.
+        // The group of the per-layer keys by their prefix: the look factors of a layer are Shape, the rest (map and type values, low stratiform rule, shift) Weather.
         internal static KeySection SectionOfLayerKey(string prefix)
         {
             if (prefix == CloudLookTuning.TuneSigma + "." || prefix == CloudLookTuning.TuneNoiseSize + ".") return KeySection.Shape;

@@ -42,7 +42,7 @@ namespace AtmoSim.Core
             }
         }
 
-        // Round 4 (E43): the local 3D window with the deck carried by its own wind, growing and sinking towers, the anvil tilt and the consistency rule (LayerCoupling.Column).
+        // Round 4 (E43): the local 3D window with the low stratiform layer carried by its own wind, growing and sinking towers, the anvil tilt and the consistency rule (LayerCoupling.Column).
         // updraft (may be null) receives the signed vertical speed of the towers.
         public static void WindowLayered(WeatherGenerator g, double centreLat, double centreLon, double ut, int nx, int ny, int nz, double dxyM, double dzM, double zBaseM, float[] density, float[] updraft, LayerOptions o)
         {

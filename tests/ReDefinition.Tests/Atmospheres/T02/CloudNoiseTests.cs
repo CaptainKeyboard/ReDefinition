@@ -283,16 +283,16 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheFibreStretchCompressesTheLookupAlongTheAxisAndLengthensTheFeatures()
+        public void TheFilamentStretchCompressesTheLookupAlongTheAxisAndLengthensTheFeatures()
         {
             // E40 L2 D1: the lookup point loses the share a = 1 - 1 / k of its part along the axis (the shader's q -= ax (dot(q, ax) a)); the other directions are untouched.
             NoiseLayerParams iso = NoiseLayerParams.Default(500.0);
             iso.Untile = false;
-            NoiseLayerParams fibre = iso;
-            fibre.Stretch = 1.0 - 1.0 / 4.0;
-            fibre.AxisZ = 1.0;
+            NoiseLayerParams filament = iso;
+            filament.Stretch = 1.0 - 1.0 / 4.0;
+            filament.AxisZ = 1.0;
             double qx, qy, qz;
-            CloudShapeModel.LookupPoint(ref fibre, 1200.0, -300.0, 8000.0, out qx, out qy, out qz);
+            CloudShapeModel.LookupPoint(ref filament, 1200.0, -300.0, 8000.0, out qx, out qy, out qz);
             Assert.AreEqual(1200.0, qx, 1e-9);
             Assert.AreEqual(-300.0, qy, 1e-9);
             Assert.AreEqual(2000.0, qz, 1e-9, "the axis part is a quarter");
@@ -303,9 +303,9 @@ namespace ReDefinition.Tests
                 for (int j = 0; j < 10; j++)
                 {
                     double x = i * 811.0, y = j * 1307.0, z = (i + j) * 977.0;
-                    double a = Shape(ref fibre, x, y, z), b = Shape(ref iso, x, y, z);
-                    alongSum += Math.Abs(a - Shape(ref fibre, x, y, z + lag));
-                    acrossSum += Math.Abs(a - Shape(ref fibre, x + lag, y, z));
+                    double a = Shape(ref filament, x, y, z), b = Shape(ref iso, x, y, z);
+                    alongSum += Math.Abs(a - Shape(ref filament, x, y, z + lag));
+                    acrossSum += Math.Abs(a - Shape(ref filament, x + lag, y, z));
                     isoAlong += Math.Abs(b - Shape(ref iso, x, y, z + lag));
                     isoAcross += Math.Abs(b - Shape(ref iso, x + lag, y, z));
                     n++;
@@ -314,35 +314,35 @@ namespace ReDefinition.Tests
             Assert.IsTrue(Math.Abs(isoAlong - isoAcross) < 0.25 * isoAcross, "isotropic: along " + isoAlong / n + " across " + isoAcross / n);
         }
 
-        // E40 L5 shape: the fibres lie along the layer's wind, and the pole is the axis of calm air.
+        // E40 L5 shape: the filaments lie along the layer's wind, and the pole is the axis of calm air.
         [TestMethod]
-        public void TheFibreAxisFollowsTheWindAndKeepsToThePoleInCalmAir()
+        public void TheFilamentAxisFollowsTheWindAndKeepsToThePoleInCalmAir()
         {
             var pole = new UnityEngine.Vector3(0f, 0f, 1f);
-            const float minWind = FibreAxis.DefaultMinWindMs;
-            const double turn = FibreAxis.DefaultTurnSeconds;
-            UnityEngine.Vector3 wind = FibreAxis.Target(new UnityEngine.Vector3(3f, 4f, 0f), pole, minWind);
+            const float minWind = FilamentAxis.DefaultMinWindMs;
+            const double turn = FilamentAxis.DefaultTurnSeconds;
+            UnityEngine.Vector3 wind = FilamentAxis.Target(new UnityEngine.Vector3(3f, 4f, 0f), pole, minWind);
             Assert.AreEqual(0.6f, wind.x, 1e-6f);
             Assert.AreEqual(0.8f, wind.y, 1e-6f);
-            Assert.AreEqual(pole, FibreAxis.Target(new UnityEngine.Vector3(0.1f, 0.2f, 0f), pole, minWind), "calm air");
-            // The wind below which the axis keeps to the pole is the layer's number (cfg key fibreMinWindMs): 1 m/s is calm for 2 and a wind for 0.5.
-            Assert.AreEqual(pole, FibreAxis.Target(new UnityEngine.Vector3(1f, 0f, 0f), pole, 2f));
-            Assert.AreEqual(1f, FibreAxis.Target(new UnityEngine.Vector3(1f, 0f, 0f), pole, 0.5f).x, 1e-6f);
-            // It turns over the layer's turn time (cfg key fibreTurnSeconds): after one time constant 63 percent of the way, always a unit vector; a long time later it has arrived.
-            UnityEngine.Vector3 a = FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), turn, turn);
+            Assert.AreEqual(pole, FilamentAxis.Target(new UnityEngine.Vector3(0.1f, 0.2f, 0f), pole, minWind), "calm air");
+            // The wind below which the axis keeps to the pole is the layer's number (cfg key filamentMinWindMs): 1 m/s is calm for 2 and a wind for 0.5.
+            Assert.AreEqual(pole, FilamentAxis.Target(new UnityEngine.Vector3(1f, 0f, 0f), pole, 2f));
+            Assert.AreEqual(1f, FilamentAxis.Target(new UnityEngine.Vector3(1f, 0f, 0f), pole, 0.5f).x, 1e-6f);
+            // It turns over the layer's turn time (cfg key filamentTurnSeconds): after one time constant 63 percent of the way, always a unit vector; a long time later it has arrived.
+            UnityEngine.Vector3 a = FilamentAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), turn, turn);
             Assert.AreEqual(1.0f, a.magnitude, 1e-5f);
             Assert.AreEqual(0.864f, a.x, 0.01f, "the blend 0.632 of the way, normalised: " + a);
             Assert.AreEqual(0.503f, a.z, 0.01f, a.ToString());
-            UnityEngine.Vector3 b = FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), 50.0 * turn, turn);
+            UnityEngine.Vector3 b = FilamentAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), 50.0 * turn, turn);
             Assert.IsTrue(UnityEngine.Vector3.Dot(b, new UnityEngine.Vector3(1f, 0f, 0f)) > 0.9999f, b.ToString());
             // A shorter turn time arrives sooner; a turn time of 0 follows the wind at once.
-            Assert.IsTrue(FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), turn, 5.0).x > a.x);
-            Assert.AreEqual(1f, FibreAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), 1.0, 0.0).x, 1e-6f);
-            // A fibre has an axis, not a direction: a wind opposite to the axis does not send it through zero, and a wind along the axis leaves it as it is.
-            UnityEngine.Vector3 c = FibreAxis.Turn(new UnityEngine.Vector3(1f, 0f, 0f), new UnityEngine.Vector3(-1f, 0f, 0f), 5.0, turn);
+            Assert.IsTrue(FilamentAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), turn, 5.0).x > a.x);
+            Assert.AreEqual(1f, FilamentAxis.Turn(pole, new UnityEngine.Vector3(1f, 0f, 0f), 1.0, 0.0).x, 1e-6f);
+            // A filament has an axis, not a direction: a wind opposite to the axis does not send it through zero, and a wind along the axis leaves it as it is.
+            UnityEngine.Vector3 c = FilamentAxis.Turn(new UnityEngine.Vector3(1f, 0f, 0f), new UnityEngine.Vector3(-1f, 0f, 0f), 5.0, turn);
             Assert.AreEqual(1.0f, c.magnitude, 1e-5f);
             Assert.IsTrue(c.x > 0.99f, c.ToString());
-            Assert.AreEqual(pole, FibreAxis.Turn(pole, pole, 5.0, turn));
+            Assert.AreEqual(pole, FilamentAxis.Turn(pole, pole, 5.0, turn));
         }
 
         // E40 L5 shape: the layer's vertical scale (cfg key verticalScale) is the sphere scale of the lookup, per layer: the features are longer in the vertical by its inverse and
@@ -455,7 +455,7 @@ namespace ReDefinition.Tests
             return p;
         }
 
-        // The vertical optical depth of the 2200 to 2500 m deck at flat positions: 12 midpoint steps, the share from the model (coverage 0, edge 0.15).
+        // The vertical optical depth of the 2200 to 2500 m cloud layer at flat positions: 12 midpoint steps, the share from the model (coverage 0, edge 0.15).
         private static double ColumnTau(NoiseVolumeSet set, NoiseLayerParams prm, double x, double y, double tauVertical)
         {
             double tau = 0.0;

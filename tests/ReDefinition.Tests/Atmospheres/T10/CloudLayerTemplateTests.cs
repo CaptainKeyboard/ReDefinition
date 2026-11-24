@@ -37,7 +37,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             return BodyConfigParser.Parse(facts, nodeText == null ? null : BodyTestSupport.Parse(nodeText), null, 7, Templates());
         }
 
-        // Every field of two specs (properties and fields, through the types, curves, MESO, CLIMATE and the deck rule); a length within a relative tolerance, the rest exactly.
+        // Every field of two specs (properties and fields, through the types, curves, MESO, CLIMATE and the low stratiform rule); a length within a relative tolerance, the rest exactly.
         private static void Compare(object a, object b, string path, double lengthTolerance, List<string> diffs, Dictionary<string, double> residuals, string member = "")
         {
             if (a == null || b == null)

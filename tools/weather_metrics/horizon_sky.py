@@ -1,4 +1,4 @@
-"""The colour a far cloud fades into, from the body's air: the Python twin of src/Atmospheres/Light/Cloud/CloudHorizonSky.cs (E40 H1 haze).
+"""The colour a far cloud fades into, from the body's air: the Python twin of src/Atmospheres/Light/Cloud/CloudHorizonSky.cs (E40 H1 aerial perspective).
 
     python tools/weather_metrics/horizon_sky.py --selftest
 
@@ -210,7 +210,7 @@ def layer_elevation(height_m, layer_altitude_m, radius):
 
 
 def far_near(node, height_m, layer_altitude_m, sun_elevation_deg, azimuth_deg, white, ambient=(0.0, 0.0, 0.0)):
-    """The two colours the pass hands the layer shader (before the white point's tint), in the pass's radiance: CloudHazePlan.SkyInscatter for the sun alone."""
+    """The two colours the pass hands the layer shader (before the white point's tint), in the pass's radiance: AerialPerspectivePlan.SkyInscatter for the sun alone."""
     m = medium(node)
     el = layer_elevation(height_m, layer_altitude_m, m["radius"])
     far, near = evaluate(m, height_m, el, math.radians(sun_elevation_deg), math.radians(azimuth_deg))

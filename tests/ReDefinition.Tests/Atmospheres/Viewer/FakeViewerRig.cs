@@ -33,7 +33,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         internal bool WindowNeverOpens, SpeedIgnored, FlipDoesNothing, SliderPlacesWrong, FreezeIgnored, WeatherNotForced, CombineStaysOn, WindowStaysVisible, NothingWritten,
             ReadNotSeen, SidecarWrongWeather, NoSecondName, TimeOffsetIgnored, CloseKeepsOptions, SunStandsStill;
         // More faults: an altitude change that puts the pose's aim back, a camera left behind by an altitude change, a clock the viewer leaves wrong at the close while its own natural
-        // time stays right, rain at the pad (the deck's rain floor keeps a Fair cover up) and a field that is overcast at the pad before anything is forced.
+        // time stays right, rain at the pad (the low stratiform layer's rain floor keeps a Fair cover up) and a field that is overcast at the pad before anything is forced.
         internal bool SliderResetsAim, CameraDoesNotFollow, ClockLeftWrongAtClose, RainAtPad, FieldOvercast;
         // A close that leaves the game's clock where the time offset and the freeze put it.
         internal bool CloseKeepsTimeOffset;
@@ -132,8 +132,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                 float target = Options.Effective(CloudLookTuning.TuneMapOverride + KerbinLayers[l].Name, -1f);
                 if (target < 0f) target = FieldOvercast ? 0.9f : 0.4f;
                 else if (Options.Effective(CloudLookTuning.TuneCoverCombine, 1f) > 0f) target = Math.Min(target, 0.4f);
-                // The deck's rain floor applies unless the preset switched the deck rule off.
-                if (RainAtPad && l == 0 && Options.Effective(CloudLookTuning.TuneDeckRule + KerbinLayers[l].Name, -1f) != 0f) target = Math.Max(target, 0.6f);
+                // The low stratiform layer's rain floor applies unless the preset switched the low stratiform rule off.
+                if (RainAtPad && l == 0 && Options.Effective(CloudLookTuning.TuneLowStratiformRule + KerbinLayers[l].Name, -1f) != 0f) target = Math.Max(target, 0.6f);
                 target = CoverTarget(l, target);
                 cover[l] += (target - cover[l]) * (float)Math.Min(1.0, dt / 2.0);
             }

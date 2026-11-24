@@ -117,7 +117,7 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
-            // MaxLayers rows of base, top, edge exponent, heap, then MaxLayers rows of the type's shapeSmoothing (x).
+            // MaxLayers rows of base, top, edge exponent, cumuliform, then MaxLayers rows of the type's shapeSmoothing (x).
             infoTexture = new Texture2D(CloudLayerDef.MaxTypes, 2 * CloudLayerDef.MaxLayers, TextureFormat.RGBAFloat, false, true)
             {
                 name = "cloud shadow type info",
@@ -184,12 +184,12 @@ namespace ReDefinition.Atmospheres
                 {
                     float b, top, e;
                     table.Info(t, out b, out top, out e);
-                    // z: the exponent of the type's density rim (0: the layer's; the shadow reads no erosion, so the erosion channel is free), w: the type's heap preset (CLOUDR1).
-                    int heap = table.HeapOfType(t);
-                    if (heap > 0 && Noise != null) Noise.RequestHeap();
-                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), heap);
-                    // w: the type's puff class (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.PuffOfType(t));
+                    // z: the exponent of the type's density rim (0: the layer's; the shadow reads no erosion, so the erosion channel is free), w: the type's cumuliform preset (CLOUDR1).
+                    int cumuliform = table.CumuliformOfType(t);
+                    if (cumuliform > 0 && Noise != null) Noise.RequestCumuliform();
+                    info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), cumuliform);
+                    // w: the type's cloud form (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.FormOfType(t));
                 }
             }
             profileTexture.SetPixelData(profile, 0);
@@ -224,9 +224,9 @@ namespace ReDefinition.Atmospheres
             // The single cloud's body per layer, as the layer pass has it (CloudCells.cginc CellBody).
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(uploadedSource != null && l < layerCount ? uploadedSource.LayerAt(l) : null);
             m.SetVectorArray(LayerRenderer.IdCellE, cellE);
-            // The map-driven sky's connected sheet types, as the layer pass has them.
+            // The map-driven sky's connected stratiform types, as the layer pass has them.
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
-                cellS[l] = uploadedSource != null && l < layerCount ? MapSkyRegions.SheetTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
+                cellS[l] = uploadedSource != null && l < layerCount ? MapSkyRegions.StratiformTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
             m.SetVectorArray(LayerRenderer.IdCellS, cellS);
             // The shadow casts the clouds the layer pass draws: the CLOUD FIELD's single clouds (the field's texture and uniforms are globals of CloudFieldGpu), or with cloud.field off the
             // test lattice, which is the shader's variant so the product's shader holds none of its code.

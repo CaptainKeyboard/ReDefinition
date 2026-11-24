@@ -1,12 +1,12 @@
-// The snow veil of a storm cell for ReDefinition Atmospheres (src/Atmospheres/StormVolume.cs): a translucent curtain of falling snow from the
+// The snow praecipitatio of a storm cell for ReDefinition Atmospheres (src/Atmospheres/StormVolume.cs): a translucent praecipitatio of falling snow from the
 // base of the cell's cloud to the ground, raymarched inside a cylinder around the cell's centre. The cloud is EVE's (EveLayerStorm,
 // EveCellLayer). Only the back faces of the cylinder are drawn (Cull Front), so the same pixels are shaded from outside and inside.
 //
-// The curtain is soft vertical streaks: two scales of the 3D noise stretched along the vertical and slanted downwind with height,
+// The praecipitatio is soft vertical streaks: two scales of the 3D noise stretched along the vertical and slanted downwind with height,
 // thinner at the rim and over the last metres to the ground. A thin mist fills the gaps and veils the horizon behind it. The
 // opacity of a ray is capped at MaxOpacity. The colour is the sky's light on snow plus the sun's where it scatters forward, never
 // above SnowCeiling: the scene is HDR and a value over 1 glows. A dark band at the cloud base darkens the cloud's underside; it
-// comes in between 1.5 and 4 km from the camera, so from inside the cell the sky is the veil's.
+// comes in between 1.5 and 4 km from the camera, so from inside the cell the sky is the praecipitatio's.
 //
 // Everything is in the cell's frame: up (the planet's radial at the centre), right, and forward = up x right. The ground is curved:
 // the height above it is y + curvature * r^2, with r the distance from the axis. The horizontal and the fall offsets the C# side
@@ -20,7 +20,7 @@ Shader "ReDefinition/AtmospheresStormVolume"
     {
         _Noise ("Noise", 3D) = "white" {}
         _SnowBoost ("Snow extinction factor", Float) = 1
-        _VeilTint ("Veil diagnostics tint", Color) = (0, 0, 0, 0)
+        _PraecipitatioTint ("Praecipitatio diagnostics tint", Color) = (0, 0, 0, 0)
     }
     SubShader
     {
@@ -60,9 +60,9 @@ Shader "ReDefinition/AtmospheresStormVolume"
             float4 _Sun;
             float4 _SunColour;
             float4 _AmbientColour;
-            // Diagnostics: a factor on the veil's extinction, and a tint (rgb, share in a) that replaces the veil's colour.
+            // Diagnostics: a factor on the praecipitatio's extinction, and a tint (rgb, share in a) that replaces the praecipitatio's colour.
             float _SnowBoost;
-            float4 _VeilTint;
+            float4 _PraecipitatioTint;
 
             // The extinction per metre at full strength and full density, and the most opaque a ray can get.
             static const float SnowSigma = 0.0200;
@@ -75,7 +75,7 @@ Shader "ReDefinition/AtmospheresStormVolume"
             static const float DarkFarM = 4000.0;
             // The band reaches from just under the cloud base up this far above it, m.
             static const float DarkBandM = 380.0;
-            // The thin mist of the whole column, as a share of the streaks' density: it veils the ground and the horizon behind the curtain.
+            // The thin mist of the whole column, as a share of the streaks' density: it veils the ground and the horizon behind the praecipitatio.
             static const float MistShare = 0.22;
             // No colour channel goes above this: the scene is HDR and anything over 1 glows.
             static const float SnowCeiling = 0.85;
@@ -83,8 +83,8 @@ Shader "ReDefinition/AtmospheresStormVolume"
             static const float StreakTileBroad = 1500.0;
             static const float StreakTileFine = 500.0;
             static const float StreakTileV = 14000.0;
-            // How far the veil's axis leans downwind per m of height, as a share of the pattern's shear.
-            static const float VeilLean = 0.8;
+            // How far the praecipitatio's axis leans downwind per m of height, as a share of the pattern's shear.
+            static const float PraecipitatioLean = 0.8;
             // The fade over the last metres to the ground, and the fade into the cloud base.
             static const float GroundFadeM = 70.0;
 
@@ -146,13 +146,13 @@ Shader "ReDefinition/AtmospheresStormVolume"
                 float column = top * ground;
                 if (column <= 0.0) return 0.0;
 
-                // The pattern is sheared downwind with height and moved by the wind; the axis of the veil leans the same way.
+                // The pattern is sheared downwind with height and moved by the wind; the axis of the praecipitatio leans the same way.
                 float sx = lx - _Wind.x + _Wind.z * h;
                 float sz = lz - _Wind.y + _Look.z * h;
-                float lean = VeilLean * h;
+                float lean = PraecipitatioLean * h;
                 float vx = lx - _Wind.z * lean;
                 float vz = lz - _Look.z * lean;
-                float veilRho = sqrt(vx * vx + vz * vz) / R;
+                float praecipitatioRho = sqrt(vx * vx + vz * vz) / R;
 
                 // Long streaks: the noise is read at a horizontal tile and stretched along the vertical, so that a streak is a few hundred
                 // metres wide and kilometres long. The fall offset moves it down.
@@ -165,7 +165,7 @@ Shader "ReDefinition/AtmospheresStormVolume"
                 // Denser in the upper two thirds, thinner to the ground; dense in the middle and thin at the rim, with a ragged edge.
                 float hn = saturate(h / max(base_, 1.0));
                 float vertical = lerp(0.45, 1.0, smoothstep(0.0, 0.34, hn));
-                float radial = (1.0 - smoothstep(0.45, 1.0, veilRho + (s - 0.5) * 0.3)) * (0.55 + 0.45 * (1.0 - veilRho));
+                float radial = (1.0 - smoothstep(0.45, 1.0, praecipitatioRho + (s - 0.5) * 0.3)) * (0.55 + 0.45 * (1.0 - praecipitatioRho));
 
                 // The streaks, and under them the mist that fills the gaps.
                 float d = column * max(streak * vertical, MistShare) * radial;
@@ -260,20 +260,20 @@ Shader "ReDefinition/AtmospheresStormVolume"
 
                     float thick, dark;
                     float sigmaSnow = Density(lx, lz, h, lod, R, thick, dark);
-                    // The dark band stays out of the near view: from inside the cell the sky is the veil's.
+                    // The dark band stays out of the near view: from inside the cell the sky is the praecipitatio's.
                     dark *= smoothstep(DarkNearM, DarkFarM, t);
                     float sigma = sigmaSnow + dark;
                     if (sigma > 1e-7)
                     {
                         float a_ = 1.0 - exp(-sigma * dt);
 
-                        // Light grey in an overcast storm: the sky's light, dimmer under the cloud base and where the curtain is thick
+                        // Light grey in an overcast storm: the sky's light, dimmer under the cloud base and where the praecipitatio is thick
                         // (it shades itself), with a little of the sun where it scatters forward. The sun's share goes with the sun's
                         // visibility (_SunColour is zero at night). The dark band is a share of the ambient light.
                         float hn = saturate(h / max(base_, 1.0));
                         float shade = lerp(0.85, 1.0, hn) * lerp(1.0, 0.85, thick);
                         float3 snowColour = (_AmbientColour.rgb * 1.2 + _SunColour.rgb * (0.10 + 0.30 * forwardLight)) * shade;
-                        snowColour = lerp(snowColour, _VeilTint.rgb, _VeilTint.a);
+                        snowColour = lerp(snowColour, _PraecipitatioTint.rgb, _PraecipitatioTint.a);
                         snowColour = min(snowColour, SnowCeiling);
                         float3 darkColour = _AmbientColour.rgb * DarkShade;
                         snowColour = (snowColour * sigmaSnow + darkColour * dark) / sigma;

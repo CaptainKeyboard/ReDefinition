@@ -125,9 +125,9 @@ def cu_layer(name="cumulus", cov_map="cu.r8", coverage=0.3, inner=1400.0, outer=
                    noise=0.35, noise_scale=700.0, name=name)
 
 
-def deck_layer(cov_map="deck.r8", coverage=0.93, inner=900.0, outer=2300.0):
+def stratus_layer(cov_map="stratus.r8", coverage=0.93, inner=900.0, outer=2300.0):
     return L.layer(inner, outer, 0.02, [L.slab_type("stratus", 0.0, 0.9, STRATUS, 0.3)], coverage=coverage, softness=0.27, cov_map=cov_map,
-                   noise=0.28, noise_scale=900.0, name="deck")
+                   noise=0.28, noise_scale=900.0, name="stratus")
 
 
 def cirrus_layer(cov_map="cirrus.r8"):
@@ -147,16 +147,16 @@ def scene_table():
     return [
         dict(id="G1", group="ground", title="Ground at 2 m, broken cumulus field", site="cu-ground", alt=2.0, pitch=18.0, fov=60.0, sun=(120.0, 40.0),
              layers=[cu_layer()], light=dict(DAY)),
-        dict(id="G2", group="ground", title="Ground at 2 m, thick stratus deck", site="deck", alt=2.0, pitch=25.0, fov=60.0, sun=(120.0, 40.0),
-             layers=[deck_layer()], light=dict(DAY)),
+        dict(id="G2", group="ground", title="Ground at 2 m, thick stratus layer", site="stratus", alt=2.0, pitch=25.0, fov=60.0, sun=(120.0, 40.0),
+             layers=[stratus_layer()], light=dict(DAY)),
         dict(id="S1", group="side", title="8 km view of a cumulus field", site="cu-side", alt=500.0, pitch=3.0, fov=60.0, sun=(180.0, 35.0),
              layers=[cu_layer()], light=dict(DAY)),
         dict(id="S2", group="side", title="8 km view of a storm cell", site="cell", alt=300.0, pitch=18.0, fov=60.0, sun=(190.0, 30.0),
              layers=[storm_layer()], light=dict(DAY)),
-        dict(id="A1", group="above", title="From 10 km altitude looking down on a deck", site="above", alt=10000.0, pitch=-30.0, fov=60.0,
-             sun=(120.0, 45.0), layers=[deck_layer("above.r8", 0.8, 1000.0, 2400.0)], light=dict(DAY)),
+        dict(id="A1", group="above", title="From 10 km altitude looking down on a stratus layer", site="above", alt=10000.0, pitch=-30.0, fov=60.0,
+             sun=(120.0, 45.0), layers=[stratus_layer("above.r8", 0.8, 1000.0, 2400.0)], light=dict(DAY)),
         dict(id="O1", group="above", title="From orbit (300 km) at the limb", site="orbit", alt=300000.0, pitch=-44.0, fov=55.0, sun=(120.0, 35.0),
-             layers=[deck_layer("orbit.r8", 0.6, 1000.0, 2400.0), cirrus_layer()], light=dict(DAY), space=1),
+             layers=[stratus_layer("orbit.r8", 0.6, 1000.0, 2400.0), cirrus_layer()], light=dict(DAY), space=1),
         dict(id="L1", group="light", title="Low sun (7 deg), looking towards it", site="cu-ground", alt=2.0, pitch=10.0, fov=60.0, sun=(90.0, 7.0),
              layers=[cu_layer()], light=dict(sunColour=SUN, ambientTop=[0.30, 0.34, 0.45], ambientBottom=[0.12, 0.12, 0.13],
                                              skyHorizon=[0.55, 0.42, 0.32], skyZenith=[0.12, 0.22, 0.50], exposure=2.0, **DISC)),
@@ -180,13 +180,13 @@ REFERENCE = {
           "soft low-contrast mottling and no visible edges. The sun is not visible, the light is diffuse and shadows are absent; brightness "
           "falls with thickness.",
     "S1": "Cumulus field at 8 km: a row of towers with flat bases at one height, crisp bright tops, dark modelling on the flanks away from "
-          "the sun and cauliflower detail at every edge. Distance shows as haze (bluer, lower contrast) and as depth ordering of the towers; "
+          "the sun and cauliflower detail at every edge. Distance shows as aerial perspective (bluer, lower contrast) and as depth ordering of the towers; "
           "gaps show sky and ground.",
     "S2": "Cumulonimbus at 8 km: a tower 8 to 12 km tall with a hard cauliflower edge on the updraft side, a flat anvil spreading at the top, a "
           "dark, almost black base and a grey rain shaft below it. The sunlit flank is white with strong shadowing, the shadow side blue-grey.",
     "A1": "Stratocumulus from 10 km: a bright white surface (albedo 0.6 to 0.9) with cellular mottling, soft shadows of taller cells on the "
-          "cloud top, thin patches showing the dark ground, a bright glint towards the sun. Never black; the deck looks lighter than the ground.",
-    "O1": "Orbit limb: a thin blue-white atmosphere band along the limb against black space; cloud decks as bright patches that compress "
+          "cloud top, thin patches showing the dark ground, a bright glint towards the sun. Never black; the stratus looks lighter than the ground.",
+    "O1": "Orbit limb: a thin blue-white atmosphere band along the limb against black space; stratiform cloud layers as bright patches that compress "
           "towards the horizon; thin, semi-transparent cirrus; the surface darkens towards the limb by the air column; long shadows near "
           "the terminator.",
     "L1": "Low sun: against the sun cumulus have dark bodies with a thin, bright silver lining along the edges facing the sun; thin parts "
@@ -204,8 +204,8 @@ EXPECT = {
     "G2": "uniform grey ceiling without edges, low contrast, no sun disc, soft mottling",
     "S1": "towers with flat bases at one level, bright sunlit top and flank, darker shaded flank, depth ordering",
     "S2": "a tall tower with a cauliflower edge and a flat anvil, a dark base, a white lit flank",
-    "A1": "a bright white deck with mottling and thin patches, no black",
-    "O1": "decks as bright patches compressing towards a thin blue limb against black",
+    "A1": "a bright white stratus layer with mottling and thin patches, no black",
+    "O1": "stratiform cloud layers as bright patches compressing towards a thin blue limb against black",
     "L1": "dark bodies with a thin bright rim towards the sun, warm light",
     "L2": "warm red-orange clouds and sky near the sun, dark ground, undersides darker than tops",
     "L3": "cool, dim, low-contrast grey clouds with a brighter rim towards the moon",
@@ -222,18 +222,18 @@ def site_positions():
     sites["cu-west"] = find_site(cu, 0.3, 8.0, 6.0, 0.3, yaw=270.0)[:2]
     sites["cu-moon"] = find_site(cu, 0.3, 8.0, 6.0, 0.3, yaw=120.0)[:2]
     sites["cu-side"] = find_site(cu, 0.3, 12.0, 6.0, 0.4, 3.0, 0.05)[:2]
-    deck = fbm(12, 2, 6, 0.55)
-    sites["deck"] = find_site(deck, 0.93, 6.0, 6.0, 0.97)[:2]
+    stratus = fbm(12, 2, 6, 0.55)
+    sites["stratus"] = find_site(stratus, 0.93, 6.0, 6.0, 0.97)[:2]
     above = fbm(13, 2, 7, 0.6)
     sites["above"] = find_site(above, 0.8, 12.0, 12.0, 0.8)[:2]
     sites["cell"] = (2.0, -120.0)
     sites["orbit"] = (0.0, 40.0)
-    return sites, cu, deck, above
+    return sites, cu, stratus, above
 
 
-def write_maps(cu, deck, above):
+def write_maps(cu, stratus, above):
     write_map("cu.r8", cu)
-    write_map("deck.r8", deck)
+    write_map("stratus.r8", stratus)
     write_map("above.r8", above)
     write_map("orbit.r8", fbm(14, 1, 7, 0.6))
     write_map("cirrus.r8", fbm(15, 2, 6, 0.55))
@@ -252,8 +252,8 @@ def write_maps(cu, deck, above):
 
 
 def jobs():
-    sites, cu, deck, above = site_positions()
-    write_maps(cu, deck, above)
+    sites, cu, stratus, above = site_positions()
+    write_maps(cu, stratus, above)
     out = []
     for s in scene_table():
         lat, lon = sites[s["site"]]

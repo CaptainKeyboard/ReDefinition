@@ -4,21 +4,21 @@ using UnityEngine;
 
 namespace ReDefinition.Core
 {
-    // One of the three layers of falling flakes (near, middle, far): the numbers the precipitation renderer draws a layer with.
-    public struct FlakeLayer
+    // One of the three layers of falling hydrometeors (near, middle, far): the numbers the precipitation renderer draws a layer with.
+    public struct HydrometeorLayer
     {
         // The width of the layer's box in metres.
         public float Width;
-        // The share of the flake rate that falls in this layer.
+        // The share of the hydrometeor rate that falls in this layer.
         public float Share;
-        // The smallest and the largest flake size in metres.
+        // The smallest and the largest hydrometeor size in metres.
         public float SizeMin;
         public float SizeMax;
         public float Opacity;
     }
 
-    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the fog, the light, the veil, the
-    // flakes and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
+    // The weather at the camera for this frame, as the frame driver of the atmospheres wrote it: what the visibility extinction, the light, the precipitation extinction, the
+    // hydrometeors and the wind do now. The class is sealed and its fields are mutated in place, so a read allocates nothing and a field
     // added later leaves older readers working.
     //
     // Rules: there is ONE writer, the frame driver of the atmospheres (written once per frame, in LateUpdate, before
@@ -47,10 +47,10 @@ namespace ReDefinition.Core
 
         // --- The air at the camera ---
         public float VisibilityM = WeatherSample.ClearVisibilityM;
-        // The exponent-squared fog density the driver wrote into RenderSettings, so that a reader can reproduce it.
-        public float FogDensity;
+        // The visibility extinction as the exponent-squared fog density the driver wrote into RenderSettings, so that a reader can reproduce it.
+        public float VisibilityExtinctionDensity;
         // Linear colour.
-        public Color FogColour = Color.white;
+        public Color VisibilityExtinctionColour = Color.white;
         // The share of the sun's direct light that arrives ALONG the current sun ray at the camera, 0 to 1. The frame driver writes it
         // from SunTransmission.From; raytracing, solar panels and the sky read only this.
         public float SunTransmission = 1f;
@@ -68,20 +68,20 @@ namespace ReDefinition.Core
         public float GustPhase;
 
         // --- The look the host draws ---
-        public float VeilGroundAlpha;
-        public float VeilSkyAlpha;
-        public Color VeilGroundColour = Color.white;
-        public Color VeilSkyColour = Color.white;
+        public float PrecipExtinctionGroundAlpha;
+        public float PrecipExtinctionSkyAlpha;
+        public Color PrecipExtinctionGroundColour = Color.white;
+        public Color PrecipExtinctionSkyColour = Color.white;
         // The sun elevation range, in degrees, over which the overhead sky goes from clear to grey.
         public float SkyGreyStart;
         public float SkyGreyFull;
-        // Flakes per second over all layers, the size and fall speed factors, the brightness and the seed of the pattern.
-        public float FlakeRatePerS;
-        public float FlakeSizeScale = 1f;
-        public float FlakeFallMS;
-        public float FlakeBrightness = 1f;
-        public int FlakeSeed;
-        public readonly FlakeLayer[] FlakeLayers = new FlakeLayer[3];
+        // Hydrometeors per second over all layers, the size and fall speed factors, the brightness and the seed of the pattern.
+        public float HydrometeorRatePerS;
+        public float HydrometeorSizeScale = 1f;
+        public float HydrometeorFallMS;
+        public float HydrometeorBrightness = 1f;
+        public int HydrometeorSeed;
+        public readonly HydrometeorLayer[] HydrometeorLayers = new HydrometeorLayer[3];
 
         // --- Clouds ---
         // The CloudMapsState.Version the driver copied: raised each time the maps EVE reads were repainted.
@@ -124,17 +124,17 @@ namespace ReDefinition.Core
             Level = 0f;
             Band = PrecipBand.None;
             VisibilityM = WeatherSample.ClearVisibilityM;
-            FogDensity = 0f;
+            VisibilityExtinctionDensity = 0f;
             SunTransmission = 1f;
             SkyDimming = 0f;
             AmbientFactor = 1f;
             CloudCoverAlongSun = 0f;
             WindWorld = Vector3.zero;
             GustPhase = 0f;
-            VeilGroundAlpha = 0f;
-            VeilSkyAlpha = 0f;
-            FlakeRatePerS = 0f;
-            FlakeFallMS = 0f;
+            PrecipExtinctionGroundAlpha = 0f;
+            PrecipExtinctionSkyAlpha = 0f;
+            HydrometeorRatePerS = 0f;
+            HydrometeorFallMS = 0f;
             ForecastHorizonS = 0.0;
             NextChangeInS = float.MaxValue;
             Readiness = FieldReadiness.Ready;

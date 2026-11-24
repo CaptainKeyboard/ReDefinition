@@ -224,7 +224,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(humilis.Matches("Kerbin-cumulus", "Cumulus humilis") && !humilis.Matches("Kerbin-cumulus", "Cumulus congestus") && !humilis.Matches("Kerbin-cumulonimbus", "Cumulus humilis"));
             Assert.IsTrue(congestus.Matches("Kerbin-cumulus", "Cumulus congestus"));
             Assert.IsTrue(cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus calvus") && cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus incus") && !cb.Matches("Kerbin-cumulus", "Cumulonimbus incus"));
-            Assert.IsFalse(cb.Matches("Kerbin-cumulonimbus", "Cumulonimbus anvil"), "the cumulonimbus view centres on a tower, not on its anvil sheet");
+            Assert.IsFalse(cb.Matches("Kerbin-cumulonimbus", "Incus"), "the cumulonimbus view centres on a tower, not on its incus (the anvil sheet)");
             // E40 CB: the cumulonimbus views see the whole cell: from the ground 25 to 40 km away, the tower's 11 km top inside a 60 degree picture; from above at least 20 km up.
             T09Probe.Soft60Pose cbGround = T09Probe.Soft60PoseFor(cb, false, new T09Probe.Soft60Cell { LatDeg = Soft60SiteLat, LonDeg = Soft60SiteLon + 1.0, DistKm = 100.0 }, Soft60SiteLat, Soft60SiteLon, Soft60Radius, 0.0);
             Assert.IsTrue(cbGround.ReachKm >= 25.0 && cbGround.ReachKm <= 40.0, "ground reach " + cbGround.ReachKm);
@@ -246,7 +246,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheLightRowsSeparateTheSunlitSideFromTheBaseAndTheDeckFromTheSky()
+        public void TheLightRowsSeparateTheSunlitSideFromTheBaseAndTheCloudFromTheSky()
         {
             int n = 100 * 100;
             var off = new Color[n];
@@ -270,7 +270,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(0.2140, s.BaseLuma, 0.002, "the 10th is the base");
             Assert.AreEqual(0.6038 / 0.2140, s.TopOverBase, 0.05);
             Assert.AreEqual(T09Probe.SoftLuma(off[0]), s.SkyLuma, 0.002, "the sky behind the body is the baseline's");
-            Assert.AreEqual(s.MedianLuma / s.SkyLuma, s.DeckOverSky, 1e-9);
+            Assert.AreEqual(s.MedianLuma / s.SkyLuma, s.CloudOverSky, 1e-9);
             // No pixel changed by the body threshold, or pictures of two sizes: no stats.
             Assert.IsFalse(T09Probe.SoftLightOf(off, off, out s));
             Assert.IsFalse(T09Probe.SoftLightOf(raw, new Color[10], out s));

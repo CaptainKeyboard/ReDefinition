@@ -55,45 +55,45 @@ namespace ReDefinition.Atmospheres
         // The width in noise scales the shape noise is smoothed over where each type is drawn (E40 L6 shape): the type's own key, the layer's where it has none.
         private readonly float[] smoothing;
 
-        // CLOUDR1: the type's heap preset (0: none), the exponent of its density rim (0: the layer's) and its cavity strength, with the tuning overrides of CloudLookTuning applied: what the shader's
+        // CLOUDR1: the type's cumuliform preset (0: none), the exponent of its density rim (0: the layer's) and its cavity strength, with the tuning overrides of CloudLookTuning applied: what the shader's
         // second type info texture holds.
-        internal int HeapOfType(int type)
+        internal int CumuliformOfType(int type)
         {
-            int forced = CloudLookTuning.HeapOverrideFor(layer.Name);
-            // CLOUD FIELD: a puffy type reads the billow heap where the field is on (the owner's puffy concept is part of the type).
-            if (forced < 0 && layer.Types[type].Heap == 0 && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return HeapModel.PresetOf("billow");
-            return forced >= 0 ? forced : layer.Types[type].Heap;
+            int forced = CloudLookTuning.CumuliformOverrideFor(layer.Name);
+            // CLOUD FIELD: a type with a cloud form reads the bulge cumuliform where the field is on (the owner's fluffy concept is part of the type).
+            if (forced < 0 && layer.Types[type].Cumuliform == 0 && layer.Types[type].Form > 0 && CloudLookTuning.Field) return CumuliformModel.PresetOf("bulge");
+            return forced >= 0 ? forced : layer.Types[type].Cumuliform;
         }
 
         internal float EdgeOfType(int type)
         {
             if (!layer.Soft) return 0f;
             float forced = CloudLookTuning.EdgePowerOverrideFor(layer.Name);
-            if (forced <= 0f && layer.Types[type].EdgePower <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.5f;
+            if (forced <= 0f && layer.Types[type].EdgePower <= 0f && layer.Types[type].Form > 0 && CloudLookTuning.Field) return 0.5f;
             return forced > 0f ? forced : layer.Types[type].EdgePower;
         }
 
         internal float CavityOfType(int type)
         {
-            if (HeapOfType(type) <= 0) return 0f;
+            if (CumuliformOfType(type) <= 0) return 0f;
             float forced = CloudLookTuning.CavityOverrideFor(layer.Name);
-            if (forced < 0f && layer.Types[type].Cavity <= 0f && layer.Types[type].Puff > 0 && CloudLookTuning.Field) return 0.35f;
+            if (forced < 0f && layer.Types[type].Cavity <= 0f && layer.Types[type].Form > 0 && CloudLookTuning.Field) return 0.35f;
             return forced >= 0f ? forced : layer.Types[type].Cavity;
         }
 
-        // The heap preset at a type value: the nearer of the two neighbouring types (a preset cannot be blended; the shader takes the same one).
-        internal int HeapAtTypeValue(double typeValue)
+        // The cumuliform preset at a type value: the nearer of the two neighbouring types (a preset cannot be blended; the shader takes the same one).
+        internal int CumuliformAtTypeValue(double typeValue)
         {
             int a, c;
             double f;
             Neighbours(typeValue, out a, out c, out f);
-            return HeapOfType(f < 0.5 ? a : c);
+            return CumuliformOfType(f < 0.5 ? a : c);
         }
 
-        // CLOUD FIELD: the puff class of a type where the field is on (0: none or the field off); the shader reads the nearer of the two neighbouring types' like the heap preset.
-        internal int PuffOfType(int type)
+        // CLOUD FIELD: the cloud form of a type where the field is on (0: none or the field off); the shader reads the nearer of the two neighbouring types' like the cumuliform preset.
+        internal int FormOfType(int type)
         {
-            return CloudLookTuning.Field ? layer.Types[type].Puff : 0;
+            return CloudLookTuning.Field ? layer.Types[type].Form : 0;
         }
 
         // The smoothing of a type (noise scales).

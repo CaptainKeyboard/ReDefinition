@@ -52,7 +52,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _LayerD[4];   // noise amount, noise scale (1 / m), erosion, map shift (degrees)
         float4 _LayerE[4];   // emission colour (kind 3)
         sampler2D _TypeProfile;
-        sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's heap preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
+        sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's cumuliform preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
         // The two maps are RG16 arrays: r the value the map showed when its newest goal arrived, g the goal. The shown value is r moved toward g by at most the layer's reach
@@ -178,21 +178,21 @@ Shader "ReDefinition/AtmospheresLayers"
             return 0.5 * _LayerD[li].x;
         }
 
-        // ---- M2c: the rolls of the sheet types (stratus undulatus) ----
-        float4 _TypeRoll[8];   // each type's roll depth (CloudTypeDef.RollAmount): layer li's type t at slot li * MAXT + t, four to a vector
-        float4 _RollP;         // x the frame's switch (cloud.sheetRolls, 0: off), y the roll length as a share of the layer's depth
+        // ---- M2c: the undulations of the stratiform types (variety undulatus) ----
+        float4 _TypeUndulatus[8];   // each type's undulatus depth (CloudTypeDef.UndulatusAmount): layer li's type t at slot li * MAXT + t, four to a vector
+        float4 _UndulatusP;         // x the frame's switch (cloud.undulatus, 0: off), y the wavelength as a share of the layer's depth
 
-        float TypeRollOf(int li, int type)
+        float TypeUndulatusOf(int li, int type)
         {
             int slot = li * MAXT + type;
-            return _TypeRoll[slot >> 2][slot & 3];
+            return _TypeUndulatus[slot >> 2][slot & 3];
         }
 
-        // The thickness factor of the rolls at a point: long bands across the level's wind (_NoiseAxis, the layer's wind; the bands move with the layer's offset like its
-        // pattern), their crests bent by a value noise of twice their length so that no band is a straight line; amount the share the thickness swings by.
-        float SheetRollFactor(int li, float3 pc, float amount, float depthM)
+        // The thickness factor of the undulations at a point: long waves across the level's wind (_NoiseAxis, the layer's wind; the waves move with the layer's offset like
+        // its pattern), their crests bent by a value noise of twice their wavelength so that no crest is a straight line; amount the share the thickness swings by.
+        float UndulatusFactor(int li, float3 pc, float amount, float depthM)
         {
-            float len = max(_RollP.y * depthM, 1.0);
+            float len = max(_UndulatusP.y * depthM, 1.0);
             float3 q = pc + _NoiseOffset[li].xyz;
             float bend = HeightValueNoise(q / (2.0 * len), (uint)_NoiseOffset[li].w + 7019u);
             float phase = dot(q, _NoiseAxis[li].xyz) / len + 1.5 * bend;
@@ -261,9 +261,9 @@ Shader "ReDefinition/AtmospheresLayers"
             gCellW = 1.0;
             gBodyRead = false;
             gNoiseD = _NoiseS.w;
-            gHeapPreset = 0;
-            gHeapCav = 1;
-            gHeapCavK = 0;
+            gCumuliformPreset = 0;
+            gCumuliformCav = 1;
+            gCumuliformCavK = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
             gTopAlt = outer;
             gBaseAlt = inner;
@@ -309,9 +309,9 @@ Shader "ReDefinition/AtmospheresLayers"
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
                 // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a sheet type is drawn connected (CellSheetWeight).
+                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a stratiform type is drawn connected (CellStratiformWeight).
                 typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
-                float sheetW = CellSheetWeight(li, typeValue);
+                float stratiformW = CellStratiformWeight(li, typeValue);
                 // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
                 // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
 #if defined(CLOUD_LATTICE)
@@ -321,7 +321,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     float edgeC = max(_LayerB[li].z, 1e-4);
                     gCellBodyX = CellBodyReachX(li);
                     cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                    (uint)_NoiseOffset[li].w, sheetW, cellReach, wMap);
+                                    (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
                     if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
                         gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
@@ -341,15 +341,15 @@ Shader "ReDefinition/AtmospheresLayers"
             float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
             float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
             gNoiseSm = lerp(ia.w, ib.w, f);
-            // CLOUDR1: the type's heap preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
+            // CLOUDR1: the type's cumuliform preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
             float waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
             int puff = 0;
-            [branch] if (_HeapP.w > 0.5 || _FieldP.x > 0.5)
+            [branch] if (_CumuliformP.w > 0.5 || _FieldP.x > 0.5)
             {
                 float4 ja = TypeInfo2(li, ta), jb = TypeInfo2(li, tb);
                 puff = (int)(f < 0.5 ? ja.w : jb.w);
-                gHeapPreset = (int)(f < 0.5 ? ja.x : jb.x);
-                gHeapCavK = lerp(ja.z, jb.z, f);
+                gCumuliformPreset = (int)(f < 0.5 ? ja.x : jb.x);
+                gCumuliformCavK = lerp(ja.z, jb.z, f);
                 waterPow = lerp(ja.y > 0 ? ja.y : waterPow, jb.y > 0 ? jb.y : waterPow, f);
             }
             float erosionType = lerp(ia.z, ib.z, f);
@@ -364,10 +364,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 b = localBase;
                 tp = localTop;
             }
-            // M2c: the sheet types' rolls swing the type's THICKNESS (its top; the base stays even, as the stratus photos show), before the height test so that the leap's gap
-            // and the light path see the same shape (off while _RollP.x is 0 or the type has no roll depth: the deck of before, bit for bit).
-            float rollAmount = _RollP.x * lerp(TypeRollOf(li, ta), TypeRollOf(li, tb), f);
-            [branch] if (rollAmount > 0.0) tp = b + (tp - b) * SheetRollFactor(li, pc, rollAmount, outer - inner);
+            // M2c: the stratiform types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
+            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the layer of before, bit for bit).
+            float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
+            [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
             if (share < b || share > tp || tp <= b)
             {
                 if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);
@@ -396,7 +396,7 @@ Shader "ReDefinition/AtmospheresLayers"
             }
 #endif
             cov -= pf.a * (coverage + CoverageNoiseBound(li) + 0.5 * edge);   // E40 CB step 0: the lift in units of the layer's headroom (LayerTypeTable.LiftHeadroom), 1 closes every column
-            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the deck and the far view): its own height shape
+            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
@@ -406,8 +406,8 @@ Shader "ReDefinition/AtmospheresLayers"
             float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x : 0.0;
             if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
             // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
-            erosion *= 1.0 + _BillowP.z * saturate(h);
-            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the billow noise itself through the
+            erosion *= 1.0 + _BulgeP.z * saturate(h);
+            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the bulge noise itself through the
             // same call (the threshold at the noise's mean, a unit edge, the full swing, no erosion: the share is the noise's rank), so the noise keeps ONE call site (CLOUDR2 P4).
             float covN = cov, edgeN = edge, amountN = noiseAmount, erosionN = erosion;
             if (body)
@@ -420,7 +420,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBillows(li, pc) : float2(0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, s, fine, (tp - b) * (outer - inner));
                 // The field's distance in m is estimated from the gradient, not exact: the march does not leap over a body's shell on it.
                 if (fieldBody) gBodyRead = false;
@@ -539,7 +539,7 @@ Shader "ReDefinition/AtmospheresLayers"
             [loop] for (int k = 0; k < 8; k++)
             {
                 if (k >= n) break;
-                // TDR (K-T2 2026-11-16/17: the driver reset at the first frames inside the deck): every stop is written so that a value that is not a number stops the ray. A NaN fails
+                // TDR (K-T2 2026-11-16/17: the driver reset at the first frames inside the low stratiform rain layer): every stop is written so that a value that is not a number stops the ray. A NaN fails
                 // every comparison, so "T < threshold" never ended a ray whose transmittance was NaN, and "t >= end" never ended one whose position was: it ran all 8 x 512 steps with a
                 // light march at each, seconds per frame.
                 if (!(T >= _MarchP.w)) break;
@@ -598,10 +598,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
                     if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     float dens = LayerDensity(li, pc, alt, t, share) * spanF;
-                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's billows the body's depth changes by at most 1 per m, so no surface lies within that
+                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
                     // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
-                    // billows' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
+                    // bulges' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
                     float traceGap = -1.0;
                     [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && gBodyRead && !(dens > 0))
                     {
@@ -612,12 +612,12 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
                     float2 typeLight = gTypeLight;
-                    float billowD = gNoiseD;
-                    // CLOUDR1 P3: the heap volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
+                    float bulgeD = gNoiseD;
+                    // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
-                    [branch] if (gHeapCavK > 0.0) cavity = pow(max(gHeapCav, 0.02), 4.0 * gHeapCavK);
+                    [branch] if (gCumuliformCavK > 0.0) cavity = pow(max(gCumuliformCav, 0.02), 4.0 * gCumuliformCavK);
                     r.steps += 1;
-                    // A4 (cloud.cellShell): within the billows' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
+                    // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
                     // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
@@ -732,10 +732,10 @@ Shader "ReDefinition/AtmospheresLayers"
                     src += dirPart * (typeLight.x - 1.0) + ambPart * (typeLight.y - 1.0);
                     dirPart *= typeLight.x;
                     ambPart *= typeLight.y;
-                    // PUFF (_BillowP.x): billow shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
-                    float billowShade = saturate(1.0 + _BillowP.x * 2.0 * (billowD - _NoiseS.w));
-                    src += dirPart * (billowShade - 1.0);
-                    dirPart *= billowShade;
+                    // PUFF (_BulgeP.x): bulge shading, a sample's direct light follows the erosion detail there (the bumps catch the light, the crevices between them are shaded).
+                    float bulgeShade = saturate(1.0 + _BulgeP.x * 2.0 * (bulgeD - _NoiseS.w));
+                    src += dirPart * (bulgeShade - 1.0);
+                    dirPart *= bulgeShade;
                     // The colour map's tint of the layer (P15; one when the layer has none).
                     // CLOUDR1 P3: the creases between lobes are lit less, by the direct light with its multiple scattering octaves and by the sky's fill (a factor, no extra light path).
                     src += (dirPart + ambPart) * (cavity - 1.0);
@@ -1105,7 +1105,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 else
                 {
                     // The segment from the voxel centre along the sun up to the next slice's altitude; the slice above is read where the sun ray crosses it. The top slice
-                    // marches directly (layers that are not lit by the march, a cirrus deck above the lit ones, can reach above the volume's altitude range and still shade).
+                    // marches directly (layers that are not lit by the march, a cirrus layer above the lit ones, can reach above the volume's altitude range and still shade).
                     bool top = _LvSlice.x > _LvZ.z - 1.5;
                     float r0 = _PlanetR + alt, rUp = r0 + sliceH;
                     float b = dot(p, s);
