@@ -37,7 +37,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // The soft water content's numbers of the cfg (E40 soft density): a softer, flatter layer.
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
-            rain.Types[1].DensityScale = 0.22f;
+            rain.Types[1].DensityScale = 1f;   // the ISCCP stratus class (tau 23 to 379) since 2026-11-24, 0.22 before
             rain.Types[1].UndulatusAmount = 0.2f;   // M2c: the stratus undulations (0.2 of the thickness, on by default since 2026-11-24)
             // The tops follow the updraft (E40 L6 shape): 1200 m of the layer's 2.1 km at 11.2 m/s.
             rain.TopReach = 0.5714f;
