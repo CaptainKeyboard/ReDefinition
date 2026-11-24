@@ -137,7 +137,6 @@ namespace ReDefinition.Atmospheres
         }
 
         internal static bool Bound { get { return field != null; } }
-        internal static int BoundBody { get { return bodyIndex; } }
 
         internal static Func<double, double, double, double, float> Reader { get { return reader; } }
 

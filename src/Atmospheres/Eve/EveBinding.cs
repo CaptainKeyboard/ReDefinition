@@ -252,16 +252,6 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // Forces a loss for a test: what EVE's SetShaderParams does to the keywords of a material that carries a plain wrapper.
-        internal static void Wipe(EveLayer layer)
-        {
-            if (layer.Main != null)
-            {
-                layer.Main.DisableKeyword("ALPHAMAP_1");
-                layer.Main.DisableKeyword("ALPHAMAP_2");
-            }
-        }
-
         internal void Clear()
         {
             foreach (EveLayer l in layers) Forget(l);

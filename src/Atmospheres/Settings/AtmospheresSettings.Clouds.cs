@@ -77,56 +77,16 @@ namespace ReDefinition.Atmospheres
             internal const string BaseRagged = "baseRagged";
         }
 
-        // --- Own clouds ---
+        // --- Own clouds --- (the other keys of the group are read by key, through OwnCloudOptions)
         internal static bool OwnClouds => B(Keys.OwnClouds);
-        internal static int LayerCap => I(Keys.LayerCap);
-        internal static CloudDetailLevel LayerStepQuality => E<CloudDetailLevel>(Keys.LayerStepQuality);
-        internal static float LayerStepGrowth => F(Keys.LayerStepGrowth);
-
-        internal static bool CloudNoise => B(Keys.CloudNoise);
-        internal static bool CloudNoiseUntile => B(Keys.CloudNoiseUntile);
-        internal static bool CloudNoiseCurl => B(Keys.CloudNoiseCurl);
-        internal static CloudDetailLevel CloudNoiseTier => E<CloudDetailLevel>(Keys.CloudNoiseTier);
-        internal static bool CloudNoiseDistanceLod => B(Keys.CloudNoiseDistanceLod);
-        internal static bool CloudFineDetail => B(Keys.CloudFineDetail);
-        internal static float CloudSoftness => F(Keys.CloudSoftness);
         // The most grid points of a march (24 to 128), relative to the Medium step quality's 48; the profile sets it (Low 48, Medium 96, High and above 128).
         internal static int CloudSamples => I(Keys.CloudSamples);
-
-        internal static CloudDetailLevel CloudLightQuality => E<CloudDetailLevel>(Keys.CloudLightQuality);
-        internal static int CloudLightOctaves => I(Keys.CloudLightOctaves);
-        internal static float CloudPowder => F(Keys.CloudPowder);
-        internal static bool CloudSunTint => B(Keys.CloudSunTint);
-        internal static int CloudMoonLights => I(Keys.CloudMoonLights);
-        internal static bool CloudAmbientTaps => B(Keys.CloudAmbientTaps);
-        internal static int CloudAmbientReuse => I(Keys.CloudAmbientReuse);
         internal static bool CloudLightCache => B(Keys.CloudLightCache);
-
         internal static bool CloudShadows => B(Keys.CloudShadows);
-        internal static CloudDetailLevel CloudShadowQuality => E<CloudDetailLevel>(Keys.CloudShadowQuality);
-        internal static float CloudShadowFloor => F(Keys.CloudShadowFloor);
-
-        internal static ReconMode CloudReconMode => E<ReconMode>(Keys.CloudReconMode);
-        internal static int CloudResolution => I(Keys.CloudResolution);
-        internal static bool CloudRotation => B(Keys.CloudRotation);
         internal static float SceneWhiteBalance => F(Keys.SceneWhiteBalance);
-        internal static bool CloudSkipEmpty => B(Keys.CloudSkipEmpty);
-        internal static int CloudLayerCapDistance => I(Keys.CloudLayerCapDistance);
         internal static bool RtOwnClouds => B(Keys.RtOwnClouds);
         internal static int RtOwnCloudsLayerCap => I(Keys.RtOwnCloudsLayerCap);
-
-        internal static bool CloudShortSunMarch => B(Keys.CloudShortSunMarch);
-        internal static bool CloudSunWhiteBalance => B(Keys.CloudSunWhiteBalance);
-        internal static float CloudDiffusionDecay => F(Keys.CloudDiffusionDecay);
-        internal static bool CloudAerialPerspective => B(Keys.CloudAerialPerspective);
-        internal static bool CloudFarShapeMean => B(Keys.CloudFarShapeMean);
-        internal static int CloudFarMinSamples => I(Keys.CloudFarMinSamples);
-        internal static bool CloudFarPolicy => B(Keys.CloudFarPolicy);
         internal static bool CloudFarMapFade => B(Keys.CloudFarMapFade);
-        internal static bool CloudBaseVariation => B(Keys.CloudBaseVariation);
-        internal static bool CloudBasePhysics => B(Keys.CloudBasePhysics);
-        internal static bool CloudTopFromUpdraft => B(Keys.CloudTopFromUpdraft);
-        internal static bool BaseRagged => B(Keys.BaseRagged);
     }
 
     // The rows of the own cloud system in the key table, in the order of the window (they follow the other Clouds rows). A default is the

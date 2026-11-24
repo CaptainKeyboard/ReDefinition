@@ -91,8 +91,6 @@ namespace ReDefinition.Atmospheres
             internal float Warp;
         }
 
-        // The flashes now alive (bolt, light), for the probe and the log.
-        internal int FlashCount { get { return flashes.Count; } }
         internal int Spawned { get; private set; }
         internal int Dropped { get { return limiter.Dropped; } }
 

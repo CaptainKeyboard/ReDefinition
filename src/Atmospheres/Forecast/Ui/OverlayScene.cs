@@ -88,16 +88,6 @@ namespace ReDefinition.Atmospheres.Forecast
             Hidden = 0;
         }
 
-        // The ring of a system, or null.
-        internal OverlayRing RingOf(ulong key)
-        {
-            for (int i = 0; i < Rings.Count; i++)
-            {
-                if (Rings[i].Key == key) return Rings[i];
-            }
-            return null;
-        }
-
         // The ring a pointer is on (inside it, or within a few pixels of a small one); the nearest centre wins.
         internal OverlayRing Pick(float x, float y, float slackPixels = 8f)
         {

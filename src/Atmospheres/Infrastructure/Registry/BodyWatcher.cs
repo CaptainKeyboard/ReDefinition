@@ -91,12 +91,6 @@ namespace ReDefinition.Atmospheres
             get { return activeBody; }
         }
 
-        // The factor the old body's weather runs at while it fades (1 to 0 over a second); 0 when there is no fading body.
-        internal static float OldBodyIntensity
-        {
-            get { return Rule.OldBodyIntensity(Time.unscaledTime); }
-        }
-
         // Raised once when the active body changed (old, new), on the main thread.
         internal static event Action<CelestialBody, CelestialBody> Changed;
 

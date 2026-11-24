@@ -130,22 +130,10 @@ namespace ReDefinition.Atmospheres
             get { return pass != null; }
         }
 
-        // The share of the interior mask that is covered, read back from the GPU (-1: no mask). The series probe's diagnostic.
-        internal float ReadInteriorCoverage()
-        {
-            return interior.ReadCoverage();
-        }
-
         // The interior mask as 0 / 1 values (see FrostInteriorMask.ReadMask), or null. The series probe's diagnostic.
         internal float[] ReadInteriorMask(out int width, out int height)
         {
             return interior.ReadMask(out width, out height);
-        }
-
-        // The camera the interior mask is attached to, or null.
-        internal Camera InteriorCamera
-        {
-            get { return interior.Camera; }
         }
 
         // The state of the glass the draw was prepared from (for the series probe's prediction of the picture).

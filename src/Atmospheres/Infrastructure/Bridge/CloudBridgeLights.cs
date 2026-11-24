@@ -25,17 +25,14 @@ namespace ReDefinition.Atmospheres
         internal const string MarkBegin = "ReDefinition clouds: begin", MarkEnd = "ReDefinition clouds: end";
 
         private static int resets;
-        private static string lastReason = "";
 
         // Counts the requests to drop the history of the temporal reconstruction (a mod's cut, a teleport it knows of); the module compares the
-        // count with the one it saw (LayerReconstructDriver.Record).
+        // count with the one it saw (LayerReconstructDriver.Record). The reason is not kept: nothing reads it.
         internal static int ResetRequests { get { return resets; } }
-        internal static string LastResetReason { get { return lastReason; } }
 
         internal static void RequestHistoryReset(string reason)
         {
             resets++;
-            lastReason = reason ?? "";
         }
     }
 }

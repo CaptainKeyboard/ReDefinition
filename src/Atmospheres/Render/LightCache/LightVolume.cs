@@ -59,8 +59,6 @@ namespace ReDefinition.Atmospheres
         // weight grows over, the largest weight.
         public int Spread;
         public float SpreadRadiusM = 400f, SpreadDepth = 4f, SpreadMax = 1f;
-        // Whether the volume must be filled at a hand-over distance of infinity (the spread reads it at every distance).
-        internal bool SpreadOn { get { return Spread > 0; } }
 
         // What the last Record did: the slices filled, whether it was a new lay, and the lays so far.
         internal int LastFilled { get; private set; }

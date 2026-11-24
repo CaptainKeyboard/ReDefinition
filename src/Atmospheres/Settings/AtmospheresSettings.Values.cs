@@ -56,7 +56,6 @@ namespace ReDefinition.Atmospheres
         internal static bool VisibilityExport => B(Keys.VisibilityExport);
 
         // --- Simulation ---
-        internal static bool GenEnabled => B(Keys.GenEnabled);
         internal static SimGridChoice SimGrid => E<SimGridChoice>(Keys.SimGrid);
         internal static int SimLevels => I(Keys.SimLevels);
         internal static float SimSliceMs => F(Keys.SimSliceMs);
@@ -66,7 +65,6 @@ namespace ReDefinition.Atmospheres
         internal static bool VolumePass => B(Keys.VolumePass);
         internal static float VolumeResolution => F(Keys.VolumeResolution);
         internal static int VolumeSteps => I(Keys.VolumeSteps);
-        internal static VolumeCompose VolumeCompose => E<VolumeCompose>(Keys.VolumeCompose);
 
         // --- Precipitation and look ---
         internal static float PrecipDensity => F(Keys.PrecipDensity);
@@ -166,7 +164,6 @@ namespace ReDefinition.Atmospheres
         // --- Diagnostics, for screenshots and probes ---
         // A level from 0 to 1 at the camera whatever the field says, or a negative number for the field's own.
         internal static float ForceLevel => F(Keys.ForceLevel);
-        internal static ForceType ForceType => E<ForceType>(Keys.ForceType);
         internal static string ForceBody => Text(Keys.ForceBody);
         // A season phase from 0 to 1 that replaces the clock, or a negative number for the clock.
         internal static float ForcePhase

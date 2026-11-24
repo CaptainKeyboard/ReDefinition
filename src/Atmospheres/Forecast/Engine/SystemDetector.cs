@@ -112,16 +112,6 @@ namespace ReDefinition.Atmospheres.Forecast
             return cursor >= Width * Height;
         }
 
-        // Scans every cell at a time and appends the maxima.
-        internal void ScanAll(double ut, List<SystemPoint> into)
-        {
-            Begin(ut);
-            while (!FillNext())
-            {
-            }
-            Collect(into);
-        }
-
         // Appends the local maxima of the filled grid.
         internal void Collect(List<SystemPoint> into)
         {

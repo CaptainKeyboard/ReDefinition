@@ -87,12 +87,5 @@ namespace ReDefinition.Atmospheres
             float a = Math.Max(alpha, 1e-4f);
             return Encode(premultiplied / a, white, exposure, gamma) * alpha;
         }
-
-        // What a thick, white, Lambertian top lit by the sun alone shows in the scene's units: the sun colour times the cosine of its angle to the normal. The
-        // reference every cloud value is read against (a card facing the sun, cos = 1, shows W).
-        internal static float WhiteCard(float sceneSun, float cosTheta)
-        {
-            return sceneSun * Math.Max(cosTheta, 0f);
-        }
     }
 }

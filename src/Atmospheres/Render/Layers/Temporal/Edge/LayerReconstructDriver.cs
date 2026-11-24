@@ -136,7 +136,6 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        internal int ProbeCount { get { return probes.Count; } }
 
         internal void Dispose()
         {

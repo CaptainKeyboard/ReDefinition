@@ -78,11 +78,6 @@ namespace ReDefinition.Atmospheres
             return entries[index].Fade;
         }
 
-        internal bool WantedAt(int index)
-        {
-            return entries[index].Wanted;
-        }
-
         // The fade of a lamp by id; false where it is not in the set.
         internal bool TryGetFade(int id, out float fade)
         {

@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     // layer pass into a command buffer on that camera every frame. Everything the earlier packages built but nothing called is called here:
     // LayerRenderer (T01), the noise model (T02), the light with the moons and the lightning bolts (T03, T07), the temporal reconstruction
     // with the edge mode (T05, T12; LayerReconstructDriver Configure and Record), the far view with the aerial perspective of the body's own
-    // air (T06; CloudBridgeAir) and the hand-over of the 2D shell (OwnShell.NearMarchActive), the height maps (T13; HeightDriver.Update), the
+    // air (T06; CloudBridgeAir) and the hand-over of the 2D shell (OwnShell.NearMarchActive), the height maps (T13; HeightJob), the
     // optical depth hook of the cloud shadow (OwnCloudHook). The settings reach the structs through OwnCloudOptions.
     //
     // When it draws: the mod and the own clouds are on, the cloud source in force is Ours (OwnCloudOptions.Active), the scene is a flight scene
@@ -1297,12 +1297,6 @@ namespace ReDefinition.Atmospheres
         internal int MapRounds
         {
             get { return Stats.MapFetches; }
-        }
-
-        // The main-thread milliseconds of the last map round and the worst single frame of a round (the cost the viewer shows next to a rebuild).
-        internal double LastMapRoundMs
-        {
-            get { return Stats.LastMapMs; }
         }
 
         // The inputs of the low stratiform rule (WeatherLowStratiformRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and

@@ -33,7 +33,6 @@ namespace ReDefinition.Atmospheres
         public float FillRatio = 1.15f;
 
         internal RenderTexture Volume { get { return volume; } }
-        internal int Voxels { get { return GridN * GridN * GridNz; } }
 
         internal void Ensure()
         {

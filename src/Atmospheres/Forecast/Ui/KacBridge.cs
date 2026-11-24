@@ -248,12 +248,6 @@ namespace ReDefinition.Atmospheres.Forecast
             return made.ContainsKey(siteKey);
         }
 
-        internal double AlarmUtOf(ulong siteKey)
-        {
-            Made m;
-            return made.TryGetValue(siteKey, out m) ? m.AlarmUt : double.NaN;
-        }
-
         // The key that stands for a watched place in this bridge: the same while the place moves (a vessel in flight crosses a tenth of a
         // degree every few kilometres, and its alarm is still one alarm). choice is 1 for the Space Centre, 3 for the vessel.
         internal static ulong PlaceKey(int choice, int bodyIndex)
@@ -340,11 +334,6 @@ namespace ReDefinition.Atmospheres.Forecast
             foreach (Made m in made.Values) api.DeleteAlarm(m.Id);
             made.Clear();
             return any;
-        }
-
-        internal static string AlarmName(ForecastSite site)
-        {
-            return ForecastStrings.KacAlarmPrefix + (string.IsNullOrEmpty(site.Name) ? "site" : site.Name);
         }
 
         internal static string Describe(double alarmUt, double etaUt)

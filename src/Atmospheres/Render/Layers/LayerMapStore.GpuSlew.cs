@@ -51,12 +51,6 @@ namespace ReDefinition.Atmospheres
             get { return engine != null ? engine.Pending() : 0; }
         }
 
-        // Blocks until every goal given so far is live (the tests and the player; the game does not call it).
-        internal void SlewFlush()
-        {
-            if (engine != null) engine.Flush();
-        }
-
         private sealed class SlewState
         {
             internal byte[] From, To;
@@ -95,7 +89,6 @@ namespace ReDefinition.Atmospheres
             private bool stopping, busy;
             private int readyCount;
             private Thread thread;
-            internal readonly byte[] ScratchGoal;
 
             private readonly Action<int, byte[]> hook;
 
@@ -105,7 +98,6 @@ namespace ReDefinition.Atmospheres
                 store = owner;
                 hook = uploadHook;
                 count = owner.Width * owner.Height;
-                ScratchGoal = new byte[count];
                 for (int i = 0; i < slots.Length; i++) slots[i] = new SlewSlot();
                 if (hook != null) return;
                 copyOk = MakeStaging(owner.Width, owner.Height);

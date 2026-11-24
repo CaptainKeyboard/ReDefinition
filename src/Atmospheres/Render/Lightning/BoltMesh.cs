@@ -13,7 +13,6 @@ namespace ReDefinition.Atmospheres
         private readonly List<int> indices = new List<int>();
 
         internal int VertexCount { get { return vertices.Count; } }
-        internal int TriangleCount { get { return indices.Count / 3; } }
 
         // Fills the mesh from the strands, rotated by rotation and moved by offset, with the brightness scaled.
         internal void Build(Mesh mesh, List<BoltStrand> strands, Quaternion rotation, Vector3 offset, float brightness)
