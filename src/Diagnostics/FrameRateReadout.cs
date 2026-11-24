@@ -61,20 +61,20 @@ namespace ReDefinition.Diagnostics
             get { return loadText; }
         }
 
-        // Adds this frame's time to the mean of the upscaler on or off. A rig for frame
+        // Adds this frame's time to the mean of the upscaler on or off. An integration for frame
         // generation alone counts as neither, so the caller leaves it out.
         public void Sample(bool upscalerOn)
         {
             (upscalerOn ? meterOn : meterOff).Sample(Time.unscaledDeltaTime);
         }
 
-        // Starts the mean with the upscaler on afresh, as after a new rig.
+        // Starts the mean with the upscaler on afresh, as after a new integration.
         public void ResetOn()
         {
             meterOn.Reset();
         }
 
-        // Starts the mean with the upscaler off afresh, as after the rig went.
+        // Starts the mean with the upscaler off afresh, as after the integration went.
         public void ResetOff()
         {
             meterOff.Reset();

@@ -50,14 +50,14 @@ namespace ReDefinition.Diagnostics
         // against off.
         private void DrawOverview()
         {
-            bool active = rigs.Rig != null && rigs.Rig.Ready;
+            bool active = integrations.Integration != null && integrations.Integration.Ready;
             GUILayout.Label(active
-                ? "Active: " + rigs.Rig.RenderSize.x + "x" + rigs.Rig.RenderSize.y + "  ->  "
-                  + rigs.Rig.DisplaySize.x + "x" + rigs.Rig.DisplaySize.y
+                ? "Active: " + integrations.Integration.RenderSize.x + "x" + integrations.Integration.RenderSize.y + "  ->  "
+                  + integrations.Integration.DisplaySize.x + "x" + integrations.Integration.DisplaySize.y
                   // The capture goes on for the proxy's attempts, which need its
                   // packets; the player sees that nothing is generated.
                   + (contextFailing ? "  -- " + ContextFailedNote() : "")
-                : rigs.Rig != null && rigs.Rig.PassThrough
+                : integrations.Integration != null && integrations.Integration.PassThrough
                     // What stopped the upscaler follows below.
                     ? (config.WantEnabled ? "Upscaler not set up" : "Upscaler off")
                       + (contextFailingAny
@@ -68,10 +68,10 @@ namespace ReDefinition.Diagnostics
                        : config.FrameGeneration && FrameGenerationBridge.ContextFailureStands
                            ? "Off -- " + ContextFailedNote()
                        : "Off")
-                : RigLifecycle.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
+                : IntegrationLifecycle.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
                 : "Setting up ...", styles.Strip);
 
-            if (!string.IsNullOrEmpty(rigs.Problem)) WarningLabel(rigs.Problem);
+            if (!string.IsNullOrEmpty(integrations.Problem)) WarningLabel(integrations.Problem);
 
             GUILayout.Space(6f);
             DrawOptions(OptionsOf(DebugCategory.Overview));
@@ -98,11 +98,11 @@ namespace ReDefinition.Diagnostics
             GUI.enabled = outer && profile;
             // Read before any control: the technique's switch forgets failures
             // within this event, and the rows must stay the ones the layout pass
-            // counted. (The rig itself is rebuilt by RigLifecycle.Tick, see Reattach.)
-            bool fallingBack = rigs.Rig != null && rigs.Rig.Backend != config.Backend && rigs.FallbackReason != null;
-            bool canRetry = fallingBack && rigs.HasNativeFailure(config.Backend);
+            // counted. (The integration itself is rebuilt by IntegrationLifecycle.Tick, see Reattach.)
+            bool fallingBack = integrations.Integration != null && integrations.Integration.Backend != config.Backend && integrations.FallbackReason != null;
+            bool canRetry = fallingBack && integrations.HasNativeFailure(config.Backend);
             string fallbackText = fallingBack
-                ? UpscalerBackends.Name(config.Backend) + " cannot run, FSR 3 runs instead: " + rigs.FallbackReason
+                ? UpscalerBackends.Name(config.Backend) + " cannot run, FSR 3 runs instead: " + integrations.FallbackReason
                 : null;
             string retryText = canRetry ? "Try " + UpscalerBackends.Name(config.Backend) + " again" : null;
 
@@ -133,20 +133,20 @@ namespace ReDefinition.Diagnostics
             RowTail();
             GUILayout.EndHorizontal();
 
-            GUILayout.Label(rigs.Rig != null && rigs.Rig.PassThrough
+            GUILayout.Label(integrations.Integration != null && integrations.Integration.PassThrough
                 ? (config.WantEnabled ? "The upscaler could not be set up" : "Upscaler off")
                   + ": frame generation runs, without FSR's antialiasing"
                   + (QualitySettings.antiAliasing > 1 ? ", and KSP's MSAA does not reach the 3D scene." : ".")
                 : config.Quality == Fsr3Upscaler.QualityMode.NativeAA
-                ? "Full resolution. " + UpscalerBackends.Name(rigs.Rig != null ? rigs.Rig.Backend : config.Backend) + " does the antialiasing."
+                ? "Full resolution. " + UpscalerBackends.Name(integrations.Integration != null ? integrations.Integration.Backend : config.Backend) + " does the antialiasing."
                 : "Renders smaller and reconstructs.", styles.Dim);
             if (fallingBack)
             {
                 GUILayout.Label(fallbackText);
                 if (canRetry && GUILayout.Button(retryText))
                 {
-                    rigs.ForgetNativeFailures(true);
-                    rigs.Reattach();
+                    integrations.ForgetNativeFailures(true);
+                    integrations.Reattach();
                 }
             }
 
@@ -208,7 +208,7 @@ namespace ReDefinition.Diagnostics
         // (HostStackSync.Sync), and there is nothing to judge.
         private void DrawHostStackSummary()
         {
-            if (!BundledSettings.ProfileChosen || rigs.PassThroughWanted)
+            if (!BundledSettings.ProfileChosen || integrations.PassThroughWanted)
             {
                 GUILayout.Label("Other visual mods: their own antialiasing, while the upscaler is off.");
                 return;
@@ -262,15 +262,15 @@ namespace ReDefinition.Diagnostics
         private void DrawPreview()
         {
             GUILayout.BeginHorizontal();
-            if (Mode("Motion", UpscalerRig.PreviewMode.MotionVectors)) previewMode = UpscalerRig.PreviewMode.MotionVectors;
-            if (Mode("Depth", UpscalerRig.PreviewMode.Depth)) previewMode = UpscalerRig.PreviewMode.Depth;
-            if (Mode("Low res", UpscalerRig.PreviewMode.LowRes)) previewMode = UpscalerRig.PreviewMode.LowRes;
-            if (Mode("Result", UpscalerRig.PreviewMode.Upscaled)) previewMode = UpscalerRig.PreviewMode.Upscaled;
+            if (Mode("Motion", UpscalerIntegration.PreviewMode.MotionVectors)) previewMode = UpscalerIntegration.PreviewMode.MotionVectors;
+            if (Mode("Depth", UpscalerIntegration.PreviewMode.Depth)) previewMode = UpscalerIntegration.PreviewMode.Depth;
+            if (Mode("Low res", UpscalerIntegration.PreviewMode.LowRes)) previewMode = UpscalerIntegration.PreviewMode.LowRes;
+            if (Mode("Result", UpscalerIntegration.PreviewMode.Upscaled)) previewMode = UpscalerIntegration.PreviewMode.Upscaled;
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            if (Mode("Transparency mask", UpscalerRig.PreviewMode.TransparencyMask)) previewMode = UpscalerRig.PreviewMode.TransparencyMask;
-            if (Mode("Reactive mask", UpscalerRig.PreviewMode.ReactiveMask)) previewMode = UpscalerRig.PreviewMode.ReactiveMask;
+            if (Mode("Transparency mask", UpscalerIntegration.PreviewMode.TransparencyMask)) previewMode = UpscalerIntegration.PreviewMode.TransparencyMask;
+            if (Mode("Reactive mask", UpscalerIntegration.PreviewMode.ReactiveMask)) previewMode = UpscalerIntegration.PreviewMode.ReactiveMask;
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
 
@@ -278,30 +278,30 @@ namespace ReDefinition.Diagnostics
             // pass: the read-back changes the render target, which would spoil what is drawn after
             // it in a repaint.
             if (Event.current.type == EventType.Layout)
-                previewTexture = rigs.Rig != null && rigs.Rig.Ready ? rigs.Rig.GetPreview(previewMode) : null;
+                previewTexture = integrations.Integration != null && integrations.Integration.Ready ? integrations.Integration.GetPreview(previewMode) : null;
 
-            Rect area = GUILayoutUtility.GetRect(UpscalerRig.PreviewWidth, UpscalerRig.PreviewHeight);
+            Rect area = GUILayoutUtility.GetRect(UpscalerIntegration.PreviewWidth, UpscalerIntegration.PreviewHeight);
             if (previewTexture != null) GUI.DrawTexture(area, previewTexture, ScaleMode.ScaleToFit, false);
             else if (Event.current.type == EventType.Repaint)
-                GUI.Label(area, rigs.Rig != null && rigs.Rig.Ready ? "" : "  (upscaler is off)");
+                GUI.Label(area, integrations.Integration != null && integrations.Integration.Ready ? "" : "  (upscaler is off)");
 
             switch (previewMode)
             {
-                case UpscalerRig.PreviewMode.MotionVectors:
+                case UpscalerIntegration.PreviewMode.MotionVectors:
                     GUILayout.Label("Red is rightwards, green is upwards, grey is still."
-                                    + (rigs.Rig != null && rigs.Rig.Ready
-                                       ? "  Scale " + rigs.Rig.PreviewGain.ToString("0.00") + " px" : ""));
+                                    + (integrations.Integration != null && integrations.Integration.Ready
+                                       ? "  Scale " + integrations.Integration.PreviewGain.ToString("0.00") + " px" : ""));
                     break;
-                case UpscalerRig.PreviewMode.Depth:
+                case UpscalerIntegration.PreviewMode.Depth:
                     GUILayout.Label("Bright is near, dark is far.");
                     break;
-                case UpscalerRig.PreviewMode.LowRes:
+                case UpscalerIntegration.PreviewMode.LowRes:
                     GUILayout.Label("The image FSR receives -- at render resolution.");
                     break;
-                case UpscalerRig.PreviewMode.TransparencyMask:
+                case UpscalerIntegration.PreviewMode.TransparencyMask:
                     GUILayout.Label("White where FSR loosens its history: EVE's clouds and Scatterer's ocean.");
                     break;
-                case UpscalerRig.PreviewMode.ReactiveMask:
+                case UpscalerIntegration.PreviewMode.ReactiveMask:
                     GUILayout.Label("White where the current frame counts more: particles, plumes, re-entry.");
                     break;
                 default:
@@ -311,7 +311,7 @@ namespace ReDefinition.Diagnostics
         }
 
         // The active choice stays pressed, so it is visible what is shown.
-        private bool Mode(string label, UpscalerRig.PreviewMode mode)
+        private bool Mode(string label, UpscalerIntegration.PreviewMode mode)
         {
             bool active = previewMode == mode;
             return GUILayout.Toggle(active, label, styles.Segment) && !active;

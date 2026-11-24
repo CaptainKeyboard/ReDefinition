@@ -15,7 +15,7 @@ and the design in [shared-foundation.md](flow-mod-interface.md).
   `src/Api/Internal/SharedFrame.cs`. `Frame.RequestHistoryReset` and the reset handlers go to
   `HistoryResets` and a `HookList`.
 * `Hooks` in `src/Api/Hooks.cs` adds handlers to the `HookList` fields of `SharedFrame`. The
-  rig calls them. `HookList.Invoke` runs each one on its own, so a throwing handler cannot stop
+  integration calls them. `HookList.Invoke` runs each one on its own, so a throwing handler cannot stop
   the others.
 * `Profiles` in `src/Api/Profiles.cs` reads `SharedFrame.Profile`, which
   `SharedFrame.PollProfile` sets from the settings store once per `Update` of the add-on.
@@ -76,8 +76,8 @@ sequenceDiagram
 3. A history reset requested before `Begin` reaches every mod in that frame. One found while
    the frame renders resets the upscaler at once and reaches the mods in the next frame
    (`SharedFrame.LateReset`).
-4. The rig calls the hooks at fixed places: `UpscalerRig.RecordMotionVectorHooks`,
-   `UpscalerRig.RunAfterUpscalingHooks` and `UpscalerRig.FillOverlay`. [A frame in the
+4. The integration calls the hooks at fixed places: `UpscalerIntegration.RecordMotionVectorHooks`,
+   `UpscalerIntegration.RunAfterUpscalingHooks` and `UpscalerIntegration.FillOverlay`. [A frame in the
    mod](flow-frame.md) shows where they sit.
 
 ## Direct3D 12 compute from a mod
@@ -108,7 +108,7 @@ Unity renders in Direct3D 11, so a pass runs on shared copies of the textures. T
   `docs/modders/examples/ReDefinitionApi.cs`, raise `SharedFrame.InterfaceVersion`, and set
   `ReDefinitionApi.WrittenFor` in the example to the new value.
 * A new hook: add a `HookList` to `SharedFrame`, a `Register` and an `Unregister` method to
-  `Hooks`, and the call in the rig, in `src/Upscaler/Rig/UpscalerRig.Hooks.cs`.
+  `Hooks`, and the call in the integration, in `src/Upscaler/Integration/UpscalerIntegration.Hooks.cs`.
 * A limit of the compute service: `D3d12Bridge.MaxTextures`, `D3d12Bridge.MaxConstants` and
   `D3d12Bridge.MaxDispatchesPerFrame` on the mod's side, `kD3d12MaxTextures` and
   `kD3d12MaxConstants` in `D3d12Compute.h` on the proxy's.

@@ -19,14 +19,14 @@ namespace ReDefinition.Tests
         public void ACutBeforeTheFrameResetsEveryone()
         {
             HistoryResets resets = new HistoryResets();
-            string forMods, forRig;
-            resets.Begin("camera target now 'probe'", out forMods, out forRig);
+            string forMods, forIntegration;
+            resets.Begin("camera target now 'probe'", out forMods, out forIntegration);
             Assert.AreEqual("camera target now 'probe'", forMods);
-            Assert.AreEqual("camera target now 'probe'", forRig);
+            Assert.AreEqual("camera target now 'probe'", forIntegration);
 
-            resets.Begin(null, out forMods, out forRig);
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.IsNull(forMods);
-            Assert.IsNull(forRig);
+            Assert.IsNull(forIntegration);
         }
 
         // Requests made before a frame reset everyone once, with the first reason; the frame after resets no one.
@@ -36,12 +36,12 @@ namespace ReDefinition.Tests
             HistoryResets resets = new HistoryResets();
             resets.Request("Hullcam switched cameras");
             resets.Request("a second reason");
-            string forMods, forRig;
-            resets.Begin(null, out forMods, out forRig);
+            string forMods, forIntegration;
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.AreEqual("Hullcam switched cameras", forMods);
-            Assert.AreEqual("Hullcam switched cameras", forRig);
+            Assert.AreEqual("Hullcam switched cameras", forIntegration);
 
-            resets.Begin(null, out forMods, out forRig);
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.IsNull(forMods);
         }
 
@@ -52,14 +52,14 @@ namespace ReDefinition.Tests
         {
             HistoryResets resets = new HistoryResets();
             resets.Request("a mod");
-            string forMods, forRig;
-            resets.Begin("camera parent now 'probe'", out forMods, out forRig);
-            Assert.AreEqual("camera parent now 'probe'", forRig);
+            string forMods, forIntegration;
+            resets.Begin("camera parent now 'probe'", out forMods, out forIntegration);
+            Assert.AreEqual("camera parent now 'probe'", forIntegration);
             Assert.IsNull(resets.Late(null), "the request went with the cut");
 
-            resets.Begin(null, out forMods, out forRig);
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.IsNull(forMods);
-            Assert.IsNull(forRig);
+            Assert.IsNull(forIntegration);
         }
 
         // A reset found while the frame renders resets the upscaler then, and reaches the mods in the next frame
@@ -68,16 +68,16 @@ namespace ReDefinition.Tests
         public void AResetFoundWhileTheFrameRendersReachesTheModsInTheNextFrameOnly()
         {
             HistoryResets resets = new HistoryResets();
-            string forMods, forRig;
-            resets.Begin(null, out forMods, out forRig);
+            string forMods, forIntegration;
+            resets.Begin(null, out forMods, out forIntegration);
             resets.Request(null);
             Assert.AreEqual("a mod", resets.Late(null));
 
-            resets.Begin(null, out forMods, out forRig);
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.AreEqual("a mod", forMods);
-            Assert.IsNull(forRig, "the upscaler reset for it in the frame before");
+            Assert.IsNull(forIntegration, "the upscaler reset for it in the frame before");
 
-            resets.Begin(null, out forMods, out forRig);
+            resets.Begin(null, out forMods, out forIntegration);
             Assert.IsNull(forMods);
         }
 

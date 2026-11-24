@@ -80,7 +80,7 @@ namespace ReDefinition.Atmospheres
 
         private void Draw(CommandBuffer cb, RenderTexture upscaled, RenderTexture depth, Camera camera)
         {
-            // Only a linear HDR image can be scaled by the tint (the rig's pass-through hands its render-size target over, which may be LDR in gamma): elsewhere the
+            // Only a linear HDR image can be scaled by the tint (the integration's pass-through hands its render-size target over, which may be LDR in gamma): elsewhere the
             // hook does not count as alive, so the clouds keep their own white point.
             if (upscaled == null || !IsHdr(upscaled.format)) return;
             lastCallFrame = Time.frameCount;

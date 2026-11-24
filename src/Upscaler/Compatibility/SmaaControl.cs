@@ -18,7 +18,7 @@ namespace ReDefinition.Upscaler
         // Deferred brings an SMAA of its own, added only in the editors, to the
         // editor's Main Camera, when useSmaaInEditors is set -- which the
         // shipped Deferred.cfg does (EditorLighting.HandleSMAA). In the VAB and
-        // the SPH the rig sits on that camera. Deferred adds a fresh copy on every
+        // the SPH the integration sits on that camera. Deferred adds a fresh copy on every
         // editor scene load, so Reassert's once-a-second pass keeps it off.
         private const string DeferredTypeName = "Deferred.SubpixelMorphologicalAntialiasing";
 
@@ -98,7 +98,7 @@ namespace ReDefinition.Upscaler
         // The rows for Scatterer's SMAA and, in the editors, Deferred's.
         public void AddLines(List<HostStack.Line> lines)
         {
-            // SMAA sits at AfterForwardAlpha, before the rig's capture -- an image
+            // SMAA sits at AfterForwardAlpha, before the integration's capture -- an image
             // smoothed there has lost the aliasing the upscaler reconstructs from.
             AddLine(lines, ScattererTypeName, ScattererBufferPrefix, "Scatterer SMAA");
             if (HighLogic.LoadedSceneIsEditor)
@@ -106,7 +106,7 @@ namespace ReDefinition.Upscaler
         }
 
         // Scatterer's SMAA hangs a CommandBuffer on Camera 00 at
-        // AfterForwardAlpha -- before the rig's capture at BeforeImageEffects. The
+        // AfterForwardAlpha -- before the integration's capture at BeforeImageEffects. The
         // upscaler would receive an image whose edges are already smoothed, and
         // edge aliasing is what it reconstructs from.
         //

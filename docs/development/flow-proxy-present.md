@@ -90,8 +90,8 @@ and only times its `Present`.
 
 KSP draws its interface straight onto the backbuffer, so frame generation would warp the
 interface along with the scene. It needs the frame without the interface to tell the two
-apart. The mod makes that copy: `UpscalerRig.AttachHudLessCapture` in
-`src/Upscaler/Rig/UpscalerRig.HudLess.cs` adds a command buffer at
+apart. The mod makes that copy: `UpscalerIntegration.AttachHudLessCapture` in
+`src/Upscaler/Integration/UpscalerIntegration.HudLess.cs` adds a command buffer at
 `CameraEvent.AfterEverything` on the presenter camera and the effect cameras. The buffer
 blits the camera target into `UpscalerTextures.HudLess`.
 

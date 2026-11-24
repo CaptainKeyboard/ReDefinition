@@ -62,7 +62,7 @@ namespace ReDefinition.Tests.Atmospheres.C24
         // ---- the caps ----
 
         [TestMethod]
-        public void TheCapsFollowTheRigAndTheProfile()
+        public void TheCapsFollowTheIntegrationAndTheProfile()
         {
             var caps = new WeatherRenderCaps();
             WeatherCapsWriter.Fill(caps, true, UpscalerBackend.Dlss, true, "High");

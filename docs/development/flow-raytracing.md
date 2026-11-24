@@ -51,7 +51,7 @@ then read it. The shared textures and fences work as they do for the upscalers i
     `ReDefinitionDeferredReflections.shader` over Deferred's reflections pass.
     `RtCamera.TraceThisFrame` sets the results as globals such as `_ReDefinitionRtSun`.
 12. When Ray Reconstruction is on, the upscaler takes the frame.
-    `UpscalerRig.SubmitReconstruction` in `src/Upscaler/Rig/UpscalerRig.Reconstruction.cs`
+    `UpscalerIntegration.SubmitReconstruction` in `src/Upscaler/Integration/UpscalerIntegration.Reconstruction.cs`
     raises event 31. `Raytracing::OnReconstruct` chooses a route in `ChooseRoute`. It calls
     `Streamline::EvaluateRayReconstruction` or NGX's `DlssRayReconstruction::Evaluate`.
     Either one denoises and upscales in one step.

@@ -10,7 +10,7 @@
 
 #include "AmdUpscaler.h"
 #include "FrameGeneration.h"
-#include "UpscalerRig.h"
+#include "UpscalerIntegration.h"
 
 #include <atomic>
 #include <cstdint>
@@ -42,14 +42,14 @@ namespace redefinition
     // previous frame". They are at the input resolution, scaled by xessSetVelocityScale.
     //
     // Runs on Unity's render thread, from the render events 7 (a frame) and 8 (the
-    // rig gone).
-    class XessUpscaler : public UpscalerRig
+    // integration gone).
+    class XessUpscaler : public UpscalerIntegration
     {
     public:
         // The one instance, made on first use and never destroyed.
         static XessUpscaler& Get();
 
-        // Attach, Detach, Attached and Status are the rig's (UpscalerRig.h). Status stops with -2 for a reason that
+        // Attach, Detach, Attached and Status are the integration's (UpscalerIntegration.h). Status stops with -2 for a reason that
         // stands while libxess.dll's folder and file are as they were.
 
         // Render event 7: checks the frame, makes what is missing (DLL, fence, textures, context) and upscales.
@@ -63,7 +63,7 @@ namespace redefinition
 
     private:
         // Only Get makes it.
-        XessUpscaler() : UpscalerRig("XeSS: ", "no frame for XeSS yet") {}
+        XessUpscaler() : UpscalerIntegration("XeSS: ", "no frame for XeSS yet") {}
 
         // libxess.dll loaded and its functions resolved; tried again at most once a second, and only once its
         // folder or file changed.
@@ -101,7 +101,7 @@ namespace redefinition
         float velocityScaleX = 0.0f;
         float velocityScaleY = 0.0f;
 
-        // What Version reports, under the rig's statusLock: the version once loaded.
+        // What Version reports, under the integration's statusLock: the version once loaded.
         std::string shownVersion;
     };
 }

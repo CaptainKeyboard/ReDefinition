@@ -458,7 +458,7 @@ namespace redefinition
                 stood = stableSearch;
         }
         // A failure that stands stands only while NGX's search is as it was: once
-        // the player has copied nvngx_dlss.dll or set dlssDirectory, the next rig
+        // the player has copied nvngx_dlss.dll or set dlssDirectory, the next integration
         // tries again (EnsureInitialised). The files are asked outside the lock
         // the render thread takes.
         if (reported == -2 && SearchSignature() != stood)
@@ -621,7 +621,7 @@ namespace redefinition
         std::lock_guard<std::mutex> ngx(NgxMutex());
         ReleaseFeature();
         hasFailed = false;
-        // NGX's start is tried again by a new rig, except after a failure that
+        // NGX's start is tried again by a new integration, except after a failure that
         // stands -- no RTX GPU, a driver too old, no usable nvngx_dlss.dll --
         // which keeps its status; EnsureInitialised tries that again once what
         // NGX searches has changed.
@@ -790,7 +790,7 @@ namespace redefinition
         return true;
     }
 
-    // Event 6: the render sizes of every mode at an output size, before the rig
+    // Event 6: the render sizes of every mode at an output size, before the integration
     // that renders at one of them is built. NGX is started on the device of the
     // texture the query carries, as a frame would start it.
     void Dlss::OnSizeQuery(const void* data)
@@ -832,8 +832,8 @@ namespace redefinition
         }
 
         std::lock_guard<std::mutex> ngx(NgxMutex());
-        // A failure that need not stand is not kept for the rig's first frame to
-        // meet: no release runs between a query and the rig after it.
+        // A failure that need not stand is not kept for the integration's first frame to
+        // meet: no release runs between a query and the integration after it.
         if (!EnsureInitialised(textureDevice.Get()))
         {
             if (!failedStable)
@@ -970,10 +970,10 @@ namespace redefinition
 
         // Created at the render size DLSS asked for -- the create parameters'
         // InWidth and InHeight, "Obtained via NGX_DLSS_GET_OPTIMAL_SETTINGS" --
-        // and evaluated at the size the rig renders, which has to lie in the range
+        // and evaluated at the size the integration renders, which has to lie in the range
         // the same query returned: otherwise "the call to DLSS Evaluate fails with
         // an NVSDK_NGX_Result_FAIL_InvalidParameter error code" (guide 3.2.2). The
-        // rig reads the optimal size back and renders at it (KspDlssRenderSizes2);
+        // integration reads the optimal size back and renders at it (KspDlssRenderSizes2);
         // with presets L and M, a frame larger than at creation "triggers an
         // expensive internal buffer reallocation" (3.2.2.1).
         if (packet.renderWidth < minWidth || packet.renderWidth > maxWidth || packet.renderHeight < minHeight
@@ -994,7 +994,7 @@ namespace redefinition
             map->Set(mode, static_cast<unsigned int>(packet.preset));
 
         // Motion vectors at render resolution ("MVLowRes") and without jitter:
-        // the rig's are Unity's own, rendered unjittered.
+        // the integration's are Unity's own, rendered unjittered.
         int flags = kNgxFlagMotionVectorsLowRes;
         if ((packet.flags & kDlssHdr) != 0)
             flags |= kNgxFlagIsHdr;

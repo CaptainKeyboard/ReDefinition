@@ -395,10 +395,10 @@ The images of each run are in `build\RaytracingPlayer\<run>`.
 
 The game's code does not run in the player. The script copies the raytracing sources from
 `src` into `tests/RaytracingPlayer/Assets/Linked`, and they compile against the stubs in
-`tests/RaytracingPlayer/Assets/Runner`: `GameStubs.cs`, `UpscalerRigStub.cs` and
+`tests/RaytracingPlayer/Assets/Runner`: `GameStubs.cs`, `UpscalerIntegrationStub.cs` and
 `DeferredStub.cs`. The unit tests do not build the player.
-`RaytracingPlayerStubTests.TheStubHasTheRigsMaximumSharpness` only holds one stub value to
-the rig's.
+`RaytracingPlayerStubTests.TheStubHasTheIntegrationsMaximumSharpness` only holds one stub value to
+the integration's.
 
 With `REDEFINITION_D3D12_DEBUG=1` set, the proxy turns on Direct3D 12's debug layer in
 either harness and the test player, and writes its messages into its log.
@@ -453,7 +453,7 @@ python tools/build_rt_player.py --upscale
 
 The same turn without raytracing, rendered at two thirds and at half the display size
 with the upscaler's jitter. FSR 3 (its Unity port), DLSS and AMD's upscaler upscale it, as
-the rig sends each (`tests/RaytracingPlayer/Assets/Runner/RtTurnUpscale.cs`). One more run
+the integration sends each (`tests/RaytracingPlayer/Assets/Runner/RtTurnUpscale.cs`). One more run
 is native, without jitter. DLSS comes from the Streamline SDK's folder (`--streamline`).
 AMD's upscaler comes from `--amd`, by default `References\KspUpscaler\FSR4` beside the
 repository's folder. FSR 3's shaders come from the game's bundle. The references are each
@@ -466,7 +466,7 @@ prints, per run, four values:
 * how much a still frame flickers.
 
 `-jitterSign x|y|xy` and `-motionSign x|y|xy` negate what the upscaler is given, as a
-counter-check of the conventions: each measures worse than the rig's.
+counter-check of the conventions: each measures worse than the integration's.
 
 The turn goes through frame generation as well:
 
@@ -506,7 +506,7 @@ of their own. Written at once, the files stalled the game for about 300 ms in th
 recording [open: no recording of it is kept].
 
 From the same turn, four frames of the stages go into a folder ending in `-stages`
-(`src/Upscaler/Rig/StageDump.cs`). It holds these textures, rows bottom-up as Unity reads
+(`src/Upscaler/Integration/StageDump.cs`). It holds these textures, rows bottom-up as Unity reads
 them back:
 
 * `input` and `output`: the image the upscaler or DLSS Ray Reconstruction takes and gives;

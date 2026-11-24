@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
     // BuiltinRenderTextureType.Depth hold at BeforeForwardAlpha with Scatterer: ordered only up to 10 m, a smooth value of 0.314 in an
     // empty (sky) view, not the camera's projection, and nothing at AfterForwardOpaque. A test "the copy holds the far value" therefore
     // cannot be relied on: where the sky reads 0.314 it discards every pixel. The other sources named in the project's own notes are the
-    // resolved depth (BuiltinRenderTextureType.ResolvedDepth, the source the upscaler rig reads in KSP's deferred path, where
+    // resolved depth (BuiltinRenderTextureType.ResolvedDepth, the source the upscaler integration reads in KSP's deferred path, where
     // BuiltinRenderTextureType.Depth stays empty) and the camera's hardware depth buffer, tested by the GPU itself (no copy at all).
     // The series K-W3b (start aurora) measures every mode in the real stack and the rows decide the default (E40 sets the key).
     internal enum AuroraSkyTest

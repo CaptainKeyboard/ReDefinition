@@ -319,7 +319,7 @@ The storm draws three kinds of things. Where each goes in ReDefinition's upscale
   2D cloud meshes (`EVE/Cloud`) is not checked.
 
 The reactive mask source *Renderers* is Off by default in ReDefinition and is only drawn when the
-upscaler is FSR (or the card is AMD's; `UpscalerRig.cs`). DLSS and XeSS take no reactive mask.
+upscaler is FSR (or the card is AMD's; `UpscalerIntegration.cs`). DLSS and XeSS take no reactive mask.
 So, honestly: with DLSS or XeSS there is nothing to switch on, and the falling snow has no motion
 vectors, so it can smear or ghost a little. The same goes for the whiteout and the cell's volume
 under DLSS and XeSS: they have no mask there and are left to the upscaler's own history. How

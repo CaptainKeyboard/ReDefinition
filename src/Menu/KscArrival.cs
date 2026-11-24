@@ -700,7 +700,7 @@ namespace ReDefinition.Menu
     }
 
     // In the test, at the end in the space centre, it logs where each camera draws and how bright that is.
-    // It also logs the rig's state and the view with the upscaler switched the other way and back.
+    // It also logs the integration's state and the view with the upscaler switched the other way and back.
     // Each result goes into the log and a screenshot.
     internal static class KscArrivalCheck
     {
@@ -770,12 +770,12 @@ namespace ReDefinition.Menu
             }
         }
 
-        // Logs the rig's state and where each camera draws, with the mean of its target.
+        // Logs the integration's state and where each camera draws, with the mean of its target.
         private static void Report(string when)
         {
             var text = new System.Text.StringBuilder(Log.Tag + " Menu to the space centre: check " + when + ":");
-            Upscaler.UpscalerRig rig = Upscaler.UpscalerRig.Current;
-            text.Append(rig == null ? " no rig" : " rig " + (rig.PassThrough ? "passing through" : "upscaling"));
+            Upscaler.UpscalerIntegration integration = Upscaler.UpscalerIntegration.Current;
+            text.Append(integration == null ? " no integration" : " integration " + (integration.PassThrough ? "passing through" : "upscaling"));
             foreach (Camera camera in Camera.allCameras)
             {
                 RenderTexture target = camera.targetTexture;

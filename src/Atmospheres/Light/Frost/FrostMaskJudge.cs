@@ -13,7 +13,7 @@ namespace ReDefinition.Atmospheres
     internal sealed class FrostMaskJudge
     {
         // The ways to take the mask, in the order they are tried: the event of the internal camera at which the depth is copied, and
-        // whether the camera is asked to make the depth texture (DepthTextureMode.Depth). The rig sets the mode on the scene camera
+        // whether the camera is asked to make the depth texture (DepthTextureMode.Depth). The integration sets the mode on the scene camera
         // only.
         internal struct Way
         {

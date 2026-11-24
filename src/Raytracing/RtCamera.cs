@@ -183,7 +183,7 @@ namespace ReDefinition.Raytracing
         // Unity's frame count at which the upscaler last asked for DLSS Ray
         // Reconstruction's frames. Until the frame after it, they go undenoised, as Ray
         // Reconstruction denoises the finished frame, and make its guides from their
-        // surfaces (UpscalerRig.Reconstruction.cs). It is a lease, so that nothing holds it on
+        // surfaces (UpscalerIntegration.Reconstruction.cs). It is a lease, so that nothing holds it on
         // once the upscaler stops asking.
         internal int ReconstructionLease = -1;
         private bool reconstructedBefore;

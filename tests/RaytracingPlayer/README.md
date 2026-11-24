@@ -30,7 +30,7 @@ and upscaler code and the real proxy, and it checks the images.
   upscaled frame. `tools/analyze_upscale_turn.py` compares it.
 - The stubs stand in for what the linked code asks of the game. `GameStubs.cs` has the GPU
   profiler, `ProxyLoad` and `RtKspMods`. `DeferredStub.cs` names Deferred's main type,
-  and `UpscalerRigStub.cs` has the rig's sharpness ceiling.
+  and `UpscalerIntegrationStub.cs` has the integration's sharpness ceiling.
 
 Run it with Unity 2019.4.18f1 at `C:\Program Files\Unity\Editor\Unity.exe` and a built proxy:
 
@@ -54,7 +54,7 @@ and `--upscale`.
 - A source in the `SOURCES` list of `tools/build_rt_player.py` compiles here without the game. If it
   names another type of the game, add a stub for it. `RtNative` is free of KSP's types for this
   reason.
-- `UpscalerRigStub.MaximumSharpness` has to equal the rig's. `RaytracingPlayerStubTests` in
+- `UpscalerIntegrationStub.MaximumSharpness` has to equal the integration's. `RaytracingPlayerStubTests` in
   `tests/ReDefinition.Tests/RaytracingPlayerStubTests.cs` holds the two together.
 - The player's `ProjectSettings` stay at the game's Unity version, `2019.4.18f1`
   (`tests/RaytracingPlayer/ProjectSettings/ProjectVersion.txt`).

@@ -37,7 +37,7 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
-        /// An effect on the upscaled image. Called every frame the rig presents, with a buffer executed
+        /// An effect on the upscaled image. Called every frame the integration presents, with a buffer executed
         /// at once from <c>OnRenderImage</c>, after the upscaler and before TUFX's effects after it and
         /// frame generation's copy of the scene. What is drawn is interpolated with the scene.
         /// A <see cref="D3D12.DispatchInto"/> into this buffer sees the upscaled image.
@@ -61,9 +61,9 @@ namespace ReDefinition.Api
         /// <summary>
         /// An effect on the upscaled image that must be hidden behind geometry. Called in the same place as
         /// <see cref="RegisterAfterUpscaling"/>, from the same buffer, with the scene's depth as well. The
-        /// depth is the rig's own copy, the texture the upscaler and frame generation read: the capture buffer
+        /// depth is the integration's own copy, the texture the upscaler and frame generation read: the capture buffer
         /// at <c>BeforeImageEffects</c> of the scene camera blits Unity's resolved depth buffer
-        /// (<c>BuiltinRenderTextureType.ResolvedDepth</c>, the rig's default <c>DepthSource</c>) into it, and the
+        /// (<c>BuiltinRenderTextureType.ResolvedDepth</c>, the integration's default <c>DepthSource</c>) into it, and the
         /// active vessel's depth is then drawn into it where the vessel is nearer. It holds what the deferred
         /// pass drew and the vessel's renderers, and nothing of what the forward pass draws after that (a forward-only
         /// object leaves 0). [VERIFY] That the copy holds the scene at that event is the product's own working

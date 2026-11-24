@@ -17,7 +17,7 @@ namespace ReDefinition.Modules
     // settings file (OwnSettings). What a profile's MODULE node names comes from
     // here (ProfileApplier), and so do the rows under General in the settings
     // window and in KSP's settings dialog (KspSettingsSection). Both edit a copy
-    // and commit it through the add-on's setters (ReDefinitionAddon.Apply); the FSR rig
+    // and commit it through the add-on's setters (ReDefinitionAddon.Apply); the FSR integration
     // stays as it is.
     //
     // A profile sets the graphics settings of these modules -- the upscaler, its mode, frame
@@ -168,7 +168,7 @@ namespace ReDefinition.Modules
                 Order = 30,
                 Control = SettingControl.Slider,
                 Min = 0f,
-                Max = UpscalerRig.MaximumSharpness,
+                Max = UpscalerIntegration.MaximumSharpness,
                 StepsPerUnit = 20f,
                 Label = value => float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
                     .ToString("0.00", CultureInfo.InvariantCulture),

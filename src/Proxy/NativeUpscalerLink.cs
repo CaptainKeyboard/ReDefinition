@@ -19,7 +19,7 @@ namespace ReDefinition.Proxy
         Xess,
     }
 
-    // What the settings and the rig ask of an UpscalerBackend.
+    // What the settings and the integration ask of an UpscalerBackend.
     internal static class UpscalerBackends
     {
         // The technique as the settings row names it.
@@ -65,7 +65,7 @@ namespace ReDefinition.Proxy
     // exports in this build's form, a ring of packet slots the render thread reads, the
     // render events that carry a frame and the release, and the status.
     //
-    // The packets travel through the rig's dispatch buffer, executed from
+    // The packets travel through the integration's dispatch buffer, executed from
     // OnRenderImage -- where a render event sees the frame's drawing (measured in a
     // Unity 2019.4 player with KSP's native graphics jobs).
     internal sealed class NativeUpscalerLink
@@ -199,7 +199,7 @@ namespace ReDefinition.Proxy
             return buffer != null && Ready && ring.Issue(buffer, renderEvent, eventId, ref packet);
         }
 
-        // Outside a frame's buffer, in the order of the frame: a query before a rig.
+        // Outside a frame's buffer, in the order of the frame: a query before an integration.
         internal bool Execute<T>(int eventId, ref T packet) where T : struct, IRingPacket<T>
         {
             if (!Ready) return false;
@@ -210,7 +210,7 @@ namespace ReDefinition.Proxy
             return issued;
         }
 
-        // The rig is gone: the proxy lets go, in the order of the frame.
+        // The integration is gone: the proxy lets go, in the order of the frame.
         internal void Release()
         {
             if (!Ready) return;

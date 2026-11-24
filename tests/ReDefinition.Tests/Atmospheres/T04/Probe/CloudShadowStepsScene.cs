@@ -79,7 +79,7 @@ namespace ReDefinition.WeatherPlayer
                         SavePictures("e40-shq-" + id.Replace('.', '-'));
                     }
             Sink.Flag("steps_ran", parity.Count == 8);
-            rig.Stop();
+            integration.Stop();
             renderer.Dispose();
         }
     }

@@ -17,7 +17,7 @@ namespace ReDefinition.Proxy
     // the render thread reads a packet some frames after the main thread wrote it.
     // Eight slots exceed how far the main thread runs ahead for one packet a frame;
     // more for more. Never freed: the render thread may still read a slot after the
-    // rig is gone. For frame generation's packets (FrameGenerationBridge), the
+    // integration is gone. For frame generation's packets (FrameGenerationBridge), the
     // upscalers' in the proxy (NativeUpscalerLink) and Direct3D 12 for mods
     // (D3d12Bridge).
     internal sealed class PacketRing

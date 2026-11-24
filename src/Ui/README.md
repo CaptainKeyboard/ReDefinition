@@ -14,7 +14,7 @@ What ReDefinition adds to the dialogs that `src/Common` gives both mods: questio
 
 ## What it does
 
-- `UnityMouseEvents` hooks into the shield's two passes (`WindowShield.BeforePass`, `AfterPass`). Before Unity's mouse events each camera the rig redirects gets the screen as its target, and after them the rig's texture again. It also tells the shield which windows count besides the dialogs: the windows of the bundled mods, a mod window drawn larger, and the diagnostics window.
+- `UnityMouseEvents` hooks into the shield's two passes (`WindowShield.BeforePass`, `AfterPass`). Before Unity's mouse events each camera the integration redirects gets the screen as its target, and after them the integration's texture again. It also tells the shield which windows count besides the dialogs: the windows of the bundled mods, a mod window drawn larger, and the diagnostics window.
 - `DialogOverWindow`, `ConfirmDialog` and `WindowBackdrop` place, draw and shield the questions of the settings window.
 
 The conventions every control follows are in

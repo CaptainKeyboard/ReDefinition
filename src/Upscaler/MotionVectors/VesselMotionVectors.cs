@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Upscaler
 {
     // The active vessel's depth and motion vectors, and those of the vessels it dropped near it, written by the
-    // rig and checked on every pixel.
+    // integration and checked on every pixel.
     //
     // Parts KSP draws in the forward pass were missing from the depth every upscaler and
     // frame generation read (RecordDepth). In NVIDIA's alignment test the parts under the vessel showed
@@ -132,7 +132,7 @@ namespace ReDefinition.Upscaler
         private long badRead;
         private int skipped;
 
-        // From the rig's FixedUpdate.
+        // From the integration's FixedUpdate.
         internal static void CountPhysicsStep()
         {
             physicsSteps++;
@@ -173,12 +173,12 @@ namespace ReDefinition.Upscaler
 
             stepped = physicsSteps != stepsAtPreviousFrame;
             stepsAtPreviousFrame = physicsSteps;
-            continuous = previousFrame == Time.frameCount - 1 && !SharedFrame.Shifted && SharedFrame.RigResetReason == null;
+            continuous = previousFrame == Time.frameCount - 1 && !SharedFrame.Shifted && SharedFrame.IntegrationResetReason == null;
             if (!continuous) skipped++;
         }
 
         // Into the capture, before the repair, which tests against it. Unity's depth sources in the deferred path
-        // (ResolvedDepth, which the rig captures, Depth and _CameraDepthTexture) hold what the deferred pass drew
+        // (ResolvedDepth, which the integration captures, Depth and _CameraDepthTexture) hold what the deferred pass drew
         // and nothing of what the forward pass draws after it. Measured in MotionVectorCheck with a forward-only
         // cube in front of a deferred sphere, 0 at the cube in all three. Pass 2 writes each of the vessel's
         // renderers' depth into the captured depth where it is nearer, skinned ones included.

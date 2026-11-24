@@ -19,9 +19,9 @@ namespace ReDefinition.Upscaler
     // renderer" (Unity ScriptReference 2019.4). A renderer on Camera mode draws no
     // motion of its own: "Use only camera movement to track motion".
     //
-    // So while the rig runs with the switch on, every skinned renderer gets
+    // So while the integration runs with the switch on, every skinned renderer gets
     // skinnedMotionVectors on, and Object where it was on Camera. What it had is
-    // put back when the rig goes. ForceNoMotion is left as it is: another mod set
+    // put back when the integration goes. ForceNoMotion is left as it is: another mod set
     // it, and Scatterer's is HostStack's to undo. Not reached this way
     // is geometry a material's vertex function moves: the internal shader draws
     // the mesh without it.
@@ -53,7 +53,7 @@ namespace ReDefinition.Upscaler
         private bool editorDirty;
         private bool subscribed;
 
-        // From the rig's Update: while wanted, a sweep when something may have
+        // From the integration's Update: while wanted, a sweep when something may have
         // brought skinned renderers and every ten seconds; everything put back as
         // soon as it is not wanted. Kerbals and flags come with vessels, EVAs, the IVA view, the editor's ship
         // and scene loads. Those start a sweep, never closer than a quarter of a
@@ -86,7 +86,7 @@ namespace ReDefinition.Upscaler
         }
 
         // For what brings skinned renderers without an event: a scene load that
-        // keeps the rig (UpscalerRig).
+        // keeps the integration (UpscalerIntegration).
         internal void MarkDirty()
         {
             dirty = true;

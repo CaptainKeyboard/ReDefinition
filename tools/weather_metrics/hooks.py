@@ -1,7 +1,7 @@
 """Figures of package C24 (the depth hook and the history reset), for the wall test and the forced-cut test once they run.
 
 Pure functions; no series is registered here because the scenes that would feed them do not exist yet (the wall test needs the
-rig's after-upscaling depth hook, which the weather player does not run).
+integration's after-upscaling depth hook, which the weather player does not run).
 
   hidden_pixels_expected(wall, band)    the pixels of a band rectangle that lie behind a wall rectangle: the geometric expectation
   relative_error(measured, expected)    |measured - expected| / expected, the figure of C24.wall_hidden_pixels_error (limit 0.02)

@@ -330,7 +330,7 @@ namespace redefinition
         // (nvsdk_ngx_helpers_dlssd.h) as sl.dlss_d asks it: output size and mode in.
         // "Dynamic Resolution Support is not currently supported by DLSS Ray
         // Reconstruction" (DLSS-RR Integration Guide 3.3); the frames come at the size
-        // the rig renders, which the log line names beside it.
+        // the integration renders, which the log line names beside it.
         NgxParameters* map = parameters;
         void* callback = nullptr;
         map->Get("DLSSDOptimalSettingsCallback", &callback);

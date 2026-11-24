@@ -7,7 +7,7 @@ namespace ReDefinition.Api.Internal
     // discontinuous camera transformation". Otherwise FSR blends the old view into
     // the new one. Frame generation gets the same flag in the frame packet, and
     // otherwise interpolates between two unrelated images. SharedFrame looks when a
-    // frame begins and again when the rig presents it.
+    // frame begins and again when the integration presents it.
     //
     // Not on a floating origin shift: above a speed threshold KSP shifts it every
     // frame (FloatingOrigin, "continuous"), and a reset every frame is an upscaler
@@ -30,7 +30,7 @@ namespace ReDefinition.Api.Internal
         // the next, CameraTools switching to its death camera or stealing the camera back after KSP reverted it.
         // KSP sets that parent itself in FlightCamera.Start and OnVesselChange (its pivot), on every scene change
         // (PSystemSetup.OnSceneChange, ResetTransforms) and in the space centre (SpaceCenterCamera2). That is
-        // before the rig exists, with a change of target, or at a scene change, where a reset belongs anyway
+        // before the integration exists, with a change of target, or at a scene change, where a reset belongs anyway
         // (as named here).
         private static Transform lastParent;
 
@@ -40,7 +40,7 @@ namespace ReDefinition.Api.Internal
         // False until the first look, which finds no cut.
         private static bool stateKnown;
 
-        // The flight camera's target at the last look, for the rig's camera
+        // The flight camera's target at the last look, for the integration's camera
         // instrument.
         internal static Transform Target
         {
@@ -48,10 +48,10 @@ namespace ReDefinition.Api.Internal
         }
 
         // What changed since the last look, or null. The state is compared rather than subscribed to. KSP's
-        // events arrive after the rig's Update, twice for one cut, when nothing cut, or not at all. The IVA
+        // events arrive after the integration's Update, twice for one cut, when nothing cut, or not at all. The IVA
         // portrait buttons move the view to another kerbal without one (CameraManager.SetCameraIVA fires
         // OnCameraChange only when the mode changes; decompiled). A change of camera mode is handled by the
-        // add-on, which rebuilds the rig for the new set of cameras.
+        // add-on, which rebuilds the integration for the new set of cameras.
         internal static string Detect()
         {
             FlightCamera flight = FlightCamera.fetch;

@@ -175,15 +175,15 @@ namespace ReDefinition.Raytracing
             camera.RenderedProjection = () =>
             {
                 Matrix4x4 projection;
-                UpscalerRig rig = UpscalerRig.Current;
-                return rig != null && rig.RenderedProjection(sceneCamera, out projection) ? projection : sceneCamera.projectionMatrix;
+                UpscalerIntegration integration = UpscalerIntegration.Current;
+                return integration != null && integration.RenderedProjection(sceneCamera, out projection) ? projection : sceneCamera.projectionMatrix;
             };
             camera.UnjitteredProjection = () =>
                 CameraRedirect.JitterActive ? sceneCamera.nonJitteredProjectionMatrix : sceneCamera.projectionMatrix;
             camera.Jitter = () =>
             {
-                UpscalerRig rig = UpscalerRig.Current;
-                return rig != null && CameraRedirect.JitterActive ? rig.CurrentJitter : Vector2.zero;
+                UpscalerIntegration integration = UpscalerIntegration.Current;
+                return integration != null && CameraRedirect.JitterActive ? integration.CurrentJitter : Vector2.zero;
             };
             camera.Cut = () => SharedFrame.ResetReason != null;
             // The trace before the lighting of its own frame (RtCamera.TraceBeforeLighting),

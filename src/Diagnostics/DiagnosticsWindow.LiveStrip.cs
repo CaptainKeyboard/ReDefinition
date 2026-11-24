@@ -43,12 +43,12 @@ namespace ReDefinition.Diagnostics
         private string RunningText()
         {
             List<string> parts = new List<string>();
-            if (rigs.Rig != null && rigs.Rig.Ready)
-                parts.Add(OurModules.TechniqueLabel(rigs.Rig.Backend) + (rigs.Rig.Backend != config.Backend && rigs.FallbackReason != null ? " (instead of "
+            if (integrations.Integration != null && integrations.Integration.Ready)
+                parts.Add(OurModules.TechniqueLabel(integrations.Integration.Backend) + (integrations.Integration.Backend != config.Backend && integrations.FallbackReason != null ? " (instead of "
                           + UpscalerBackends.Name(config.Backend) + ")" : "")
                           // Upscaler off, frame generation on: native antialiasing (NativeForFrameGeneration).
                           + (!config.WantEnabled ? " native AA" : ""));
-            else if (rigs.Rig != null && rigs.Rig.PassThrough) parts.Add("Upscaler off");
+            else if (integrations.Integration != null && integrations.Integration.PassThrough) parts.Add("Upscaler off");
             else parts.Add(config.WantEnabled ? "Upscaler setting up" : "Upscaler off");
 
             if (config.FrameGeneration)

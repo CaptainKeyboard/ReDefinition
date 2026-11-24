@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ReDefinition.Upscaler
 {
     // Two parts of EVE Redux size themselves once by their camera and never
-    // again, and the rig changes that size whenever it attaches, detaches or
+    // again, and the integration changes that size whenever it attaches, detaches or
     // changes the mode.
     //
     // The raymarched volumetric clouds are dropped through EVE's own
@@ -63,7 +63,7 @@ namespace ReDefinition.Upscaler
         // rebuildClouds: whether the render size changed, which alone needs the
         // clouds rebuilt. The shadows are checked every time: the IVA camera's renderer is
         // made as the view changes to IVA (RegisterInternalCamera, on OnCameraChange),
-        // before the rig has redirected that camera.
+        // before the integration has redirected that camera.
         public static void AfterRenderSizeChange(bool rebuildClouds, string reason)
         {
             Resolve();
@@ -76,7 +76,7 @@ namespace ReDefinition.Upscaler
         // current camera size. DeferredRaymarchedVolumetricCloudsRenderer.Initialize reads
         // targetCamera.activeTexture.width once and changes it afterwards only for screenshots
         // (HandleScreenshotMode). A rebuild throws the clouds' history away, so it runs only when the render size
-        // changed: EVE makes the renderers of cameras new to the rig as they first render, by the camera as it then is.
+        // changed: EVE makes the renderers of cameras new to the integration as they first render, by the camera as it then is.
         private static void RebuildClouds(string reason)
         {
             if (reinitAll == null) return;
@@ -99,7 +99,7 @@ namespace ReDefinition.Upscaler
         // (UpdateCommandBuffer). With the camera redirected into a smaller texture they stay made for the old size,
         // and the terrain shows vertical stripes in the cloud shadows. The renderers come from EVE's own
         // ScreenSpaceShadowsManager (cameraToShadowsRenderer). At the end of the frame a redirected camera's
-        // pixelWidth is the rig texture's.
+        // pixelWidth is the integration texture's.
         private static void ResizeShadows(string reason)
         {
             if (!ShadowsUsable) return;

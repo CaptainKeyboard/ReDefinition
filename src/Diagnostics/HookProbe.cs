@@ -11,7 +11,7 @@ namespace ReDefinition.Diagnostics
     //
     // The hooks are the way another mod adds motion vectors, draws on the
     // upscaled image or puts an overlay on top (docs/modders/shared-foundation.md).
-    // Nothing in ReDefinition uses them -- its own work reaches the rig directly --
+    // Nothing in ReDefinition uses them -- its own work reaches the integration directly --
     // so without this the path is only exercised by the example mod, outside a
     // normal game. Switched on in the diagnostics window under Capture & log, it says in
     // KSP.log whether each hook fires, at which size and on which camera, which is
@@ -27,7 +27,7 @@ namespace ReDefinition.Diagnostics
         private static bool on;
 
         // Twice per scene: the first call, and one about two seconds later. The
-        // first is the frame the rig was built in, where the jitter is zero by
+        // first is the frame the integration was built in, where the jitter is zero by
         // design; a mod's handler sees the settled frame, which the second line
         // is.
         private const int SettledAfter = 120;

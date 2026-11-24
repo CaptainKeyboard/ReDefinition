@@ -192,7 +192,7 @@ equals the defaults **[src]**. Nothing writes it back.
 |---|---|---|
 | `ambientBrightness` | 0.9 | scales the ambient diffuse; global `deferredAmbientBrightness` |
 | `ambientTint` | 0.7 | 0 is grey ambient, 1 the probe's colour; global `deferredAmbientTint` |
-| `useScreenSpaceReflections` | True | adds the SSR rig; with it the reflections pass skips probe specular |
+| `useScreenSpaceReflections` | True | adds the SSR integration; with it the reflections pass skips probe specular |
 | `useHalfResolutionScreenSpaceReflections` | True | traces at half width |
 | `capReflectionProbeRefreshRate` | True | see the reflections table |
 | `capReflectionProbeResolution` | True | probe 256 at most |

@@ -282,7 +282,7 @@ namespace redefinition
         // so the Present does not interpolate from inputs that were never executed.
         void CancelPreparedLocked(void* swapChain, const char* reason);
 
-        // Shared inputs replaced by RegisterInputs -- a mode change, a new rig
+        // Shared inputs replaced by RegisterInputs -- a mode change, a new integration
         // -- are kept until the GPU has finished every frame that can read
         // them (RetireLocked). The proxy calls this once per Present, under
         // ContextMutex, with the frame fence value it signalled last, the one
@@ -618,7 +618,7 @@ namespace redefinition
         bool dumpHaveForward = false;
         float dumpForward[3] = {};
         // The check's staging textures at the backbuffer's size, depth and motion vectors where their formats are
-        // the rig's; false, with the check off, for a backbuffer it cannot compare.
+        // the integration's; false, with the check off, for a backbuffer it cannot compare.
         bool CreateCheckTexturesLocked();
         // The check's staging textures released, and a check in progress dropped. A check that has been
         // evaluated releases them the same way, and the next makes them anew; they are not kept for the seconds

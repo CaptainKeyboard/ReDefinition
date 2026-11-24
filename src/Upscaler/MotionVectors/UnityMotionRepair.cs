@@ -167,13 +167,13 @@ namespace ReDefinition.Upscaler
             ReportMissing();
         }
 
-        // While the rig hands frames to an upscaler or to frame generation, and while
+        // While the integration hands frames to an upscaler or to frame generation, and while
         // another mod has the camera draw motion vectors -- Scatterer's TAA, TUFX's
         // effects, Deferred's reflections. Without either nothing reads them.
         private static bool Wanted(Camera cam)
         {
-            return UpscalerRig.Feeding
-                   || ((cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0 && !UpscalerRig.AskedForMotionVectors(cam));
+            return UpscalerIntegration.Feeding
+                   || ((cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0 && !UpscalerIntegration.AskedForMotionVectors(cam));
         }
 
         // Makes the material once and attaches the repair at BeforeImageEffectsOpaque and the mark at AfterEverything.
@@ -270,7 +270,7 @@ namespace ReDefinition.Upscaler
             Quaternion worldRotation = cam.transform.rotation;
 
             bool ready = havePrevious && previousBody == body
-                         && previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
+                         && previousFrame == Time.frameCount - 1 && SharedFrame.IntegrationResetReason == null;
             // Both matrices go through the one projection, which is inverted once.
             Matrix4x4 inverseProjection = ready ? StreamlineCamera.Invert(projection) : Matrix4x4.identity;
             Matrix4x4 clipToPrevious = ready

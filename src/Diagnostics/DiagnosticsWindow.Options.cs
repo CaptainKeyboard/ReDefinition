@@ -52,13 +52,13 @@ namespace ReDefinition.Diagnostics
             }
         }
 
-        // The technique the rig runs, the chosen one where no rig runs.
+        // The technique the integration runs, the chosen one where no integration runs.
         private UpscalerBackend RunningBackend
         {
-            get { return rigs.Rig != null ? rigs.Rig.Backend : config.Backend; }
+            get { return integrations.Integration != null ? integrations.Integration.Backend : config.Backend; }
         }
 
-        // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet); DLSS and
+        // FSR 3 and AMD's upscaler take the masks (UpscalerIntegration.Native, the AMD packet); DLSS and
         // XeSS none.
         private bool TakesMasks
         {
@@ -300,7 +300,7 @@ namespace ReDefinition.Diagnostics
             DebugOption diagnostics = Button("writeDiagnostics", DebugCategory.Capture, log, "Write diagnostics to log", "Write",
                 () =>
                 {
-                    if (rigs.Rig != null) rigs.Rig.LogDiagnostics();
+                    if (integrations.Integration != null) integrations.Integration.LogDiagnostics();
                     else Debug.Log(Log.Tag + " Diagnostics: upscaler is not active.");
                 });
             set.Add(diagnostics);

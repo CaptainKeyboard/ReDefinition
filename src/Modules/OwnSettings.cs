@@ -50,7 +50,7 @@ namespace ReDefinition.Modules
         public int RaytracingBounces = 2;
         // DLSS Ray Reconstruction denoises and upscales the raytraced frame where it runs;
         // off, the raytracing's own denoiser and DLSS Super Resolution do
-        // (Upscaler/UpscalerRig.Reconstruction).
+        // (Upscaler/UpscalerIntegration.Reconstruction).
         public bool RayReconstruction = true;
         // The least raytracing mode it runs in: below it the raytracing's own denoiser and DLSS
         // Super Resolution take the frame. Ray Reconstruction takes about 9 ms of GPU time on an

@@ -2,14 +2,14 @@
 
 #include "Dlss.h"
 #include "NgxCore.h"
-#include "UpscalerRig.h"
+#include "UpscalerIntegration.h"
 
 #include <string>
 
 namespace redefinition
 {
     // DLSS Super Resolution through NGX on a Direct3D 12 device of its own, made on the GPU Unity's D3D11 device
-    // renders on. Unity's textures are handed over the way AMD's upscaler and XeSS take them (UpscalerRig): copied
+    // renders on. Unity's textures are handed over the way AMD's upscaler and XeSS take them (UpscalerIntegration): copied
     // into textures both devices share, evaluated on this device's queue, the result copied back, a shared fence
     // ordering the two devices.
     //
@@ -28,7 +28,7 @@ namespace redefinition
     //
     // Everything runs on Unity's render thread, from Dlss::OnPacket and Dlss::OnRelease; every NGX call holds
     // NgxMutex. Status is read from the main thread.
-    class DlssD3d12 : public UpscalerRig
+    class DlssD3d12 : public UpscalerIntegration
     {
     public:
         static DlssD3d12& Get();
@@ -46,7 +46,7 @@ namespace redefinition
         bool RenderSize(ID3D11Device* unity, uint32_t outputWidth, uint32_t outputHeight, int32_t quality, uint32_t optimal[2],
                         uint32_t minimum[2], uint32_t maximum[2], std::string& error);
 
-        // The rig is gone; the feature goes with it. NGX and the device stay for the next rig.
+        // The integration is gone; the feature goes with it. NGX and the device stay for the next integration.
         void OnRelease();
 
     protected:

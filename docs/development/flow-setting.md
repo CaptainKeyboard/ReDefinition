@@ -96,8 +96,8 @@ flowchart LR
 7. `ApplyChanges` compares the two copies field by field and calls the setter of each
    difference (`SetQuality`, `SetBackend`, `SetFrameGeneration` and the rest in
    `src/Modules/SettingsController.Setters.cs`). It switches off first and on last.
-8. A setter changes the running rig live, or calls `ReDefinitionAddon.Reattach`. However many
-   settings ask, `RebuildRig` builds one new rig before `Apply` returns. `ChangeLiveSettings`
+8. A setter changes the running integration live, or calls `ReDefinitionAddon.Reattach`. However many
+   settings ask, `RebuildIntegration` builds one new integration before `Apply` returns. `ChangeLiveSettings`
    copies the live fields into the object that features read (see [features](flow-game-ui.md)).
 9. `ReDefinitionAddon.SaveSettingsIfChanged` writes `settings.cfg` through `OwnSettings.Save`.
    `Apply` forces it. Otherwise it compares `OwnSettings.Snapshot` every two seconds, and

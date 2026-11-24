@@ -63,15 +63,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheCloudShadowRigTakesTheSceneCamerasAndNotTheDisc()
+        public void TheCloudShadowIntegrationTakesTheSceneCamerasAndNotTheDisc()
         {
             Assert.AreEqual(CloudShadowRole.None, OwnCloudModule.ShadowRole(null));
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             string module = File.ReadAllText(Path.Combine(root, "src", "Atmospheres", "Light", "Cloud", "OwnCloudModule.cs"));
-            // The rig starts after the module's own pre-cull handler and is gated by the switches (ownClouds, cloudShadows, a layer).
-            Assert.IsTrue(module.IndexOf("Camera.onPreCull += OnPreCull;") < module.IndexOf("shadowRig.Start();"));
+            // The integration starts after the module's own pre-cull handler and is gated by the switches (ownClouds, cloudShadows, a layer).
+            Assert.IsTrue(module.IndexOf("Camera.onPreCull += OnPreCull;") < module.IndexOf("shadowIntegration.Start();"));
             StringAssert.Contains(module, "OwnCloudOptions.ShadowActive(");
-            StringAssert.Contains(module, "shadowRig.Stop();");
+            StringAssert.Contains(module, "shadowIntegration.Stop();");
         }
     }
 }

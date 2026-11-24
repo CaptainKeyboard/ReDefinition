@@ -124,7 +124,7 @@ namespace ReDefinition.Atmospheres
         private const int PassDome = 0, PassCopy = 1, PassDomeZ = 2;
 
         // The depth source a copy mode reads. BuiltinRenderTextureType.Depth stays empty in KSP's deferred path, ResolvedDepth is the
-        // source the upscaler rig reads there; the global texture is sampled by name in the copy pass.
+        // source the upscaler integration reads there; the global texture is sampled by name in the copy pass.
         private static RenderTargetIdentifier CopySource(AuroraSkyTest mode)
         {
             return mode == AuroraSkyTest.CopyResolved ? new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth)

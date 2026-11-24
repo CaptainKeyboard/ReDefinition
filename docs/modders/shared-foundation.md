@@ -90,7 +90,7 @@ ReDefinition the globals are zero and the functions fall back: the sizes to
 | `ReDefinitionJitterPixels()`, `ReDefinitionJitterNdc()` | the jitter |
 | `ReDefinitionRemoveJitter(clip)` | a clip-space position from the camera's own matrices (`UnityObjectToClipPos`) without the jitter, with `y` flipped as `_ProjectionParams.x` says |
 | `ReDefinitionOriginShift()`, `ReDefinitionOriginShifted()` | the floating origin's shift |
-| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in the encoding of the rig's motion vectors, from this frame's and the previous frame's clip-space position, both without jitter and with `y` up |
+| `ReDefinitionMotionVector(clipCurrent, clipPrevious)` | a motion vector in the encoding of the integration's motion vectors, from this frame's and the previous frame's clip-space position, both without jitter and with `y` up |
 
 If a vertex shader moves geometry, waves or wind for example, the motion vector pass
 computes the position twice, with this frame's and the previous frame's parameters:

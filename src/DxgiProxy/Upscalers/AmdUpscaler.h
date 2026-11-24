@@ -10,7 +10,7 @@
 #include <FidelityFX/api/include/ffx_api_loader.h>
 
 #include "FrameGeneration.h"
-#include "UpscalerRig.h"
+#include "UpscalerIntegration.h"
 
 #include <atomic>
 #include <cstddef>
@@ -84,18 +84,18 @@ namespace redefinition
     //
     // Runs on Unity's render thread, from the render event of the upscaler's
     // dispatch buffer, as DLSS does.
-    class AmdUpscaler : public UpscalerRig
+    class AmdUpscaler : public UpscalerIntegration
     {
     public:
         static AmdUpscaler& Get();
 
-        // Attach, Detach, Attached and Status are the rig's (UpscalerRig.h): Attach comes from the swapchain
+        // Attach, Detach, Attached and Status are the integration's (UpscalerIntegration.h): Attach comes from the swapchain
         // proxy, which owns both devices and the queue, and Attached is read from the main thread.
 
         // Event 4: this frame, upscaled into the packet's output.
         void OnPacket(const void* data);
 
-        // Event 5: the rig is gone, and the context and textures with it.
+        // Event 5: the integration is gone, and the context and textures with it.
         void OnRelease();
 
         // Which FSR the context runs, written as "FSR 4.1.1" or "FSR 3.1.5" into buffer. The result is
@@ -107,7 +107,7 @@ namespace redefinition
 
     private:
         // Only Get makes it.
-        AmdUpscaler() : UpscalerRig("AMD upscaler: ", "no frame for AMD's upscaler yet") {}
+        AmdUpscaler() : UpscalerIntegration("AMD upscaler: ", "no frame for AMD's upscaler yet") {}
 
         // The DLL loaded and its FidelityFX API functions resolved; tried again at most once a second, and only
         // once its folder or file changed.
@@ -145,7 +145,7 @@ namespace redefinition
         AmdUpscalerPacket created = {};
         bool contextFailed = false;
 
-        // What Provider reports, set with each context, under the rig's statusLock.
+        // What Provider reports, set with each context, under the integration's statusLock.
         int providerKind = 0;
         std::string providerShown;
     };

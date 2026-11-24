@@ -27,7 +27,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void TheJitterCutTakesExactlyTheFirstPhaseOfTheUpscalersSequence()
         {
-            // The upscaler's own sequence (UpscalerRig.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount) for render scales 1 to 2 and the sizes K-T2 uses.
+            // The upscaler's own sequence (UpscalerIntegration.ChooseJitter: Fsr3Upscaler.GetJitterOffset at Time.frameCount) for render scales 1 to 2 and the sizes K-T2 uses.
             foreach (int[] size in new[] { new[] { 2560, 2560 }, new[] { 1707, 2560 }, new[] { 1506, 2560 }, new[] { 1280, 2560 } })
             {
                 int phases = FidelityFX.FSR3.Fsr3Upscaler.GetJitterPhaseCount(size[0], size[1]);

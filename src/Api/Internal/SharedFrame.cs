@@ -12,7 +12,7 @@ namespace ReDefinition.Api.Internal
     // per frame before its first scene camera culls. It holds whether the upscaler and frame
     // generation run, the render and display size, the jitter, the history reset and
     // the floating origin's shifts, as properties and as shader globals. The hooks
-    // other mods register live here too, and the rig calls them.
+    // other mods register live here too, and the integration calls them.
     // docs/development/flow-mod-interface.md.
     internal static class SharedFrame
     {
@@ -65,9 +65,9 @@ namespace ReDefinition.Api.Internal
         internal static bool FrameGenerationActive { get; private set; }
         // The upscaler's display name while it is active (UpscalerBackends.Name); null otherwise.
         internal static string Technique { get; private set; }
-        // The size the 3D cameras render at; the screen's without a rig.
+        // The size the 3D cameras render at; the screen's without an integration.
         internal static Vector2Int RenderSize { get; private set; }
-        // The size of the image shown; the screen's without a rig.
+        // The size of the image shown; the screen's without an integration.
         internal static Vector2Int DisplaySize { get; private set; }
         // The jitter of this frame in pixels at render size, as the upscaler is told; zero without it.
         internal static Vector2 Jitter { get; private set; }
@@ -87,7 +87,7 @@ namespace ReDefinition.Api.Internal
         // Why this frame resets the history for the mods (HistoryResets); null where it does not.
         internal static string ResetReason { get; private set; }
         // Why this frame resets the upscaler and frame generation when it begins; null where it does not.
-        internal static string RigResetReason { get; private set; }
+        internal static string IntegrationResetReason { get; private set; }
 
         // The floating origin's shifts since the frame before, summed: what moved the active vessel, the camera and
         // nearby objects.
@@ -143,13 +143,13 @@ namespace ReDefinition.Api.Internal
         }
 
         // Where the frame's state is needed before a camera of the 3D stack culled: the
-        // rig's scene camera culls, or the rig presents.
+        // integration's scene camera culls, or the integration presents.
         internal static void EnsureBegun()
         {
             if (begunFrame != Time.frameCount) Begin();
         }
 
-        // At the rig's Present: a cut or request since the frame began, which resets
+        // At the integration's Present: a cut or request since the frame began, which resets
         // the upscaler and frame generation now and reaches the mods in the next
         // frame. Null where there is none.
         internal static string LateReset()
@@ -160,7 +160,7 @@ namespace ReDefinition.Api.Internal
         // From the add-on's Update.
         internal static void PollProfile()
         {
-            // A failure in the caps (a rig being torn down, EVE's members) must not stop the profile poll below.
+            // A failure in the caps (an integration being torn down, EVE's members) must not stop the profile poll below.
             try
             {
                 HostLink.FillCaps(lastProfile);
@@ -200,10 +200,10 @@ namespace ReDefinition.Api.Internal
             get { return lastProfile; }
         }
 
-        // Begins the frame when the first of the 3D scene cameras culls in it (UpscalerRig.IsSceneCamera).
+        // Begins the frame when the first of the 3D scene cameras culls in it (UpscalerIntegration.IsSceneCamera).
         private static void OnPreCull(Camera camera)
         {
-            if (begunFrame == Time.frameCount || camera == null || !UpscalerRig.IsSceneCamera(camera.name)) return;
+            if (begunFrame == Time.frameCount || camera == null || !UpscalerIntegration.IsSceneCamera(camera.name)) return;
             Begin();
         }
 
@@ -217,7 +217,7 @@ namespace ReDefinition.Api.Internal
             pendingShift = true;
         }
 
-        // Decides the frame's state once: the history resets, the shifts summed since the last frame, the rig's state,
+        // Decides the frame's state once: the history resets, the shifts summed since the last frame, the integration's state,
         // the shader globals; then tells the mods' handlers of a reset.
         private static void Begin()
         {
@@ -228,10 +228,10 @@ namespace ReDefinition.Api.Internal
             if (weatherCuts.Observe(weather.Active && !weather.IsStale(begunFrame), weather.BodyName, weather.Level))
                 resets.Request(WeatherCutDetector.Reason);
 
-            string forMods, forRig;
-            resets.Begin(CameraCuts.Detect(), out forMods, out forRig);
+            string forMods, forIntegration;
+            resets.Begin(CameraCuts.Detect(), out forMods, out forIntegration);
             ResetReason = forMods;
-            RigResetReason = forRig;
+            IntegrationResetReason = forIntegration;
 
             OriginShift = pendingOffset;
             BodyShift = pendingBodyOffset;
@@ -240,17 +240,17 @@ namespace ReDefinition.Api.Internal
             pendingBodyOffset = Vector3d.zero;
             pendingShift = false;
 
-            UpscalerRig rig = UpscalerRig.Current;
-            if (rig != null && rig.TornDown) rig = null;
+            UpscalerIntegration integration = UpscalerIntegration.Current;
+            if (integration != null && integration.TornDown) integration = null;
 
-            UpscalerActive = rig != null && rig.UpscalerRuns;
-            FrameGenerationActive = rig != null && rig.FrameGenerationReceives;
-            Technique = UpscalerActive ? UpscalerBackends.Name(rig.Backend) : null;
+            UpscalerActive = integration != null && integration.UpscalerRuns;
+            FrameGenerationActive = integration != null && integration.FrameGenerationReceives;
+            Technique = UpscalerActive ? UpscalerBackends.Name(integration.Backend) : null;
             Vector2Int screen = new Vector2Int(Screen.width, Screen.height);
-            RenderSize = rig != null ? rig.RenderSize : screen;
-            DisplaySize = rig != null ? rig.DisplaySize : screen;
+            RenderSize = integration != null ? integration.RenderSize : screen;
+            DisplaySize = integration != null ? integration.DisplaySize : screen;
             bool jittered = UpscalerActive && CameraRedirect.JitterActive;
-            Jitter = jittered ? rig.CurrentJitter : Vector2.zero;
+            Jitter = jittered ? integration.CurrentJitter : Vector2.zero;
             JitterNdc = jittered ? CameraRedirect.JitterNdc : Vector2.zero;
 
             Shader.SetGlobalVector(Ids.Frame, new Vector4(UpscalerActive ? 1f : 0f, FrameGenerationActive ? 1f : 0f,
@@ -261,8 +261,8 @@ namespace ReDefinition.Api.Internal
             Shader.SetGlobalVector(Ids.OriginShift, new Vector4((float)OriginShift.x, (float)OriginShift.y,
                                                               (float)OriginShift.z, Shifted ? 1f : 0f));
 
-            if (RigResetReason != null && rig != null)
-                Debug.Log(Log.Tag + " History reset: " + RigResetReason + ".");
+            if (IntegrationResetReason != null && integration != null)
+                Debug.Log(Log.Tag + " History reset: " + IntegrationResetReason + ".");
             if (ResetReason != null)
             {
                 string reason = ResetReason;

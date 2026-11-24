@@ -30,7 +30,7 @@ flowchart LR
    AssetBundle, `redefinition.shaders`. `BundleBuilder.EnsureGraphicsApis` first sets
    Direct3D 11 and Direct3D 12 for the build, because a bundle without Direct3D 12 kernels
    fails every `Dispatch` there. It writes the file to `GameData/ReDefinition/Main/Shaders`.
-3. `ShaderBundle` in `src/Upscaler/Rig/ShaderBundle.cs` loads the file from
+3. `ShaderBundle` in `src/Upscaler/Integration/ShaderBundle.cs` loads the file from
    `ShaderBundle.BundlePath`. A bundle from another Unity version is rejected without a word.
 4. Callers ask the bundle by name. `ShaderBundle.LoadShader` finds a shader by its `Shader`
    name, such as `Hidden/ReDefinition/Masks`. `ShaderBundle.LoadCompute` finds a compute
@@ -121,7 +121,7 @@ and the passes mods bring through `CompileComputeShader`. They need no build ste
 ## Where to change it
 
 - The bundle's contents or settings: `unity/Assets/ReDefinition/Editor/BundleBuilder.cs`.
-- How the mod finds a shader: `src/Upscaler/Rig/ShaderBundle.cs`.
+- How the mod finds a shader: `src/Upscaler/Integration/ShaderBundle.cs`.
 - The proxy's shader list and flags: `src/DxgiProxy/CMakeLists.txt` and
   `src/DxgiProxy/Raytracing/RaytracingInternal.h`.
 

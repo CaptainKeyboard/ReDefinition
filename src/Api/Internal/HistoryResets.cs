@@ -21,11 +21,11 @@ namespace ReDefinition.Api.Internal
         }
 
         // When the frame begins, with the camera cut found then, or null.
-        internal void Begin(string cut, out string forMods, out string forRig)
+        internal void Begin(string cut, out string forMods, out string forIntegration)
         {
             string request = Take();
-            forRig = cut ?? request;
-            forMods = forRig ?? carried;
+            forIntegration = cut ?? request;
+            forMods = forIntegration ?? carried;
             carried = null;
         }
 

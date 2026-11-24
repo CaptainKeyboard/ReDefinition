@@ -44,8 +44,8 @@
 extern "C"
 {
     // Texture pointers come from RenderTexture.GetNativeTexturePtr, which returns
-    // ID3D11Resource on D3D11. Measured stable for the life of the rig, so this
-    // is called once per rig rather than per frame.
+    // ID3D11Resource on D3D11. Measured stable for the life of the integration, so this
+    // is called once per integration rather than per frame.
     //
     // Renamed whenever its arguments change, so that a managed build out of step
     // with the native one fails to find the entry point and turns frame
@@ -453,7 +453,7 @@ extern "C"
 
     // DLSS (Dlss.h): the packet size the managed side must write. Render event 2 is a DLSS frame
     // (Dlss::OnPacket), evaluated from the upscaler's dispatch buffer, which Unity runs after the
-    // frame's drawing. Event 3 says the rig is gone, and the DLSS feature with it.
+    // frame's drawing. Event 3 says the integration is gone, and the DLSS feature with it.
     __declspec(dllexport) unsigned int KspDlssPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::DlssPacket));
@@ -462,7 +462,7 @@ extern "C"
     // AMD's upscaler (AmdUpscaler.h): the packet size, and what the native side sees, 1 running, -1
     // stopped, -2 stopped for a reason that stands (no usable DLL, while its folder and file are
     // unchanged), 0 not yet. Render event 4 is a frame for AMD's upscaler (AmdUpscaler::OnPacket),
-    // evaluated the same way as DLSS's. Event 5 says the rig is gone, and AMD's context with it.
+    // evaluated the same way as DLSS's. Event 5 says the integration is gone, and AMD's context with it.
     __declspec(dllexport) unsigned int KspAmdUpscalerPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::AmdUpscalerPacket));
@@ -488,7 +488,7 @@ extern "C"
 
     // XeSS (XessUpscaler.h): the packet size, the status as AMD's upscaler reports it, whether it
     // has its devices, and the version libxess.dll reports. Render event 7 is a frame for XeSS
-    // (XessUpscaler::OnPacket), evaluated the same way as DLSS's. Event 8 says the rig is gone, and
+    // (XessUpscaler::OnPacket), evaluated the same way as DLSS's. Event 8 says the integration is gone, and
     // XeSS's context with it.
     __declspec(dllexport) unsigned int KspXessUpscalerPacketSize()
     {
@@ -520,7 +520,7 @@ extern "C"
     // "2" in the name: the export takes an output size, and a managed side of
     // another layout finds no entry point. The managed side probes this name
     // before it sends anything (DlssBridge).
-    // Render event 6 is a question for DLSS's render sizes (Dlss::OnSizeQuery), asked before a rig.
+    // Render event 6 is a question for DLSS's render sizes (Dlss::OnSizeQuery), asked before an integration.
     // The export returns the render sizes DLSS asked for at an output size and quality value once a
     // feature or a query was made for them, the optimal one and the range, each width and height,
     // 0 before.

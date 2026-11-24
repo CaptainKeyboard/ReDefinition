@@ -53,7 +53,7 @@ BAKED_DEFINES = [
     ("FFX_FSR3UPSCALER_OPTION_JITTERED_MOTION_VECTORS", False),
     # Fsr3Upscaler.CreateContext sets EnableDepthInverted itself as soon as
     # SystemInfo.usesReversedZBuffer holds -- and under D3D11 it always does.
-    # UpscalerRig swaps near and far as well, as FSR3Unity's image effect does.
+    # UpscalerIntegration swaps near and far as well, as FSR3Unity's image effect does.
     ("FFX_FSR3UPSCALER_OPTION_INVERTED_DEPTH", True),
     # Only useful at wave width 64, and the runtime only queries that from Unity
     # 2022 onwards anyway.

@@ -63,7 +63,7 @@ namespace ReDefinition.Proxy
             return shownName;
         }
 
-        // The link to the proxy's XeSS: render events 7 (a frame) and 8 (the rig gone), probed through
+        // The link to the proxy's XeSS: render events 7 (a frame) and 8 (the integration gone), probed through
         // KspXessUpscalerReady and KspXessUpscalerVersion.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("XeSS",
             typeof(AmdUpscalerBridge.AmdPacket), () => KspXessUpscalerPacketSize(),
@@ -74,7 +74,7 @@ namespace ReDefinition.Proxy
                 KspXessUpscalerVersion(null, 0);
             });
 
-        // The link, for the rig's state and teardown.
+        // The link, for the integration's state and teardown.
         internal static NativeUpscalerLink Link
         {
             get { return link; }
