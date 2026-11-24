@@ -48,53 +48,24 @@ namespace ReDefinition.Tests
             return values;
         }
 
+        // The special cases: not-a-number and infinity, the seed's whole int range, the phase that wraps, bools, choices and texts. The plain clamps of every
+        // number setting from both sides and a word that is no number are EveryNumberSettingIsBroughtIntoItsRangeFromBothSides.
         [DataTestMethod]
-        [DataRow("yearLengthFactor", "0", "0.01")]
-        [DataRow("yearLengthFactor", "99", "10")]
         [DataRow("yearLengthFactor", "NaN", "1")]
         [DataRow("yearLengthFactor", "Infinity", "1")]
-        [DataRow("yearLengthFactor", "abc", "1")]
-        [DataRow("coverStrength", "-1", "0")]
-        [DataRow("coverStrength", "5", "1")]
         [DataRow("coverStrength", "NaN", "1")]
-        [DataRow("coverStrength", "abc", "1")]
-        [DataRow("heavyShare", "-2", "0")]
-        [DataRow("heavyShare", "9", "2")]
         [DataRow("heavyShare", "NaN", "1")]
-        [DataRow("lightWeatherFrequency", "9", "2")]
-        [DataRow("genSeed", "12", "12")]
         [DataRow("genSeed", "-7", "-7")]
-        [DataRow("genSeed", "abc", "1")]
         [DataRow("genSeed", "2147483647", "2147483647")]
-        [DataRow("blizzardVisibilityM", "1", "20")]
-        [DataRow("blizzardVisibilityM", "9999", "500")]
         [DataRow("blizzardVisibilityM", "NaN", "60")]
-        [DataRow("precipExtinctionStrength", "-1", "0")]
-        [DataRow("precipExtinctionStrength", "9", "0.95")]
-        [DataRow("precipExtinctionStrength", "abc", "0.85")]
-        [DataRow("skyDimming", "-1", "0")]
-        [DataRow("skyDimming", "9", "1")]
         [DataRow("skyDimming", "NaN", "0.6")]
-        [DataRow("volumeSteps", "1", "16")]
-        [DataRow("volumeSteps", "999", "48")]
         [DataRow("volumeSteps", "NaN", "28")]
-        [DataRow("volumeResolution", "0", "0.25")]
-        [DataRow("volumeResolution", "3", "1")]
-        [DataRow("orbitMapWidth", "1", "1024")]
-        [DataRow("orbitMapWidth", "99999", "4096")]
         [DataRow("orbitMapWidth", "NaN", "2048")]
-        [DataRow("forceLevel", "-5", "-1")]
-        [DataRow("forceLevel", "9", "1")]
         [DataRow("forceLevel", "NaN", "-1")]
-        [DataRow("forceLevel", "abc", "-1")]
         [DataRow("forcePhase", "-5", "-1")]
         [DataRow("forcePhase", "1.25", "0.25")]
         [DataRow("forcePhase", "NaN", "-1")]
         [DataRow("forcePhase", "abc", "-1")]
-        [DataRow("gustStrength", "0", "0")]
-        [DataRow("gustStrength", "7", "2")]
-        [DataRow("launchMaxWindMs", "-3", "0")]
-        [DataRow("launchMinVisibilityM", "99999", "20000")]
         [DataRow("enabled", "maybe", "True")]
         [DataRow("weatherEffects", "0", "False")]
         [DataRow("weatherEffects", "True", "True")]
@@ -210,9 +181,8 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheGustTooltipIsTheName()
+        public void GustStrengthZeroIsOff()
         {
-            Assert.AreEqual("Gust Strength", AtmospheresSettings.Definition("gustStrength").Tooltip);
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("gustStrength").Min, "0 is off");
         }
 

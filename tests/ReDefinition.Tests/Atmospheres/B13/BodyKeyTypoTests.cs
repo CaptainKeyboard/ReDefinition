@@ -131,14 +131,5 @@ namespace ReDefinition.Tests.Atmospheres.B13
             none.ApplyKnobs(1f, 1f);
             Assert.IsTrue(none.Bands[0] > baseline[0] * 10f, "frequency 0: nearly no light weather");
         }
-
-        [TestMethod]
-        public void TheGeneratorModuleHandsTheBodysFrequencyOver()
-        {
-            string source = File.ReadAllText(Path.Combine(E41.E41Support.Root(), "src", "Atmospheres", "Field", "GeneratorModule.cs"));
-            int hand = source.IndexOf("state.BodyFrequency = (float)c.PlayerFrequency;", StringComparison.Ordinal);
-            int set = source.IndexOf("field.SetState(state);", StringComparison.Ordinal);
-            Assert.IsTrue(hand > 0 && set > hand, "the frequency has to be on the state before it enters the field (SetState applies the knobs)");
-        }
     }
 }

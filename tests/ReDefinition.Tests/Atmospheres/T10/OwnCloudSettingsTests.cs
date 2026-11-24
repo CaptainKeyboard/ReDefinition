@@ -59,16 +59,15 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void EveryOwnCloudKeyIsDeclaredOnceWithTheCloudsCategoryAHelpTextAndAContractRow()
+        public void EveryOwnCloudKeyIsDeclaredOnceWithTheCloudsCategoryAndAHelpText()
         {
-            string contract = File.ReadAllText(Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres", "CONTRACT.md"));
+            // The CONTRACT.md row of every setting is checked by ContractFileTests.
             foreach (string key in OwnKeys)
             {
                 SettingDef def = AtmospheresSettings.Definition(key);
                 Assert.IsNotNull(def, key);
                 Assert.AreEqual(AtmospheresSettings.Categories.Clouds, def.Category, key);
                 Assert.IsTrue(SettingHelp.For(key).Length >= 40, key + " has a short help text");
-                Assert.IsTrue(Regex.IsMatch(contract, @"^\| `" + key + @"` \|", RegexOptions.Multiline), key + " is not in CONTRACT.md");
                 Assert.IsTrue(def.GreyReason.Length > 0, key + " has no greyed-out reason");
             }
             Assert.AreEqual(OwnKeys.Length, OwnKeys.Distinct().Count());

@@ -288,14 +288,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Elapsed > 12 * 60 && r.Probe.Elapsed < 16.5 * 60, "scenario time " + r.Probe.Elapsed.ToString("0") + " s");
             Assert.IsFalse(double.IsNaN(r.World.HoldStartedAtS), "the vessel was held while it was placed");
             Assert.IsFalse(r.World.Held, "the hold was released at the end");
-        }
 
-        [TestMethod]
-        public void EveryProbeOwnedRowOfTheSeriesFileIsEmittedByAHealthyStart()
-        {
-            Run r = Start(null);
-            Drive(r, RealDt);
-            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            // Every probe-owned row of the series file is emitted.
             string root = RepoRoot.Root("tests", "series", "rows", "T09.json");
             string rows = File.ReadAllText(Path.Combine(root, "tests", "series", "rows", "T09.json"));
             foreach (string metric in new[] { "T09.ut", "T09.cover", "T09.sun_elev_deg", "T09.view.frames_drawn", "T09.view.frames_ratio", "T09.height_build_worst_ms",

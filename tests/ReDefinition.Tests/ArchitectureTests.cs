@@ -9,8 +9,9 @@ namespace ReDefinition.Tests
 {
     // The layering of src/: which area may use which other, as the usings between areas say. An area is a
     // folder of src (the files directly in src are "(root)"); its namespace is ReDefinition.<Area>. The table
-    // below is the current truth, read from the code. A using that is not in it fails the test, and so does
-    // a table entry the code no longer needs. So the table only ever shrinks or grows by a decision made here.
+    // below is the current truth, read from the code. A using that is not in it fails the test, so the table
+    // only grows by a decision made here. An entry the code no longer needs does not fail it (removing a
+    // dependency is an improvement); it is taken out when it is seen.
     //
     // Core uses nothing; Proxy and Scaling use only Core. Settings, Vendor and Ui sit just above, and Window,
     // Modules, Upscaler and Raytracing form the large middle, which use each other in places. Hud, Engineer,
@@ -69,18 +70,6 @@ namespace ReDefinition.Tests
                     unlisted.Add(edge.Key.Item1 + " uses " + edge.Key.Item2 + " (" + edge.Value + ")");
             }
             Assert.AreEqual(0, unlisted.Count, "Not in the table of ArchitectureTests:\n" + string.Join("\n", unlisted));
-        }
-
-        // The table lists only edges that exist, so that removing a dependency is kept.
-        [TestMethod]
-        public void NoEdgeInTheTableIsGone()
-        {
-            var edges = Edges.Value;
-            var gone = new List<string>();
-            foreach (var area in Allowed)
-                foreach (string used in area.Value.Split(' ').Where(u => u.Length > 0))
-                    if (!edges.ContainsKey(System.Tuple.Create(area.Key, used))) gone.Add(area.Key + " no longer uses " + used);
-            Assert.AreEqual(0, gone.Count, "Remove from the table of ArchitectureTests:\n" + string.Join("\n", gone));
         }
 
         // The planner, the dashboard, the atmospheres and the DLL they share with ReDefinition build without ReDefinition, Harmony and ZTheme: the project

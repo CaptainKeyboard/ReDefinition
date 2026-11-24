@@ -35,13 +35,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheRoundFourSwitchTurnsTheTermOff()
+        public void TheShippedBodyHasThePhysicalTerm()
         {
-            WeatherGenerator g = Kerbin();
-            Assert.AreEqual(0.0, g.Body.Round4().CellInstabilityWeight, 0.0);
-            Assert.AreEqual(0.0, g.Body.Round3().CellInstabilityWeight, 0.0);
-            Assert.AreEqual(0.0, g.Body.Round2().CellInstabilityWeight, 0.0);
-            Assert.AreEqual(1.0, g.Body.CellInstabilityWeight, 0.0, "the shipped body has the physical term");
+            Assert.AreEqual(1.0, Kerbin().Body.CellInstabilityWeight, 0.0);
         }
 
         [TestMethod]

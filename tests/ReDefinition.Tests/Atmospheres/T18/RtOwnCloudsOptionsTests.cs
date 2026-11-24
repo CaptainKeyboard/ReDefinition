@@ -57,14 +57,13 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(0, odd.Width % 2, "an even width, so that the height is half of it");
         }
 
+        // The switch rtOwnClouds is covered by AtmospheresSwitchesTests (every bool and choice setting); the cap is a number, which that test does not cover.
         [TestMethod]
-        public void EveryNewKeyHasARenderingInTheBenchmarkMatrix()
+        public void TheLayerCapHasARenderingInTheBenchmarkMatrix()
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             string json = File.ReadAllText(Path.Combine(root, "tools", "benchmark_matrix.json"));
-            foreach (string key in new[] { "rtOwnClouds", "rtOwnCloudsLayerCap" })
-                Assert.IsTrue(json.IndexOf("\"atmo." + key + "\"", StringComparison.Ordinal) >= 0, key);
-            Assert.IsTrue(json.IndexOf("\"id\": \"weather-rtOwnClouds\", \"name\"", StringComparison.Ordinal) >= 0);
+            Assert.IsTrue(json.IndexOf("\"atmo.rtOwnCloudsLayerCap\"", StringComparison.Ordinal) >= 0);
         }
     }
 }

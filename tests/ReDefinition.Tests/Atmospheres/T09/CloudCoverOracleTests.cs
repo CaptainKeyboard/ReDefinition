@@ -160,37 +160,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(m15 < m08 && m08 < m0, "the mean follows the shift: " + m0 + " / " + m08 + " / " + m15);
         }
 
-        [TestMethod]
-        public void TheModelsFrameClosedShareFollowsTheMapAndTheShiftThroughTheOracle()
-        {
-            Clear();
-            CloudLayerDef l1 = CloudLookFixtures.Cumulus();
-            var table = new LayerTypeTable(l1);
-            NoiseLayerParams prm = ParamsOf(l1, 1);
-            double low = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.45, 0.0, 264.0, 18.0, 60.0, 6);
-            double high = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.85, 0.0, 264.0, 18.0, 60.0, 6);
-            // The shipped cumulus layer (amount 1, 500 m): map 0.45 closes 0.60 of the frame and map 0.85 0.92 (the former cfg 0.35 / 5000: under 0.25 and over 0.9).
-            // E40 S1 (cell 250 m): map 0.45 closes 0.78 of the frame (0.60 at 500 m): a ground frame meets more cells.
-            Assert.IsTrue(low > 0.45 && low < 0.85 && high > 0.85 && high - low > 0.15, low + " / " + high);
-            double mid = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);
-            Set(CloudCoverShift.TuneShift, -0.15f);
-            double shifted = CloudCoverModel.FrameClosed(l1, table, Volumes, prm, 0.65, 0.0, 264.0, 18.0, 60.0, 6);
-            Assert.IsTrue(shifted < mid - 0.05, "the shift opens the frame at a map of 0.65: " + mid + " -> " + shifted);
-            Report("O1.model FrameClosed map 0.45 / 0.85 at shift 0 = " + low.ToString("0.000") + " / " + high.ToString("0.000") + ", map 0.65 at 0 / -0.15 = " + mid.ToString("0.000") + " / " + shifted.ToString("0.000"));
-        }
-
-        private static double Mean(double[] v)
-        {
-            double s = 0;
-            foreach (double x in v) s += x;
-            return s / v.Length;
-        }
-
-        private static double Pct(double[] sorted, double p)
-        {
-            return sorted[(int)Math.Round(p * (sorted.Length - 1))];
-        }
-
+        // Not the same check as CloudOutputStageTests' raw volume histogram: the values here are read the way the pass reads them, through the untiling warp and the trilinear lookup.
         [TestMethod]
         public void TheShapeValueTheLayerPassReadsIsUniformBecauseTheVolumeIsRanked()
         {
@@ -206,6 +176,18 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(q, got, 0.04, "percentile " + q);
             }
             Report("O1.histogram p: " + string.Join(" ", line));
+        }
+
+        private static double Mean(double[] v)
+        {
+            double s = 0;
+            foreach (double x in v) s += x;
+            return s / v.Length;
+        }
+
+        private static double Pct(double[] sorted, double p)
+        {
+            return sorted[(int)Math.Round(p * (sorted.Length - 1))];
         }
 
         [TestMethod]

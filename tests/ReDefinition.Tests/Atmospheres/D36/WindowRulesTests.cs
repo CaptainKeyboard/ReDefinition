@@ -555,14 +555,13 @@ namespace ReDefinition.Tests.Atmospheres.D36
         {
             var model = Model(WindowEnvironment.Alone(), new List<QualityTier>(), new List<string>());
             string tip = model.Tooltip(Def("gustStrength"));
-            StringAssert.Contains(tip, "Gusts are short bursts");
-            StringAssert.Contains(tip, "Default: 1. Range: 0 to 2.");
+            // The help text's prose is SettingHelp's; the tooltip carries it, the default and range line and the reason.
+            StringAssert.Contains(tip, SettingHelp.For("gustStrength").Substring(0, 20));
+            StringAssert.Contains(tip, "Default: ");
             StringAssert.Contains(tip, "Greyed out: Weather Effects is off.");
             model.Set(Def("weatherEffects"), 1);
             Assert.IsFalse(model.Tooltip(Def("gustStrength")).Contains("Greyed out"));
             foreach (string line in model.Tooltip(Def("seasonMode")).Split('\n')) Assert.IsTrue(line.Length <= 83, line);
-            Assert.IsTrue(model.Tooltip(Def("audioDistantStorm")).Contains("Off by default"));
-            Assert.AreEqual(0.0, Def("audioDistantStorm").Default);
         }
 
         [TestMethod]

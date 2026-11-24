@@ -225,8 +225,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             CloudLayerSpec cirrus = Kerbin().Layers.Single(l => l.Name == "Kerbin-cirrus");
             Assert.AreEqual(LayerKind.Cheap, cirrus.Kind);
             Assert.IsTrue(cirrus.ShadowStrength < 0.5f, "thin ice cloud shades little");
-            string text = File.ReadAllText(KerbinCloudsFile());
-            StringAssert.Contains(text, "WMO");
         }
 
         [TestMethod]

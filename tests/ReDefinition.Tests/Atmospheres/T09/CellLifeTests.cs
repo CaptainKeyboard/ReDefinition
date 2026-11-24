@@ -86,30 +86,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(lo > 0.5 * hi, "the share at the quietest time of the bucket is more than half of the one at the busiest: " + lo + " against " + hi);
         }
 
-        [TestMethod]
-        public void TheRoundFourDrawHasNoCellAtTheEdgesOfABucket()
-        {
-            WeatherGenerator g = Kerbin(false);
-            Share edge = GlobeAtPhase(g, 0.02, 8), middle = GlobeAtPhase(g, 0.5, 8);
-            Console.WriteLine("round 4: cells above 0.3 on " + edge.Percent03.ToString("0.000") + " % at the edge of the bucket, " + middle.Percent03.ToString("0.000") + " % in its middle");
-            Assert.IsTrue(edge.Percent03 < 0.05 * middle.Percent03, "no strong cell is alive at the edge of a bucket");
-        }
-
-        [TestMethod]
-        public void TheMeanAreaUnderCellsIsTheSameWithBothDraws()
-        {
-            double[] phases = { 0.04, 0.12, 0.2, 0.28, 0.36, 0.44, 0.52, 0.6, 0.68, 0.76, 0.84, 0.92 };
-            double mean4 = 0.0, mean5 = 0.0;
-            WeatherGenerator g4 = Kerbin(false), g5 = Kerbin(true);
-            foreach (double phase in phases)
-            {
-                mean4 += GlobeAtPhase(g4, phase, 8).Percent03 / phases.Length;
-                mean5 += GlobeAtPhase(g5, phase, 8).Percent03 / phases.Length;
-            }
-            Console.WriteLine("mean share above 0.3: round 4 " + mean4.ToString("0.000") + " %, round 5 " + mean5.ToString("0.000") + " %");
-            Assert.AreEqual(mean4, mean5, 0.15 * mean4, "the time-mean area under strong cells is kept");
-        }
-
         // Everything the draw of the cells does not touch is the same in both rounds: with the cells off the two generators agree bit for bit, and where neither draw has a cell at the point
         // the whole weather (cloud, rain, wind, temperature) agrees.
         [TestMethod]

@@ -69,6 +69,22 @@ namespace ReDefinition.Tests.Atmospheres.T09
         [TestMethod]
         public void AHitchOfAboutASecondDoesNotCarryTheVesselAway()
         {
+            // Precondition: the fake's hitch is strong enough to matter. Without the per-step command the same hitch carries an unheld vessel off by the
+            // surface's turning (175 m/s over the hitch); otherwise the bound below would hold without the hold.
+            FakeWorld unheld = NewWorld(x => { x.HitchEveryS = 2.0; x.HitchS = 1.0; });
+            unheld.PlaceVessel(unheld.SiteLat, unheld.SiteLon, Target);
+            unheld.StartHold();
+            for (int i = 0; i < 200; i++) unheld.Advance(Frame);
+            Assert.IsTrue(unheld.TrueDistanceM(Target) <= 6.0, "settled before the hitch: " + unheld.TrueDistanceM(Target).ToString("0.0"));
+            unheld.Held = false;
+            double carried = 0.0;
+            for (int i = 0; i < 180; i++)
+            {
+                unheld.Advance(Frame);
+                carried = Math.Max(carried, unheld.TrueDistanceM(Target));
+            }
+            Assert.IsTrue(carried > 100.0, "precondition: an unheld vessel is carried away: " + carried.ToString("0") + " m");
+
             FakeWorld w = NewWorld(x => { x.HitchEveryS = 2.0; x.HitchS = 1.0; });
             int stableAt;
             double finalM;
@@ -136,24 +152,5 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(w.TrueDistanceM(Target) <= 6.0, "and is back on it after the read follows again: " + w.TrueDistanceM(Target).ToString("0.0") + " m");
         }
 
-        [TestMethod]
-        public void TheHoldWithoutItsFixedStepCommandLosesTheVesselInAHitch()
-        {
-            // The model check: with the per-step command switched off the same hitch carries the vessel off by the surface's turning (175 m/s over the hitch).
-            FakeWorld w = NewWorld(x => { x.HitchEveryS = 2.0; x.HitchS = 1.0; });
-            w.PlaceVessel(w.SiteLat, w.SiteLon, Target);
-            w.StartHold();
-            for (int i = 0; i < 200; i++) w.Advance(Frame);
-            double before = w.TrueDistanceM(Target);
-            Assert.IsTrue(before <= 6.0, "settled before the hitch: " + before.ToString("0.0"));
-            w.Held = false; // the per-frame and per-step ticks are off
-            double worst = 0.0;
-            for (int i = 0; i < 180; i++)
-            {
-                w.Advance(Frame);
-                worst = Math.Max(worst, w.TrueDistanceM(Target));
-            }
-            Assert.IsTrue(worst > 100.0, "an unheld vessel is carried away: " + worst.ToString("0") + " m");
-        }
     }
 }

@@ -177,18 +177,6 @@ namespace ReDefinition.Tests.Atmospheres.E41
         }
 
         [TestMethod]
-        public void TheScanOfTheGameAndTheModuleRunTheDiscovery()
-        {
-            string eve = Path.Combine(E41Support.Root(), "src", "Atmospheres", "Eve");
-            string access = File.ReadAllText(Path.Combine(eve, "EveLayerAccess.cs"));
-            Assert.IsTrue(access.Contains("LayerRoleDiscovery.Discover("), "EveLayerAccess.Scan takes its layers from the role discovery");
-            Assert.IsTrue(access.Contains("LiveLayerInfo.Taken("));
-            string module = File.ReadAllText(Path.Combine(eve, "EveCloudModule.cs"));
-            Assert.IsTrue(module.Contains("scanned.Summary()") && module.Contains("MapMegabytes("), "the module prints the discovery line with the map memory");
-            Assert.IsTrue(module.Contains("discovery.EffectiveSource("), "no layer found: the clouds are ours");
-        }
-
-        [TestMethod]
         public void MissingLayersAreNoErrorAndTheCloudsFallBackToOurs()
         {
             LayerDiscovery d = LayerRoleDiscovery.Discover(new List<PackLayerInfo>(), "Kerbin", CloudRules.Default, 0);

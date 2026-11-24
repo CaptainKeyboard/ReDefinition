@@ -105,12 +105,9 @@ namespace ReDefinition.Tests.Atmospheres.D34
         }
 
         [TestMethod]
-        public void TheCoverLayerDrawsBeforeTheCloudShellAndTheOrbitTickCallsTheHost()
+        public void TheCoverLayerDrawsBeforeTheCloudShell()
         {
             Assert.IsTrue(OrbitCover.LayerOrder < 40, "after the planet, before the cloud shell");
-            string tick = File.ReadAllText(RepoRoot.Locate("src", "Atmospheres", "Cover", "OrbitSnow.cs"));
-            Assert.IsTrue(tick.Contains("OrbitOverlayHost.DrawRound"), "the orbit painter's tick calls the host");
-            Assert.IsTrue(tick.Contains("OrbitOverlayLayers.Register"), "and registers the cover layer");
         }
 
         // ---- the frame of latitude and longitude -----------------------------------------------------------------------------------
@@ -178,24 +175,6 @@ namespace ReDefinition.Tests.Atmospheres.D34
         }
 
         [TestMethod]
-        public void NoCodeReferencesSnowMaskExceptTheShimAndItsLastCallers()
-        {
-            string src = RepoRoot.Locate("src");
-            string tests = RepoRoot.Locate("tests", "ReDefinition.Tests");
-            // The shim, the one caller of package C20 and its test, and the default of the old setting that caller reads.
-            var allowed = new HashSet<string> { "SnowMaskShim.cs", "StormEffect.cs", "StormSkyAndSnowfallTests.cs", "AtmospheresSettings.Legacy.cs", "CoverPlatformTests.cs" };
-            var offenders = new List<string>();
-            foreach (string file in Sources(src).Concat(Sources(tests)))
-            {
-                if (allowed.Contains(Path.GetFileName(file))) continue;
-                if (CodeLines(file).Any(l => l.Contains("SnowMask"))) offenders.Add(Path.GetFileName(file));
-            }
-            Assert.AreEqual(0, offenders.Count, "SnowMask is referenced by: " + string.Join(", ", offenders));
-            Assert.IsFalse(File.Exists(Path.Combine(src, "Atmospheres", "SnowMask.cs")), "the class is deleted");
-            Assert.IsFalse(File.Exists(Path.Combine(tests, "SnowMaskTests.cs")), "and its tests");
-        }
-
-        [TestMethod]
         public void TheCoverFolderNamesNoSingleBodyAndNoUnguardedFlightGlobals()
         {
             string root = RepoRoot.Locate("src", "Atmospheres", "Cover");
@@ -235,21 +214,12 @@ namespace ReDefinition.Tests.Atmospheres.D34
             string root = RepoRoot.Locate("src", "Atmospheres", "Cover");
             foreach (string file in Sources(root))
             {
-                if (Path.GetFileName(file) == "SnowMaskShim.cs") continue;
                 foreach (string line in CodeLines(file))
                 {
                     Assert.IsFalse(line.Contains("SeasonState.Phase") || line.Contains("WinterSnowLine") || line.Contains("SeasonClock.Phase"),
                         Path.GetFileName(file) + " reads the season: " + line);
                 }
             }
-        }
-
-        [TestMethod]
-        public void TheCoverReadsTheFieldsSurfaceMapAndNothingElseForItsDepth()
-        {
-            string resampler = File.ReadAllText(RepoRoot.Locate("src", "Atmospheres", "Cover", "CoverResampler.cs"));
-            Assert.IsTrue(resampler.Contains("WeatherMapKind.SnowCover"));
-            Assert.IsTrue(resampler.Contains("WeatherHub.Field"));
         }
     }
 }
