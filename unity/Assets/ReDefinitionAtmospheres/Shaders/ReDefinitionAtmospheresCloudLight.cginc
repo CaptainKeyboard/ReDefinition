@@ -164,7 +164,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
         float4 sp;
         LayerSpans(lj, pc, dir, 1e30, sp);
         CellClip(pc, dir, sp);
-        int n = (lj == own || own < 0) ? steps : max(1, steps / 2);
+        // Measurement only (layers.costDebug bit 32): the other layers with the own layer's taps.
+        int n = (lj == own || own < 0 || fmod(floor(DEV(_CostP.y, 0.0) / 32.0), 2.0) > 0.5) ? steps : max(1, steps / 2);
         [loop] for (int k = 0; k < 2; k++)
         {
             float a = k == 0 ? sp.x : sp.z, b = k == 0 ? sp.y : sp.w;
