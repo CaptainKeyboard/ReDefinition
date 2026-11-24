@@ -83,7 +83,7 @@ namespace redefinition
         uint32_t size;
         uint32_t magic;
         int32_t material;
-        uint32_t flags;   // how its shine is meant: RT_SURFACE_*
+        uint32_t flags;   // how its specular reflection is meant: RT_SURFACE_*
         float albedo[4];
         float specular[3];
         float smoothness;
@@ -169,7 +169,7 @@ namespace redefinition
     // The G-buffer's smoothness is Deferred's from KSP's legacy part shaders: taken as
     // their highlight (RtCommon.hlsli, LegacySmoothness). The game's; not a test's.
     constexpr uint32_t kRtFrameLegacySmoothness = RT_FLAG_LEGACY_SMOOTHNESS;
-    // The surfaces' shine as their materials mean it, found per pixel by the sun's pass and
+    // The surfaces' specular reflection as their materials mean it, found per pixel by the sun's pass and
     // written to u5 and u6 for the later passes and for Unity (RtCommon.hlsli, SurfaceIntent).
     constexpr uint32_t kRtFrameSurfaceIntent = RT_FLAG_SURFACE_INTENT;
 

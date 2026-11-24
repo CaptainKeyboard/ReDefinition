@@ -79,7 +79,7 @@
 // primary check, a test of its own, uses the same slot.
 #define RT_OUTPUT_FORWARD_RATIO 7
 
-// How a material's shine is meant (RtMaterialDesc.flags; RtMaterialIntent.cs). The values
+// How a material's specular reflection is meant (RtMaterialDesc.flags; RtMaterialIntent.cs). The values
 // are the G-buffer's kept, none, KSP's legacy Blinn-Phong highlight with its gloss read
 // back from Deferred's smoothness (LegacyToStandard) or from Unity's own legacy specular
 // colour, and fixed values. The mode output also holds water and a pixel no material was
@@ -91,7 +91,7 @@
 #define RT_SURFACE_UNITY_LEGACY 4
 #define RT_SURFACE_WATER 5
 #define RT_SURFACE_MISSED 6
-// The space centre's ground: the terrain's shine where the drawn colour is its lawn,
+// The space centre's ground: the terrain's specular reflection where the drawn colour is its lawn,
 // none on its tarmac and concrete (RtCommon.hlsli, SurfaceIntent).
 #define RT_SURFACE_GROUND 7
 
