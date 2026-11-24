@@ -17,9 +17,10 @@ namespace ReDefinition.Atmospheres
         // A4 test keys: the player's ceiling march in the game (Apply).
         internal const string TuneMinStepM = "layers.minStepM", TuneEarlyOut = "layers.earlyOut", TuneSunMarchM = "layers.sunMarchM", TuneSunSteps = "layers.sunSteps";
 
-        // layers.costDebug (LayerFrame.CostDebug, 0 to 15, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
-        // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone, bit 16 the leap without the slab's vertical bound, bit 32 the light march crosses the other layers with their former taps (half the count, each twice the one before); the K-T2 perf variants nolight,
-        // noshape, noerode, lightown and noslab set it.
+        // layers.costDebug (LayerFrame.CostDebug, 0 to 63, default 0): cost attribution only, the picture is wrong while it is set. Bit 1 skips the light march, bit 2 reads no shape
+        // noise, bit 4 no erosion, bit 8 the light march crosses the sample's own layer alone, bit 16 the leap without the slab's vertical bound, bit 32 the light march crosses the
+        // other layers with their former taps (half the count, each twice the one before); the K-T2 perf variants nolight, noshape, noerode, lightown, noslab and fullold set it.
+        // The reader clamped to 15 until 2026-11-24 13:1x, so 16 and 32 were read as 15 (every bit below on): PRUEFPROTOKOLL 197, 202, 203 measured that, not the bit named.
         internal const string TuneCostDebug = "layers.costDebug";
 
         // E40 C1: layers.emptyReach (LayerFrame.EmptyReach, default 1): the march leaps over the grid points that lie within the empty reach of an empty sample (EmptyReachMaps). The
@@ -289,7 +290,7 @@ namespace ReDefinition.Atmospheres
             f.EmptyLeap = Mathf.Max(1f, Tuning.Get(TuneEmptyLeap, CompiledFrame.EmptyLeap));
             f.CheapShare = Mathf.Clamp01(Tuning.Get(TuneCheapShare, CompiledFrame.CheapShare));
             f.FogShare = Mathf.Clamp01(Tuning.Get(TuneFogShare, CompiledFrame.FogShare));
-            f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 15);
+            f.CostDebug = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneCostDebug, 0f)), 0, 63);
             f.DitherSequence = Mathf.Clamp(Mathf.RoundToInt(Tuning.Get(TuneDitherSequence, DitherSequenceDefault)), 1, 3);
             f.Undulatus = Mathf.Clamp01(Tuning.Get(TuneUndulatus, UndulatusDefault));
             f.UndulatusWavelengthShare = Mathf.Clamp(Tuning.Get(TuneUndulatusWavelengthShare, UndulatusWavelengthShareDefault), 0.05f, 20f);

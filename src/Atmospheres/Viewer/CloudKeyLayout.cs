@@ -58,7 +58,7 @@ namespace ReDefinition.Atmospheres.Viewer
             { OwnCloudOptions.TuneShadowTaps, new[] { 0f, 8f } },
             { OwnCloudOptions.TuneCheapShare, new[] { 0f, 1f } },
             { OwnCloudOptions.TuneFogShare, new[] { 0f, 1f } },
-            { OwnCloudOptions.TuneCostDebug, new[] { 0f, 15f } },
+            { OwnCloudOptions.TuneCostDebug, new[] { 0f, 63f } },
             { OwnCloudOptions.TuneDitherSequence, new[] { 1f, 3f } },
             { OwnCloudOptions.TuneFootScale, new[] { 0f, 8f } },
             { OwnCloudOptions.TuneCapKeep, new[] { 1f, 8f } },
