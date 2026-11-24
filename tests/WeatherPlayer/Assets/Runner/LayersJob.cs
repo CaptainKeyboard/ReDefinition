@@ -19,9 +19,9 @@ namespace ReDefinition.WeatherPlayer
         public float baseShare, topShare, erosion;
         // The density over the type's height (0 at its base, 1 at its top), sampled evenly, at least two values.
         public float[] profile;
-        // The soft water content's numbers of the type and its light response by height (E40; the cfg keys of the same names): the defaults are the type's own.
+        // The soft water content's numbers of the type (E40; the cfg keys of the same names): the defaults are the type's own. (A job's baseLight / topLight /
+        // baseAmbient / topAmbient are ignored since the per-type light factors were deleted, 2026-11-24.)
         public float baseGain = 0.3f, riseShare = 0.5f, densityScale = 1f;
-        public float baseLight = 1f, topLight = 1f, baseAmbient = 1f, topAmbient = 1f;
         // The type's height-shaped threshold (E40 L2 D1; the cfg node LIFT) sampled evenly over the type's height, at least two values; none: no lift.
         public float[] lift;
         // The cfg's own keys of PROFILE and LIFT (height, value; empty: none): where given, the curves are built from them as the game builds them (BodyRuleReaders.ProfileCurve),
