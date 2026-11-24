@@ -31,5 +31,41 @@ namespace ReDefinition.Tests.Atmospheres.T16
                 Tuning.Instance.BeginFrame(9200003);
             }
         }
+
+        // layers.costDebug keeps every bit the shaders read (16 the leap's slab bound, 32 the other layers' former light taps): the reader clamped to 15 until 2026-11-24, which turned 16 and 32
+        // into 15 (every lower bit on) and made three measurements read something else (PRUEFPROTOKOLL 197, 202, 203).
+        [TestMethod]
+        public void TheCostDebugKeyKeepsItsHigherBits()
+        {
+            var frame = new LayerFrame();
+            Tuning.ClearOverrides();
+            try
+            {
+                foreach (int bits in new[] { 16, 32, 48 })
+                {
+                    Tuning.SetOverride(OwnCloudOptions.TuneCostDebug, bits);
+                    Tuning.Instance.BeginFrame(9200100 + bits);
+                    OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
+                    Assert.AreEqual(bits, frame.CostDebug, "layers.costDebug " + bits);
+                }
+            }
+            finally
+            {
+                Tuning.ClearOverrides();
+                Tuning.Instance.BeginFrame(9200199);
+            }
+        }
+
+        // The layer's thinnest cloud slab (_CullL.x), which bounds the vertical part of a leap over empty samples (the stripe under the horizon from above, PRUEFPROTOKOLL 166-167):
+        // the thinnest type's base to top in m, the height variation's thinnest cloud where it is thinner, types without thickness skipped, 0 for a layer without a type.
+        [TestMethod]
+        public void TheThinnestSlabIsTheThinnestTypeOrTheHeightVariationsFloor()
+        {
+            float[] shares = { 0.5f, 0.11f, 0f, 0.3f };
+            Assert.AreEqual(0.11f * 2000f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 0f), 1e-3f, "the thinnest type; a type without thickness skipped");
+            Assert.AreEqual(120f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 120f), 1e-3f, "the height variation's floor where thinner");
+            Assert.AreEqual(220f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 500f), 1e-3f, "the type where the floor is thicker");
+            Assert.AreEqual(0f, CullMath.ThinnestSlabM(0, t => 1f, 2000f, 0f), "no type: no slab");
+        }
     }
 }

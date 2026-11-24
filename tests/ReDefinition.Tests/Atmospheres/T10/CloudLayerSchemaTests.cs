@@ -75,24 +75,24 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual("Kerbin-base-layer", r.Climate.Clouds.BaseLayer);
         }
 
-        // M2c (the low stratiform layers): the stratus types of both layers carry their undulations (undulatusAmount), every other type none; they are drawn only with cloud.undulatus on,
-        // which is off by default, so the shipped layer draws as before.
+        // M2c (the low stratiform layers): the stratus types of both layers carry their undulations (undulatusAmount 0.2 of the thickness), every other type none; cloud.undulatus is on
+        // by default since 2026-11-24 (owner: "so dass es echt und richtig aussieht"), at the wavelength of 1 x the layer's depth.
         [TestMethod]
-        public void TheStratusTypesCarryTheirUndulatusAndTheSwitchIsOffByDefault()
+        public void TheStratusTypesCarryTheirUndulatusAndTheSwitchIsOnByDefault()
         {
             foreach (CloudLayerSpec layer in Kerbin().Layers)
                 foreach (CloudTypeSpec type in layer.Types)
                 {
                     bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
-                    Assert.AreEqual(stratus ? 0.6f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
+                    Assert.AreEqual(stratus ? 0.2f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
+                    Assert.AreEqual(stratus ? 0.2f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
                 }
-            Assert.AreEqual(0f, OwnCloudOptions.UndulatusDefault, "off until the owner says yes on the pictures");
+            Assert.AreEqual(1f, OwnCloudOptions.UndulatusDefault, "on: the types' own amount");
             Tuning.ClearOverrides();
             Tuning.Instance.BeginFrame(9400001);
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(0f, frame.Undulatus);
+            Assert.AreEqual(1f, frame.Undulatus);
             Assert.AreEqual(1f, frame.UndulatusWavelengthShare);
         }
 

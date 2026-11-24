@@ -78,6 +78,16 @@ namespace ReDefinition.Atmospheres
                 case "noerode":
                 case "shnoise0":
                 case "lightown":
+                case "devplain":
+                case "devplain2":
+                case "noslab":
+                case "noslab2":
+                case "fullnew":
+                case "fullnew2":
+                case "fullold":
+                case "fullold2":
+                case "und0":
+                case "und0b":
                 case "noragged":
                 case "noheight":
                 case "bare":
@@ -502,6 +512,35 @@ namespace ReDefinition.Atmospheres
                 case "noerode": ForceTuning(OwnCloudOptions.TuneCostDebug, 4f); break;
                 case "shnoise0": ForceTuning(CloudShadowShapeNoise.TuneKey, 0f); break;
                 case "lightown": ForceTuning(OwnCloudOptions.TuneCostDebug, 8f); break;
+                // The cost of the leap's vertical bound by the slab's thickness (the stripe under the horizon from above, PRUEFPROTOKOLL 195), both on the test variant of the shader
+                // (layers.devVariant 1) so that only the bound differs: devplain / devplain2 with it, noslab / noslab2 without it.
+                case "devplain":
+                case "devplain2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    break;
+                case "noslab":
+                case "noslab2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(OwnCloudOptions.TuneCostDebug, 16f);
+                    break;
+                // The cost of the other layers' even light taps (PRUEFPROTOKOLL 206) on the full light march (the light volume off, the march's own light everywhere, as at High),
+                // both on the test variant: fullnew / fullnew2 the even taps, fullold / fullold2 the former ones (layers.costDebug bit 32).
+                case "fullnew":
+                case "fullnew2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
+                    break;
+                case "fullold":
+                case "fullold2":
+                    ForceTuning(CloudDevVariant.TuneForce, 1f);
+                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
+                    ForceTuning(OwnCloudOptions.TuneCostDebug, 32f);
+                    break;
+                // The cost of the undulatus default (cloud.undulatus 1 since e3c0d370): und0 / und0b with it off, to alternate with plain and plain2.
+                case "und0":
+                case "und0b":
+                    ForceTuning(OwnCloudOptions.TuneUndulatus, 0f);
+                    break;
                 case "noragged": SetSetting(AtmospheresSettings.Keys.BaseRagged, 0.0); break;
                 case "noheight": SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0); break;
                 case "bare": ForceTuning(OwnCloudOptions.TuneCostDebug, 7f); break;

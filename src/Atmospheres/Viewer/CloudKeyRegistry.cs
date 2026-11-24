@@ -325,10 +325,10 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneSpanGrowthPerM, 0f, KeyLiveness.Frame, "a span's points by distance: the step's growth per m of distance from the camera (0 off: evenly spaced)",
               () => OwnCloudOptions.SpanGrowthDefaultPerM),
             N(OwnCloudOptions.TuneSpanGrowthFromM, 0f, KeyLiveness.Frame, "with layers.spanGrowthPerM: the distance in m beyond which the step grows (0: from the camera)"),
-            N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
+            N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone, 16 the leap without the slab's vertical bound, 32 the other layers with their former light taps (half the count, growing)"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),
-            N(OwnCloudOptions.TuneUndulatus, OwnCloudOptions.UndulatusDefault, KeyLiveness.Frame, "M2c: the stratiform types' undulations across the wind (variety undulatus), share of their depth; 0 off"),
+            N(OwnCloudOptions.TuneUndulatus, OwnCloudOptions.UndulatusDefault, KeyLiveness.Frame, "M2c: the stratiform types' undulations across the wind (variety undulatus): the share of the types' own amount drawn (1 the default, 0 off)"),
             N(OwnCloudOptions.TuneUndulatusWavelengthShare, OwnCloudOptions.UndulatusWavelengthShareDefault, KeyLiveness.Frame, "M2c: the undulatus wavelength as a share of the layer's depth"),
             // The reconstruction (OwnCloudOptions.Apply(ReconSettings), LayerReconstructDriver.Configure).
             N(OwnCloudOptions.TuneAccumulate, OwnCloudOptions.AccumulateDefault, KeyLiveness.FrameHistory),

@@ -39,6 +39,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
 
         sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
         float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count weighs the samples (1; recon.age); z: the history is dropped where its stored distance is more than this many octaves from the frame's (recon.distanceReject; 0: off); w: the scene's depth takes part (1; recon.sceneDepth)
+        float4 _ReconShell;  // the shell in which a cloud can lie (CloudWindow): x the planet's radius, y the shell's inner radius, z its outer radius (m; z <= y: none), w a surface (1) or not
         sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
@@ -158,13 +159,63 @@ Shader "ReDefinition/AtmospheresReconstruct"
         float SceneZ(float2 uv)
         {
             float z = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
-            return (z <= 0.0 || z > 1e9) ? 1e9 : z;
+            return z <= 0.0 || z > 1e9 ? 1e9 : z;
         }
 
-        // The scene's depth at the full-target pixel a new sample was marched for.
+        bool ShellHit(float3 o, float3 d, float r, out float t0, out float t1)
+        {
+            float b = dot(o, d);
+            float len = length(o);
+            float disc = b * b - (len - r) * (len + r);
+            t0 = 0.0; t1 = 0.0;
+            if (disc <= 0.0) return false;
+            float s = sqrt(disc);
+            t0 = -b - s; t1 = -b + s;
+            return true;
+        }
+
+        // The twin of the layer shader's CloudWindow (_ReconShell: the planet's radius, the shell's inner and outer radius, a surface (1) or not): the stretch of the ray in which
+        // a cloud can lie; tOut <= tIn: none.
+        void CloudWindow(float3 o, float3 d, out float tIn, out float tOut)
+        {
+            tIn = 0.0;
+            tOut = 0.0;
+            float rIn = _ReconShell.y, rOut = _ReconShell.z;
+            if (rOut <= rIn) return;
+            float o0, o1;
+            if (!ShellHit(o, d, rOut, o0, o1) || o1 <= 0.0) return;
+            float p0, p1, i0, i1;
+            bool ground = _ReconShell.w > 0.5 && ShellHit(o, d, _ReconShell.x, p0, p1) && p0 > 0.0;
+            bool inner = ShellHit(o, d, rIn, i0, i1);
+            if (length(o) < rIn)
+            {
+                if (ground) return;
+                tIn = i1;
+                tOut = o1;
+                return;
+            }
+            tIn = max(o0, 0.0);
+            tOut = ground ? (inner ? max(i0, tIn) : p0) : o1;
+        }
+
+        // The scene's depth the agreement compares, held within the stretch where a cloud can lie (the pixel's own CloudWindow, gTIn to gTOut, as a depth along the forward axis): two
+        // scene points beyond it end their rays after every cloud and march the same clouds whatever their depths, two before it march none. Compared raw, the sea seen from above,
+        // whose depth grows by several percent per row near the horizon and ends at the near ocean mesh's edge (the sky's 1e9 beyond it), made the upsample's rows step there: a thin
+        // straight line across the low stratiform layer under the horizon (PRUEFPROTOKOLL 174-175). The layer shader's composite (CompositeDistance) does the same.
+        static float gTIn = 0.0, gTOut = 0.0;
+
+        float AgreeZ(float2 uv)
+        {
+            if (gTOut <= gTIn) return 0.0;
+            float3 d = RayDir(uv);
+            float k = max(dot(d, normalize(_CamForward.xyz)), 1e-3);
+            return clamp(SceneZ(uv) / k, gTIn, gTOut) * k;
+        }
+
+        // The scene's depth at the full-target pixel a new sample was marched for, for the agreement.
         float LowZ(float2 texel, float n)
         {
-            return SceneZ((texel * n + _ReconP.yz + 0.5) / _ReconD.xy);
+            return AgreeZ((texel * n + _ReconP.yz + 0.5) / _ReconD.xy);
         }
 
         float Agreement(float zSample, float zPixel)
@@ -235,11 +286,13 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float4 cur = Low(q);
             if (_ReconP.w > 0.5 && _ReconP.w < 1.5) return cur;
             bool aware = _ReconT.w > 0.5;
-            float zPixel = 1e9;
+            float zPixel = 1e9, zAgree = 0.0;
             [branch] if (aware)
             {
                 zPixel = SceneZ(i.uv);
-                if (!fresh) cur = LowAware(q, zPixel, n);
+                CloudWindow(_CamPos.xyz, RayDir(i.uv), gTIn, gTOut);
+                zAgree = AgreeZ(i.uv);
+                if (!fresh) cur = LowAware(q, zAgree, n);
             }
 
             // The 3 x 3 new samples around the pixel: the clip box of the history (with the scene's depth, each by its agreement with the pixel's).
@@ -251,7 +304,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
                 float2 texel = q0 + float2(k % 3 - 1, k / 3 - 1);
                 float4 s = Low(texel);
                 float wk = 1.0;
-                [branch] if (aware) wk = Agreement(LowZ(texel, n), zPixel);
+                [branch] if (aware) wk = Agreement(LowZ(texel, n), zAgree);
                 m1 += s * wk;
                 m2 += s * s * wk;
                 count += wk;

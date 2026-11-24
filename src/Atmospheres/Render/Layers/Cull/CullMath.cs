@@ -68,6 +68,21 @@ namespace ReDefinition.Atmospheres
             return alpha - rho <= beta + 1e-4;
         }
 
+        // The thinnest cloud slab a layer can draw, in m (the layer shader's _CullL.x: the march's leap over empty samples climbs or sinks at most half of it): the thinnest of its
+        // types' base to top (thicknessShare(t), a share of the layer's depth; a type without thickness skipped), and with the height variation the thinnest cloud it lets through
+        // (heightMinM, 0: no height variation). 0: the layer has no type with a thickness.
+        internal static float ThinnestSlabM(int typeCount, Func<int, float> thicknessShare, float depthM, float heightMinM)
+        {
+            float thinnest = float.PositiveInfinity;
+            for (int t = 0; t < typeCount; t++)
+            {
+                float m = thicknessShare(t) * depthM;
+                if (m > 0f) thinnest = Math.Min(thinnest, m);
+            }
+            if (heightMinM > 0f) thinnest = Math.Min(thinnest, heightMinM);
+            return float.IsPositiveInfinity(thinnest) ? 0f : thinnest;
+        }
+
         // The vertical optical depth of a full column of the layer at the types' mean: sigma times the thickness times the mean (top - base) share of the types times the mean of
         // their mean profiles (E40 MVCLOUD: the opacity of the layer in the cloud motion's weights).
         internal static double MeanVerticalTau(double sigmaPerM, double thicknessM, int types, Func<int, double> shareOfType, Func<int, double> meanProfileOfType)

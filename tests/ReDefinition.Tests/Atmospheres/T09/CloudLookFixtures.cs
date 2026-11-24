@@ -19,14 +19,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return new CloudClimateSpec { Weight = 1f, Latitude = latitude, Surface = surface, Humidity = humidity, Precipitation = precipitation };
         }
 
-        // The type's light response by height (cfg keys baseLight, topLight, baseAmbient, topAmbient).
-        private static void Light(CloudTypeDef t, float baseLight, float topLight, float baseAmbient, float topAmbient)
-        {
-            t.BaseLight = baseLight;
-            t.TopLight = topLight;
-            t.BaseAmbient = baseAmbient;
-            t.TopAmbient = topAmbient;
-        }
 
         private static CloudLayerDef Layer(string name, string group, float inner, float outer, float sigma, float coverage, float edge, float noise, float scaleM, LayerKind kind,
                                            params CloudTypeDef[] types)
@@ -46,7 +38,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.SoftnessScale = 1.5f;
             foreach (CloudTypeDef t in rain.Types) t.BaseGain = 0.7f;
             rain.Types[1].DensityScale = 0.22f;
-            rain.Types[1].UndulatusAmount = 0.6f;   // M2c: the stratus undulations (drawn while cloud.undulatus is on)
+            rain.Types[1].UndulatusAmount = 0.2f;   // M2c: the stratus undulations (0.2 of the thickness, on by default since 2026-11-24)
             // The tops follow the updraft (E40 L6 shape): 1200 m of the layer's 2.1 km at 11.2 m/s.
             rain.TopReach = 0.5714f;
             rain.TopRefMs = 1.2f;
@@ -67,12 +59,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.Types[1].DensityScale = 0.7f;
             cumulus.Types[2].DensityScale = 0.7f;
             cumulus.Types[4].DensityScale = 0.45f;
-            // E40 LM2: no factor on the cumulus types' direct light (the cell diffusion has the sun's incidence); only the sky's fill at the base.
-            Light(cumulus.Types[0], 1f, 1f, 0.9f, 1f);
-            Light(cumulus.Types[1], 1f, 1f, 0.9f, 1f);
-            Light(cumulus.Types[2], 1f, 1f, 0.85f, 1f);
-            Light(cumulus.Types[3], 1f, 1f, 0.8f, 1f);
-            Light(cumulus.Types[4], 1f, 1f, 1f, 1f);
             cumulus.LightCellWidth = 2000f;
             // The types' height-shaped threshold (cfg node LIFT, E40 L2 D1).
             cumulus.Types[0].Lift = C(0f, 0f, 0.5f, 0f, 1f, 0.084f);
@@ -120,9 +106,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cb.LowStratiform = new WeatherLowStratiformRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;
             cb.LightAmbient = 0.8f;
-            Light(cb.Types[0], 1f, 1.2f, 0.7f, 1f);
-            Light(cb.Types[1], 1f, 1.15f, 0.7f, 1.05f);
-            Light(cb.Types[2], 1f, 1.15f, 0.7f, 1.05f);
             cb.Types[1].Outflow = 1f;
             cb.Types[2].DensityScale = 0.5f;
             cb.Types[2].TopClose = 0.12f;
@@ -157,7 +140,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cirrus.LightAmbient = 1.3f;
             cirrus.LightIsotropy = 0.5f;
             cirrus.LightPlateau = 0.5f;
-            Light(cirrus.Types[0], 1f, 1f, 1f, 1f);
             cirrus.SoftnessScale = 2f;
             cirrus.WaterPower = 1f;
             cirrus.FilamentStretch = 6f;

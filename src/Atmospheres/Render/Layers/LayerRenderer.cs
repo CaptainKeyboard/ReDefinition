@@ -296,9 +296,9 @@ namespace ReDefinition.Atmospheres
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
-            // Four channels per sample: r the density profile, g the direct light factor, b the sky-fill factor (E40 B3), a the lift of the coverage threshold (E40 L2 D1, 0: none). Unused rows keep the neutral light factors.
+            // Four channels per sample: r the density profile, g and b unused (they held the per-type light factors, deleted 2026-11-24), a the lift of the coverage threshold
+            // (E40 L2 D1, 0: none).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
-            for (int i = 0; i < profile.Length; i += 4) { profile[i + 1] = 1f; profile[i + 2] = 1f; }
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             bool extras = false;
             for (int l = 0; l < layerCount; l++)
@@ -323,21 +323,22 @@ namespace ReDefinition.Atmospheres
                                   heightMaps == null ? 0f : heightMaps.VariationRangeM, height.BaseRagged ? height.RaggedM : 0f);
                 layerH2[l] = height == null ? Vector4.zero
                     : new Vector4(1f / Mathf.Max(1f, height.RaggedScaleM), height.MinThicknessM, source.Heights.SeedOf(l) & 0xFFFFFF, heightMaps == null ? 0f : 1f);
-                // x: unused; y: the soft density's clear-sky K of the map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density);
-                // w: the pitch of the layer's cloud cells in m (0: none; CELLS), written by Apply every frame from cellPitch and cloud.cells.
-                cullL[l] = new Vector4(0f, layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
+                // x: the layer's thinnest cloud slab in m (CullMath.ThinnestSlabM: the march's leap over empty samples climbs or sinks at most half of it); y: the soft density's clear-sky K of the
+                // map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density); w: the pitch of the layer's cloud cells in m
+                // (0: none; CELLS), written by Apply every frame from cellPitch and cloud.cells.
+                cullL[l] = new Vector4(CullMath.ThinnestSlabM(table.Count, t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return tt - tb; },
+                                                     layer.OuterAltitudeM - layer.InnerAltitudeM, height == null ? 0f : height.MinThicknessM),
+                                       layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
                 cellPitch[l] = layer.CellPitchM;
                 cellLayer[l] = layer;
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
-                float[] density = table.ProfileData, lightData = table.LightData, liftData = table.LiftData;
+                float[] density = table.ProfileData, liftData = table.LiftData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
                     int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;
                     profile[texel] = density[i];
-                    profile[texel + 1] = lightData[i * 2];
-                    profile[texel + 2] = lightData[i * 2 + 1];
                     profile[texel + 3] = liftData[i];
                 }
                 Noise.SetStretch(l, layer.FilamentStretch);
@@ -520,6 +521,21 @@ namespace ReDefinition.Atmospheres
 
         // The planet's radius of the uploaded stack, and the layers of its cloud motion for the CPU model (LayerMotionModel; Presence 1, drift over driftSeconds); the count.
         internal double PlanetRadiusM { get { return radius; } }
+
+        // The shell in which a cloud can lie (the shaders' CloudWindow): the lowest tight inner and the highest tight outer altitude of the uploaded layers in m; y <= x: no layer.
+        internal Vector2 CloudShellM
+        {
+            get
+            {
+                float low = float.MaxValue, high = float.MinValue;
+                for (int l = 0; l < layerCount; l++)
+                {
+                    low = Mathf.Min(low, layerA[l].z);
+                    high = Mathf.Max(high, layerA[l].w);
+                }
+                return layerCount > 0 ? new Vector2(low, high) : Vector2.zero;
+            }
+        }
 
         // The lowest inner and highest outer altitude in m of the uploaded layers the march lights with the sun march (kind 0; the light volume's altitude axis; the other layers
         // still shade through the light march), of all layers where none is of that kind; (0, 1) without layers.
