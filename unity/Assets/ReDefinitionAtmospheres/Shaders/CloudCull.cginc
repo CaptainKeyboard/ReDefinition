@@ -78,7 +78,7 @@ float4 CullTilePass(v2f i)
         [loop] for (int tx = 0; tx < 8; tx++)
         {
             float2 uvT = lerp(uv0, uv1, (float2(tx, ty) + 0.5) / 8.0);
-            float td = SceneDistance(uvT, RayDir(uvT));
+            float td = SceneDistance(uvT, RayDir(uvT), _CamPos.xyz - _PlanetCenter.xyz);
             tMaxTile = max(tMaxTile, td);
         }
     }

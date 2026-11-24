@@ -77,6 +77,8 @@ namespace ReDefinition.Atmospheres
         public float SpanGrowthFromM;
         // With SpanGrowthPerM > 0: the longest vertical travel of a leap over a sample the map made empty, as a share of the layer's depth (layers.leapVerticalShare, 0: no cap).
         public float LeapVerticalShare;
+        // A scene point lower than this (m above the planet's radius) is the sea: the planet's sphere cuts the ray instead of the scene depth (layers.sceneSeaLevelM, 0: off).
+        public float SceneSeaLevelM;
         // With the points by distance (SpanGrowthPerM > 0) a far step is long, and so is a leap of a few of them: the march ends the leap where the ray reaches the altitude at which cloud
         // can begin, and starts again from one grid step there, so a thin cloud layer crossed at an angle is entered, not passed over (the shader derives this from _ReuseP.w).
         public int CostDebug;
@@ -442,7 +444,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Shader.PropertyToID("_ReconP"), new Vector4(1f, 0f, 0f, 0f));
             // Its sizes too (Record and Prepare set them after this call; 0: a caller that sets none, the shader then reads Unity's _ScreenParams as before).
             m.SetVector(Shader.PropertyToID("_ReconD"), Vector4.zero);
-            m.SetVector(IdSpacingP, new Vector4(0f, Mathf.Clamp01(f.LeapVerticalShare), Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
+            m.SetVector(IdSpacingP, new Vector4(Mathf.Max(0f, f.SceneSeaLevelM), Mathf.Clamp01(f.LeapVerticalShare), Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
             m.SetVector(IdUndulatusP, new Vector4(Mathf.Clamp01(f.Undulatus), Mathf.Max(f.UndulatusWavelengthShare, 0.05f), 0f, 0f));

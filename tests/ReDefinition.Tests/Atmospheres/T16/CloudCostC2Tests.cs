@@ -61,5 +61,35 @@ namespace ReDefinition.Tests.Atmospheres.T16
                 Tuning.Instance.BeginFrame(9200014);
             }
         }
+
+        // The sea's cut at the planet's sphere (layers.sceneSeaLevelM -> _SpacingP.x; the line under the horizon from above at the near ocean mesh's edge, PRUEFPROTOKOLL 172): off by default,
+        // the key sets it, and it is clamped to 0 .. 1000 m (a mountain above that keeps cutting the ray by the scene depth).
+        [TestMethod]
+        public void TheSceneSeaLevelIsOffByDefaultAndTheTuningKeySetsIt()
+        {
+            var frame = new LayerFrame();
+            Assert.AreEqual(0f, frame.SceneSeaLevelM, "the frame as compiled lets the scene depth cut every ray");
+            Tuning.ClearOverrides();
+            Tuning.Instance.BeginFrame(9200021);
+            OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
+            Assert.AreEqual(OwnCloudOptions.SceneSeaLevelDefaultM, frame.SceneSeaLevelM);
+            Assert.AreEqual(0f, frame.SceneSeaLevelM, "off by default");
+            try
+            {
+                Tuning.SetOverride(OwnCloudOptions.TuneSceneSeaLevelM, 20f);
+                Tuning.Instance.BeginFrame(9200022);
+                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
+                Assert.AreEqual(20f, frame.SceneSeaLevelM, 1e-6f);
+                Tuning.SetOverride(OwnCloudOptions.TuneSceneSeaLevelM, 5000f);
+                Tuning.Instance.BeginFrame(9200023);
+                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
+                Assert.AreEqual(1000f, frame.SceneSeaLevelM, "clamped");
+            }
+            finally
+            {
+                Tuning.ClearOverrides();
+                Tuning.Instance.BeginFrame(9200024);
+            }
+        }
     }
 }

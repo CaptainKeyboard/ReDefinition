@@ -71,7 +71,7 @@ Shader "ReDefinition/AtmospheresLayers"
         float4 _OutW;        // the white point's colour (E40 B3): the per-channel share of the white of a sunlit cloud (1, 1, 1: the white is grey); w unused
         // MARCH cost controls (package T01c; the march section below reads them, the density and light sections only the bound).
         float4 _SkipP;       // longest leap in steps over empty samples (1: none), light cut-off (weight of a step below which the last sun transmittance is reused; 0: always march), step share of cheap layers, step share of fog layers
-        float4 _SpacingP;    // x unused; y the longest vertical travel of a leap over a sample the map made empty, as a share of the layer's depth (layers.leapVerticalShare, 0: no cap); z the longest leap over empty grid points in the layer's noise scales (layers.leapScale); w the distance in m beyond which the step grows (layers.spanGrowthFromM)
+        float4 _SpacingP;    // x the height in m above the planet's radius below which a scene point is the sea and the planet's sphere cuts the ray instead (layers.sceneSeaLevelM, 0: off); y the longest vertical travel of a leap over a sample the map made empty, as a share of the layer's depth (layers.leapVerticalShare, 0: no cap); z the longest leap over empty grid points in the layer's noise scales (layers.leapScale); w the distance in m beyond which the step grows (layers.spanGrowthFromM)
         float4 _ReuseP;      // x unused; y: cost attribution, the march ends at this distance in m (0: off, layers.costCutM); z unused; w: a span's points by distance, the step's growth per m of distance from the camera (0: off, layers.spanGrowthPerM)
         float4 _LeapP;       // unused (kept so that the uniform layout stays)
         float4 _CostP;       // coverage bound on (1) or off (0), cost-attribution mask (bit 0 no light, bit 1 no noise, bit 2 no erosion), lit steps per sun march (>= 1), step growth with the ray's lost transmittance (T05, 0: none)
@@ -782,14 +782,20 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // The longest ray of a pixel: the scene's depth at the pixel (as a distance along the ray) and the measurement limit. A limit below
         // zero is a ramp: the ray's length grows with the pixel's x from 0 to -limit (one render samples a profile along a ray).
-        float SceneDistance(float2 uv, float3 d)
+        // _SpacingP.x (layers.sceneSeaLevelM, 0: off): a scene point lower than this above the planet's radius is the sea or the ground at sea level, and the march's own cut at the
+        // planet's sphere stands for it (March, _StepP.w); the composite (CompositeDepth) and the reconstruction (Reconstruct shader, SceneZ) treat it the same way, and only the three
+        // together removed the thin straight line across the low stratiform layer under the horizon at the near ocean mesh's edge (PRUEFPROTOKOLL 172-175). Terrain above that height
+        // still cuts the ray.
+        float SceneDistance(float2 uv, float3 d, float3 o)
         {
             float limX = DEV(_LimitP.x, 0.0);
             float lim = limX < 0 ? -limX * uv.x : (limX > 0 ? limX : 1e30);
             if (DEV(_LimitP.w, 1.0) < 0.5) return lim;
             float depth = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
             if (depth <= 0 || depth > 1e9) return lim;
-            return min(lim, depth / max(dot(d, normalize(_CamForward.xyz)), 1e-3));
+            float t = depth / max(dot(d, normalize(_CamForward.xyz)), 1e-3);
+            if (_SpacingP.x > 0.0 && _StepP.w > 0.5 && length(o + d * t) - _PlanetR < _SpacingP.x) return lim;
+            return min(lim, t);
         }
 
         float3 Heat(float x)
@@ -816,7 +822,7 @@ Shader "ReDefinition/AtmospheresLayers"
             CullReadTile(i.uv);   // T16: the layers this pixel's tile marches
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
-            float tmax = SceneDistance(i.uv, d);
+            float tmax = SceneDistance(i.uv, d, o);
             // The pixel grid of the dither: the pass's own sizes (_ReconD: the full target x, y and the march target z, w; the direct path sets x, y to the camera's
             // pixels and z, w to 0). Unity's _ScreenParams only where no caller set them (0, the weather player's own scenes): a command buffer executed outside a
             // camera's render (the pinned replay) does not have the camera's size in it.
@@ -875,13 +881,28 @@ Shader "ReDefinition/AtmospheresLayers"
         {
             float3 d = RayDir(i.uv);
             float3 o = _CamPos.xyz - _PlanetCenter.xyz;
-            float tmax = SceneDistance(i.uv, d);
+            float tmax = SceneDistance(i.uv, d, o);
             MarchOut r = March(o, d, tmax, i.uv * _ScreenParams.xy);
             return float4(r.alpha, r.tau, r.steps, r.first);
         }
 
         // The depth-aware composite: the four march texels around the pixel, weighted by their distance and by how well the scene depth at
         // the texel's centre matches the depth at the pixel (a cloud march that ended at a near surface does not bleed onto a far one).
+        // The scene depth the composite weighs by: 0 (no surface) where the scene point lies lower than layers.sceneSeaLevelM above the planet's radius (_SpacingP.x), the sea. The sea's
+        // depth changes by several percent from row to row near the horizon, and the weights below turned the four texels into the nearest one there: thin lines across the low
+        // stratiform layer under the horizon, the strongest at the far edge of the near ocean mesh (PRUEFPROTOKOLL 173). Terrain above that height keeps its depth.
+        float CompositeDepth(float2 uv)
+        {
+            float depth = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
+            if (_SpacingP.x > 0.0 && _StepP.w > 0.5 && depth > 0 && depth < 1e9)
+            {
+                float3 d = RayDir(uv);
+                float t = depth / max(dot(d, normalize(_CamForward.xyz)), 1e-3);
+                if (length(_CamPos.xyz - _PlanetCenter.xyz + d * t) - _PlanetR < _SpacingP.x) return 0;
+            }
+            return depth;
+        }
+
         float4 PassComposite(v2f i)
         {
             float2 texel = _MarchTex_TexelSize.xy;
@@ -889,7 +910,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float2 base = floor(p);
             float2 f = p - base;
             float3 d0 = RayDir(i.uv);
-            float dist0 = DEV(_LimitP.w, 1.0) > 0.5 ? tex2Dlod(_SceneDepth, float4(i.uv, 0, 0)).r : 0;
+            float dist0 = DEV(_LimitP.w, 1.0) > 0.5 ? CompositeDepth(i.uv) : 0;
             float4 sum = 0;
             float wsum = 0;
             [unroll] for (int k = 0; k < 4; k++)
@@ -899,7 +920,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y);
                 if (DEV(_LimitP.w, 1.0) > 0.5)
                 {
-                    float dc = tex2Dlod(_SceneDepth, float4(uvc, 0, 0)).r;
+                    float dc = CompositeDepth(uvc);
                     float rel = abs(dc - dist0) / max(dist0, 1.0);
                     w *= 1.0 / (1e-3 + rel * 40.0);
                 }

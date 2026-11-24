@@ -327,6 +327,8 @@ namespace ReDefinition.Atmospheres.Viewer
             N(OwnCloudOptions.TuneSpanGrowthFromM, 0f, KeyLiveness.Frame, "with layers.spanGrowthPerM: the distance in m beyond which the step grows (0: from the camera)"),
             N(OwnCloudOptions.TuneLeapVerticalShare, OwnCloudOptions.LeapVerticalShareDefault, KeyLiveness.Frame,
               "with layers.spanGrowthPerM: the longest vertical travel of a leap over a map-empty sample, as a share of the layer's depth (0: no cap; the stripe under the horizon from above)"),
+            N(OwnCloudOptions.TuneSceneSeaLevelM, OwnCloudOptions.SceneSeaLevelDefaultM, KeyLiveness.Frame,
+              "a scene point lower than this many m above sea level is the sea: the planet's sphere cuts the ray, not the scene depth (0: off; the line under the horizon from above)"),
             N(OwnCloudOptions.TuneCostDebug, 0f, KeyLiveness.Frame, "cost attribution only, the picture is wrong while it is set: bit 1 no light march, 2 no shape noise, 4 no erosion, 8 the light march crosses the own layer alone"),
             N(OwnCloudOptions.TuneGridFine, OwnCloudOptions.GridFineDefault, note: "multiplies the grid points of the setting Cloud Samples (the profile's value; 96 at Medium), a quick lever for comparisons: 0.5 = 48 points at Medium, 1.3333 = 128 (reader clamp 0.25 to 8, at most 256 points); measured at 1080p (soft-cost scene, field view): 48 points 2.35 ms, 96 3.53, 128 4.10"),
             N(OwnCloudOptions.TuneDitherSequence, OwnCloudOptions.DitherSequenceDefault, KeyLiveness.FrameHistory, "1 hash, 2 gradient, 3 blue noise"),

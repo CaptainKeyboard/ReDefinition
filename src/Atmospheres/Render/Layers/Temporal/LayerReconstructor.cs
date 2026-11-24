@@ -119,7 +119,7 @@ namespace ReDefinition.Atmospheres
         internal const int PassMarchDistance = 6;
         // Test switch ReconSettings.ProcMarch (HIST2): the layer shader's pass 7, pass 0 drawn as one procedural triangle.
         internal const int PassMarchTriangle = 7;
-        private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT");
+        private static readonly int IdDistTex = Shader.PropertyToID("_DistTex"), IdReconT = Shader.PropertyToID("_ReconT"), IdReconSea = Shader.PropertyToID("_ReconSea");
         private RenderTexture lowDistance;
         private RenderTargetIdentifier[] marchTargets;
         // recon.age: the reconstruction shader's pass 2 (pass 0 into two targets), the sample counts of the two full targets (ageA with the one named "a", ageB with "b")
@@ -603,6 +603,8 @@ namespace ReDefinition.Atmospheres
                 m.SetVector(IdReconT, new Vector4(distanceOn ? 1f : 0f, ageOn && s.Age ? 1f : 0f, ageOn && distanceOn ? Mathf.Max(0f, s.DistanceReject) : 0f,
                                                   s.SceneDepth && f.UseSceneDepth ? 1f : 0f));
                 LastSceneDepth = s.SceneDepth && f.UseSceneDepth;
+                // layers.sceneSeaLevelM: a sea point counts as no surface in the upsample's agreement (the shader's SceneZ), only on a body with a surface.
+                m.SetVector(IdReconSea, new Vector4(f.HasSurface ? Mathf.Max(0f, f.SceneSeaLevelM) : 0f, (float)renderer.PlanetRadiusM, 0f, 0f));
                 if (distanceOn) m.SetTexture(IdDistTex, lowDistance);
                 renderer.BindMotion(m, f, s.LayerMotion, havePose, s.DriftSeconds);
                 materialBound = true;

@@ -39,6 +39,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
 
         sampler2D_float _DistTex;   // the march's second target (the layer shader's pass 6): the mean distance of each new sample's cloud along its ray (m), 0 where it holds none
         float4 _ReconT;      // x: the history is moved by the march's own distance (1; recon.trueDistance) or by the layers' middle spheres (0); y: the sample count weighs the samples (1; recon.age); z: the history is dropped where its stored distance is more than this many octaves from the frame's (recon.distanceReject; 0: off); w: the scene's depth takes part (1; recon.sceneDepth)
+        float4 _ReconSea;    // x: a scene point lower than this many m above the planet's radius is the sea and counts as no surface (layers.sceneSeaLevelM, 0: off), y: the planet's radius in m
         sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
@@ -155,10 +156,19 @@ Shader "ReDefinition/AtmospheresReconstruct"
         // depth-aware composite), and a history whose cloud lies behind this pixel's scene is dropped.
         sampler2D_float _SceneDepth;   // the scene's depth at the full target's size: metres along the camera's forward axis, 0 (or above 1e9) the sky
 
+        // layers.sceneSeaLevelM (_ReconSea.x): a sea point counts as no surface, as in the layer shader's composite (CompositeDepth): the sea's depth changes by several percent per
+        // row near the horizon and ends at the near ocean mesh's edge, and the agreement below made the upsample's rows step there (PRUEFPROTOKOLL 174).
         float SceneZ(float2 uv)
         {
             float z = tex2Dlod(_SceneDepth, float4(uv, 0, 0)).r;
-            return (z <= 0.0 || z > 1e9) ? 1e9 : z;
+            if (z <= 0.0 || z > 1e9) return 1e9;
+            if (_ReconSea.x > 0.0 && _ReconSea.y > 0.0)
+            {
+                float3 d = RayDir(uv);
+                float t = z / max(dot(d, normalize(_CamForward.xyz)), 1e-3);
+                if (length(_CamPos.xyz + d * t) - _ReconSea.y < _ReconSea.x) return 1e9;
+            }
+            return z;
         }
 
         // The scene's depth at the full-target pixel a new sample was marched for.

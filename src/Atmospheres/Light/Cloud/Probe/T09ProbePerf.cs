@@ -143,6 +143,8 @@ namespace ReDefinition.Atmospheres
                 case "leap2r3":
                 case "lvs01":
                 case "lvs01b":
+                case "sea20":
+                case "sea20b":
                 case "r4lv":
                 case "r3lvf20":
                 case "r3lvf10":
@@ -351,6 +353,11 @@ namespace ReDefinition.Atmospheres
                 case "lvs01":
                 case "lvs01b":
                     ForceTuning(OwnCloudOptions.TuneLeapVerticalShare, 0.1f);
+                    break;
+                // The cost of the sea as no surface (layers.sceneSeaLevelM 20: the ray's cut, the composite and the reconstruction's upsample, PRUEFPROTOKOLL 175); two names to alternate.
+                case "sea20":
+                case "sea20b":
+                    ForceTuning(OwnCloudOptions.TuneSceneSeaLevelM, 20f);
                     break;
                 // The empty-leap block (2026-11-21): layers.leapScale (LayerFrame.LeapScales -> _SpacingP.z; default 1, OwnCloudOptions.LeapScaleDefault), the longest leap over empty grid
                 // points in the layer's noise scales (Layers.shader leapCap). leap0 the march without the leap, leap2 / leap4 two and four noise scales, leap2r3 leap2 with
