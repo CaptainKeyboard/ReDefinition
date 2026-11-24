@@ -733,7 +733,6 @@ Shader "ReDefinition/AtmospheresLayers"
                             upReuse = upTau;
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
-                        gLightJitter = frac(jitterValue + 0.618034 * (float)(i + 64 * k));   // the light taps' places (CloudLight.cginc gLightJitter)
                         src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
                         if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
