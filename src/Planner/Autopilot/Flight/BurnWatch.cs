@@ -88,8 +88,8 @@ namespace ReDefinition.Planner.Autopilot.Flight
             get { return !double.IsNaN(thrustFrom); }
         }
 
-        // The burn's line for the log, and the same for the ledger where the burn was made.
-        internal string Finish(FlightLedger ledger)
+        // The burn's line for the log, and the same for the maneuver summary where the burn was made.
+        internal string Finish(ManeuverSummary summary)
         {
             var culture = CultureInfo.InvariantCulture;
             var text = new StringBuilder();
@@ -113,7 +113,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
                     .Append(" m, the node showed ").Append(double.IsNaN(predictedTargetPeriapsis) ? "none" : predictedTargetPeriapsis.ToString("0", culture)).Append(" m");
             text.Append('.');
             string line = text.ToString();
-            if (Burned) ledger.Add(purpose, line);
+            if (Burned) summary.Add(purpose, line);
             return line;
         }
     }

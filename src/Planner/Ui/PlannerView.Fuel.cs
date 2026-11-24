@@ -114,7 +114,7 @@ namespace ReDefinition.Planner.Ui
             float room = Mathf.Max(0f, StepLineRoom);
             DialogGUIHorizontalLayout row = new GatedRow(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => FuelStepShown(step) ? model.StepName(step) : ""), Place),
-                new DialogGUILabel(Text(() => FuelStepShown(step) ? model.StepFlyer(step) : ""), VehicleButton),
+                new DialogGUILabel(Text(() => FuelStepShown(step) ? model.StepActiveVessel(step) : ""), VehicleButton),
                 new DialogGUILabel(Text(() => FuelStepShown(step) ? model.Fuel.NeedsText(step) : ""), FuelNeeds),
                 new DialogGUILabel(Text(() => FuelStepShown(step) ? model.Fuel.LeftText(step) : ""), FuelLeft), new DialogGUISpace(room), open, noOpen);
             row.OptionEnabledCondition = () => FuelStepShown(step);

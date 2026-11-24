@@ -24,7 +24,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
         private bool lastBurnLit;
 
         // The burns of the flight and how the vessel behaved between them, for the log and the probes.
-        internal readonly FlightLedger Ledger = new FlightLedger();
+        internal readonly ManeuverSummary ManeuverSummary = new ManeuverSummary();
 
         // What the flight is doing, and how it ended: Arrived, or the reason it stopped.
         internal string Status = "";
@@ -625,7 +625,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
             float nextStage = 0f;
             float began = Time.realtimeSinceStartup;
             ManeuverNode first = vessel.patchedConicSolver != null && vessel.patchedConicSolver.maneuverNodes.Count > 0 ? vessel.patchedConicSolver.maneuverNodes[0] : null;
-            var watch = new BurnWatch(vessel, first, purpose, Ledger.Total);
+            var watch = new BurnWatch(vessel, first, purpose, ManeuverSummary.Total);
             while (!cancelled && !Lost && MechJebDriver.Busy(vessel))
             {
                 // A burn that goes on for an hour of the player's time is not one: MechJeb is let go, and the route is planned again from where the vessel is.
@@ -646,7 +646,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
                 }
                 yield return new WaitForSeconds(0.5f);
             }
-            Debug.Log("[ReDefinition] Route: " + watch.Finish(Ledger));
+            Debug.Log("[ReDefinition] Route: " + watch.Finish(ManeuverSummary));
             lastBurnLit = watch.Burned;
         }
 
@@ -689,7 +689,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
                 yield return new WaitForSeconds(0.5f);
             }
             TimeWarp.SetRate(0, true);
-            Ledger.Coasted(Planetarium.GetUniversalTime() - coastFrom, fastest);
+            ManeuverSummary.Coasted(Planetarium.GetUniversalTime() - coastFrom, fastest);
             Debug.Log("[ReDefinition] Route: coast of " + (Planetarium.GetUniversalTime() - coastFrom).ToString("0") + " s: the vessel turned at " + rateAtStart.ToString("0.000")
                       + " rad/s at the start, at most " + fastest.ToString("0.000") + " rad/s, and at " + vessel.angularVelocity.magnitude.ToString("0.000") + " rad/s at the end.");
             yield return new WaitForSeconds(1f);
@@ -715,7 +715,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
 
         private void Stop(string why)
         {
-            if (!Finished) Debug.Log("[ReDefinition] Route: flight summary: " + Ledger.Summary() + " Ended: " + why);
+            if (!Finished) Debug.Log("[ReDefinition] Route: flight summary: " + ManeuverSummary.Summary() + " Ended: " + why);
             WarpGuard.SelfWarpUntil = 0.0;
             MechJebDriver.RestoreSettings(vessel);
             Status = why;

@@ -48,8 +48,8 @@ namespace ReDefinition.Planner.Planning
         public int DeployAt = -1;
     }
 
-    // Who flies a step, as Flyer holds it.
-    internal enum FlyerKind
+    // Who flies a step, as ActiveVessel holds it.
+    internal enum ActiveVesselKind
     {
         // The whole vessel; one section, with the sections part of it; the vessel leaving a section behind for good.
         Ship,
@@ -60,35 +60,35 @@ namespace ReDefinition.Planner.Planning
     // Who flies a step: the whole vessel; one section, with the sections that are part
     // of it; or the vessel leaving a section where it is for good. Kept in a stop's By
     // as a number: 0 the whole vessel, 1000 and 2000 on a section's id.
-    internal struct Flyer
+    internal struct ActiveVessel
     {
         // Who, and the section's id for Alone and Without.
-        public FlyerKind Kind;
+        public ActiveVesselKind Kind;
         public int Section;
 
         // The whole vessel flies it.
-        public static readonly Flyer Ship = new Flyer();
+        public static readonly ActiveVessel Ship = new ActiveVessel();
 
         // One section flies, with the sections part of it.
-        public static Flyer Alone(int section)
+        public static ActiveVessel Alone(int section)
         {
-            return new Flyer { Kind = FlyerKind.Alone, Section = section };
+            return new ActiveVessel { Kind = ActiveVesselKind.Alone, Section = section };
         }
 
         // The vessel flies on, leaving the section behind for good.
-        public static Flyer Without(int section)
+        public static ActiveVessel Without(int section)
         {
-            return new Flyer { Kind = FlyerKind.Without, Section = section };
+            return new ActiveVessel { Kind = ActiveVesselKind.Without, Section = section };
         }
 
         // As kept in a stop's By: 0, or 1000 or 2000 on the section's id.
         public int Code
         {
-            get { return Kind == FlyerKind.Ship ? 0 : (Kind == FlyerKind.Alone ? 1000 : 2000) + Section; }
+            get { return Kind == ActiveVesselKind.Ship ? 0 : (Kind == ActiveVesselKind.Alone ? 1000 : 2000) + Section; }
         }
 
         // From the number kept in a stop's By.
-        public static Flyer FromCode(int code)
+        public static ActiveVessel FromCode(int code)
         {
             if (code >= 2000) return Without(code - 2000);
             if (code >= 1000) return Alone(code - 1000);
@@ -96,9 +96,9 @@ namespace ReDefinition.Planner.Planning
         }
 
         // Whether it is of that kind, and for a section alone or left, that section.
-        public bool Is(FlyerKind kind, int section)
+        public bool Is(ActiveVesselKind kind, int section)
         {
-            return Kind == kind && (kind == FlyerKind.Ship || Section == section);
+            return Kind == kind && (kind == ActiveVesselKind.Ship || Section == section);
         }
     }
 
@@ -109,7 +109,7 @@ namespace ReDefinition.Planner.Planning
         // The destination it leads to; the leg is Goal - 1.
         public int Goal;
         public StepRole Role;
-        public Flyer Flyer;
+        public ActiveVessel ActiveVessel;
         // Set by the player rather than worked out (RouteStop.By).
         public bool Chosen;
         public RouteStop From;
@@ -187,7 +187,7 @@ namespace ReDefinition.Planner.Planning
             internal RouteStop Rest;
             internal readonly Dictionary<int, SectionState> Sections = new Dictionary<int, SectionState>();
             internal readonly List<SectionState> Order = new List<SectionState>();
-            internal Flyer Last = Flyer.Ship;
+            internal ActiveVessel Last = ActiveVessel.Ship;
             // The capsule that has left everything else, 0 for none.
             internal int CapsuleOut;
             // The step being flown, and whether a section's climb on it is followed by
@@ -268,20 +268,20 @@ namespace ReDefinition.Planner.Planning
         // a capsule leaves. The steps of other sections in between wait with it.
         private static bool Rejoins(List<RouteStep> flown, IList<RouteSection> sections, int index)
         {
-            if (index >= flown.Count || flown[index].Flyer.Kind != FlyerKind.Alone) return false;
-            int id = flown[index].Flyer.Section;
+            if (index >= flown.Count || flown[index].ActiveVessel.Kind != ActiveVesselKind.Alone) return false;
+            int id = flown[index].ActiveVessel.Section;
             for (int next = index + 1; next < flown.Count; next++)
             {
-                Flyer flyer = flown[next].Flyer;
-                if (flyer.Kind != FlyerKind.Alone) return true;
-                if (flyer.Section == id) return false;
+                ActiveVessel activeVessel = flown[next].ActiveVessel;
+                if (activeVessel.Kind != ActiveVesselKind.Alone) return true;
+                if (activeVessel.Section == id) return false;
                 foreach (RouteSection section in sections)
-                    if (section != null && section.Id == flyer.Section && section.Kind == SectionKind.Capsule) return false;
+                    if (section != null && section.Id == activeVessel.Section && section.Kind == SectionKind.Capsule) return false;
             }
             return false;
         }
 
-        // The steps, their flyers the player's or the planner's; or, with `flown`, the
+        // The steps, their active vessels the player's or the planner's; or, with `flown`, the
         // ones worked out before.
         private static List<RouteStep> Walkthrough(IList<PlannerBody> bodies, IList<RouteStop> goals, IList<RouteSection> sections,
                                                    bool planeChanges, List<RouteStep> flown, System.Func<int, bool> returns)
@@ -306,12 +306,12 @@ namespace ReDefinition.Planner.Planning
                 foreach (StepRole role in roles)
                 {
                     int by = goal.By[(int)role];
-                    Flyer chosen = Flyer.FromCode(by);
+                    ActiveVessel chosen = ActiveVessel.FromCode(by);
                     bool isChosen = by >= 0 && Available(walk, chosen);
-                    Flyer flyer = flown != null && steps.Count < flown.Count ? flown[steps.Count].Flyer
+                    ActiveVessel activeVessel = flown != null && steps.Count < flown.Count ? flown[steps.Count].ActiveVessel
                         : isChosen ? chosen : Default(bodies, walk, role, from, goal, g == goals.Count - 1);
                     walk.Index = steps.Count;
-                    RouteStep step = Fly(bodies, walk, g, role, flyer, from, goal, planeChanges);
+                    RouteStep step = Fly(bodies, walk, g, role, activeVessel, from, goal, planeChanges);
                     step.Chosen = isChosen;
                     step.WantsRefuel = goal.Refuel[(int)role];
                     steps.Add(step);
@@ -363,9 +363,9 @@ namespace ReDefinition.Planner.Planning
         }
 
         // Who the vessel has to fly a step: the whole vessel, or a section it has.
-        private static bool Available(Walk walk, Flyer flyer)
+        private static bool Available(Walk walk, ActiveVessel activeVessel)
         {
-            return flyer.Kind == FlyerKind.Ship || walk.Of(flyer.Section) != null;
+            return activeVessel.Kind == ActiveVesselKind.Ship || walk.Of(activeVessel.Section) != null;
         }
 
         // Who flies a step the player left to the planner. The capsule flies once it has left.
@@ -374,53 +374,53 @@ namespace ReDefinition.Planner.Planning
         // whoever stands on it flies. Across to another body, the whole vessel flies where a lander
         // that docks waits in an orbit of the body the rest is at. Otherwise whoever flew the step
         // before flies it.
-        private static Flyer Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, bool last)
+        private static ActiveVessel Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, bool last)
         {
-            if (walk.CapsuleOut != 0) return Flyer.Alone(walk.CapsuleOut);
+            if (walk.CapsuleOut != 0) return ActiveVessel.Alone(walk.CapsuleOut);
             // Home on the parachutes: the capsule, where what carries it is in the air
             // already; from an orbit it would have to bring itself down.
             if (last && role == StepRole.Land && goal.UseAtmosphere && bodies[goal.Body].HasAtmosphere)
                 foreach (SectionState state in walk.Order)
                     if (state.Section.Kind == SectionKind.Capsule && !state.Gone && walk.Location(state.Section.Id).Kind == StopKind.Entry)
-                        return Flyer.Alone(state.Section.Id);
+                        return ActiveVessel.Alone(state.Section.Id);
             // A landing short of the route's end: a lander's, the rest waiting in orbit,
             // as that is what a lander is for; the one that flew last, else the first.
             if (role == StepRole.Land && !last)
             {
-                SectionState flew = walk.Last.Kind == FlyerKind.Alone ? walk.Of(walk.Last.Section) : null;
+                SectionState flew = walk.Last.Kind == ActiveVesselKind.Alone ? walk.Of(walk.Last.Section) : null;
                 if (flew != null && flew.Section.Kind == SectionKind.Lander && !flew.Gone) return walk.Last;
                 foreach (SectionState state in walk.Order)
-                    if (state.Section.Kind == SectionKind.Lander && !state.Gone) return Flyer.Alone(state.Section.Id);
+                    if (state.Section.Kind == SectionKind.Lander && !state.Gone) return ActiveVessel.Alone(state.Section.Id);
             }
             if (role == StepRole.Launch)
             {
                 // Whoever stands on that surface: the one that flew last, the whole
                 // vessel, or another section there.
-                if (OnSurface(walk.Last.Kind == FlyerKind.Alone ? walk.Location(walk.Last.Section) : walk.Rest, from)
+                if (OnSurface(walk.Last.Kind == ActiveVesselKind.Alone ? walk.Location(walk.Last.Section) : walk.Rest, from)
                     && Usable(walk, walk.Last))
                     return walk.Last;
-                if (OnSurface(walk.Rest, from)) return Flyer.Ship;
+                if (OnSurface(walk.Rest, from)) return ActiveVessel.Ship;
                 foreach (SectionState state in walk.Order)
-                    if (!state.Gone && state.Away && OnSurface(state.At, from)) return Flyer.Alone(state.Section.Id);
-                return Usable(walk, walk.Last) ? walk.Last : Flyer.Ship;
+                    if (!state.Gone && state.Away && OnSurface(state.At, from)) return ActiveVessel.Alone(state.Section.Id);
+                return Usable(walk, walk.Last) ? walk.Last : ActiveVessel.Ship;
             }
             // A section that docks by itself, in an orbit of the body the rest waits at:
             // it docks, and the whole vessel flies on.
-            if (role == StepRole.Transfer && walk.Last.Kind == FlyerKind.Alone)
+            if (role == StepRole.Transfer && walk.Last.Kind == ActiveVesselKind.Alone)
             {
                 SectionState flew = walk.Of(walk.Last.Section);
                 if (flew != null && flew.Section.Docks && flew.Away && !flew.Gone && walk.Carrier(flew.Section.Id) == 0
                     && Meets(flew.At, walk.Rest))
-                    return Flyer.Ship;
+                    return ActiveVessel.Ship;
             }
-            return Usable(walk, walk.Last) ? walk.Last : Flyer.Ship;
+            return Usable(walk, walk.Last) ? walk.Last : ActiveVessel.Ship;
         }
 
         // Still there to fly: the whole vessel, or a section not left for good.
-        private static bool Usable(Walk walk, Flyer flyer)
+        private static bool Usable(Walk walk, ActiveVessel activeVessel)
         {
-            if (flyer.Kind != FlyerKind.Alone) return true;
-            SectionState state = walk.Of(flyer.Section);
+            if (activeVessel.Kind != ActiveVesselKind.Alone) return true;
+            SectionState state = walk.Of(activeVessel.Section);
             return state != null && !state.Gone;
         }
 
@@ -430,29 +430,29 @@ namespace ReDefinition.Planner.Planning
             return at != null && at.Kind == StopKind.Surface && at.Body == from.Body;
         }
 
-        // The step as `flyer` flies it: a section leaving or left behind as it starts, the sections away docking as the whole
+        // The step as `activeVessel` flies it: a section leaving or left behind as it starts, the sections away docking as the whole
         // vessel flies on, where it goes and its burns; and the walk moved on with it.
-        private static RouteStep Fly(IList<PlannerBody> bodies, Walk walk, int g, StepRole role, Flyer flyer, RouteStop from,
+        private static RouteStep Fly(IList<PlannerBody> bodies, Walk walk, int g, StepRole role, ActiveVessel activeVessel, RouteStop from,
                                      RouteStop goal, bool planeChanges)
         {
-            RouteStep step = new RouteStep { Goal = g, Role = role, Flyer = flyer };
+            RouteStep step = new RouteStep { Goal = g, Role = role, ActiveVessel = activeVessel };
 
             // Once the capsule has left, only it flies.
-            if (walk.CapsuleOut != 0 && !flyer.Is(FlyerKind.Alone, walk.CapsuleOut))
-                return Nothing(step, walk, "The capsule has left the vessel", walk.Location(walk.CapsuleOut), g, flyer);
+            if (walk.CapsuleOut != 0 && !activeVessel.Is(ActiveVesselKind.Alone, walk.CapsuleOut))
+                return Nothing(step, walk, "The capsule has left the vessel", walk.Location(walk.CapsuleOut), g, activeVessel);
 
             RouteStop start;
-            if (flyer.Kind == FlyerKind.Alone)
+            if (activeVessel.Kind == ActiveVesselKind.Alone)
             {
-                SectionState state = walk.Of(flyer.Section);
+                SectionState state = walk.Of(activeVessel.Section);
                 if (state.Gone) return Nothing(step, walk, "The " + Lower(state.Section.Name) + " was left " + state.GoneAt,
-                    Target(bodies, walk, role, from, goal, flyer), g, flyer);
+                    Target(bodies, walk, role, from, goal, activeVessel), g, activeVessel);
                 if (!state.Away)
                 {
                     // It leaves whatever carries it.
-                    int carrier = walk.Carrier(flyer.Section);
+                    int carrier = walk.Carrier(activeVessel.Section);
                     step.Separates = true;
-                    step.Leaver = flyer.Section;
+                    step.Leaver = activeVessel.Section;
                     step.LeavesFrom = carrier;
                     state.At = walk.Location(carrier);
                     state.Away = true;
@@ -465,11 +465,11 @@ namespace ReDefinition.Planner.Planning
                 // Where the vessel leaves a section behind that flew the step before and is
                 // back where the rest waits, it docks first, as a lander whose crew comes
                 // over.
-                if (flyer.Kind == FlyerKind.Without)
+                if (activeVessel.Kind == ActiveVesselKind.Without)
                 {
-                    SectionState left = walk.Of(flyer.Section);
-                    if (left != null && walk.Last.Is(FlyerKind.Alone, flyer.Section) && Returns(walk, left)) Dock(bodies, walk, left);
-                    LeaveBehind(bodies, walk, step, flyer.Section);
+                    SectionState left = walk.Of(activeVessel.Section);
+                    if (left != null && walk.Last.Is(ActiveVesselKind.Alone, activeVessel.Section) && Returns(walk, left)) Dock(bodies, walk, left);
+                    LeaveBehind(bodies, walk, step, activeVessel.Section);
                 }
                 // Every section away comes back as the whole vessel flies on: it docks with
                 // the rest, in the rest's orbit or on its way to it from another one around
@@ -492,19 +492,19 @@ namespace ReDefinition.Planner.Planning
 
             // In the air, all that is left is the landing.
             if (start.Kind == StopKind.Entry && role != StepRole.Land)
-                step.Problem = step.Problem ?? "The " + (flyer.Kind == FlyerKind.Alone ? Lower(walk.Of(flyer.Section).Section.Name) : "rest")
+                step.Problem = step.Problem ?? "The " + (activeVessel.Kind == ActiveVesselKind.Alone ? Lower(walk.Of(activeVessel.Section).Section.Name) : "rest")
                                + " is already in " + Place(bodies, start);
 
-            RouteStop to = Target(bodies, walk, role, from, goal, flyer);
+            RouteStop to = Target(bodies, walk, role, from, goal, activeVessel);
             if (to.Kind == StopKind.Transfer) to.Origin = start;
             step.From = start;
             step.To = to;
             step.Leg = RoutePlanner.LegOf(bodies, start, to, g - 1, planeChanges);
-            step.Flying.UnionWith(walk.Carried(flyer.Kind == FlyerKind.Alone ? flyer.Section : 0));
+            step.Flying.UnionWith(walk.Carried(activeVessel.Kind == ActiveVesselKind.Alone ? activeVessel.Section : 0));
 
-            if (flyer.Kind == FlyerKind.Alone)
+            if (activeVessel.Kind == ActiveVesselKind.Alone)
             {
-                SectionState state = walk.Of(flyer.Section);
+                SectionState state = walk.Of(activeVessel.Section);
                 state.At = to;
                 state.LastStep = step;
             }
@@ -512,17 +512,17 @@ namespace ReDefinition.Planner.Planning
             {
                 walk.Rest = to;
             }
-            walk.Last = flyer;
+            walk.Last = activeVessel;
             return step;
         }
 
         // A step that cannot be flown: no burns, and why.
-        private static RouteStep Nothing(RouteStep step, Walk walk, string problem, RouteStop at, int g, Flyer flyer)
+        private static RouteStep Nothing(RouteStep step, Walk walk, string problem, RouteStop at, int g, ActiveVessel activeVessel)
         {
             step.Problem = problem;
             step.From = step.To = at;
             step.Leg = new Leg { From = g - 1, To = g };
-            walk.Last = flyer;
+            walk.Last = activeVessel;
             return step;
         }
 
@@ -606,7 +606,7 @@ namespace ReDefinition.Planner.Planning
             {
                 if (state.Section.Kind != SectionKind.Satellite || state.Section.DeployAt != g || state.Gone) continue;
                 int id = state.Section.Id;
-                if (step.Flyer.Is(FlyerKind.Alone, id) || step.Flying.Contains(id))
+                if (step.ActiveVessel.Is(ActiveVesselKind.Alone, id) || step.Flying.Contains(id))
                 {
                     foreach (int part in walk.Carried(id))
                     {
@@ -634,12 +634,12 @@ namespace ReDefinition.Planner.Planning
         // body's low orbit, or the rest's own orbit where a section climbs to it to dock
         // after. It is into the air for a landing on parachutes straight from the way across.
         // It is a point on the way across, where the player splits it.
-        private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, Flyer flyer)
+        private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, ActiveVessel activeVessel)
         {
             if (role == StepRole.Land) return goal;
             if (role == StepRole.Launch)
             {
-                SectionState state = flyer.Kind == FlyerKind.Alone ? walk.Of(flyer.Section) : null;
+                SectionState state = activeVessel.Kind == ActiveVesselKind.Alone ? walk.Of(activeVessel.Section) : null;
                 bool docks = state != null && (walk.Returns != null ? walk.Returns(walk.Index) : state.Section.Docks);
                 if (state != null && docks && state.Away)
                 {

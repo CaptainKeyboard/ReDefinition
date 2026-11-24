@@ -213,7 +213,7 @@ namespace ReDefinition.Tests
                 string by = string.Join("+", budget.Uses.Where(use => use.Leg == i)
                     .Select(use => (labels.ContainsKey(use.Stage) ? labels[use.Stage] : "S" + use.Stage)).ToArray());
                 text.AppendFormat(CultureInfo.InvariantCulture, "\n  {0} to {1} {2}: needs {3:0} m/s, flown by {4} [{5}]{6}",
-                    step(i, steps), bodies[steps[i].To.Body].Name, steps[i].To.Kind, budget.Needed[i], steps[i].Flyer.Kind, by,
+                    step(i, steps), bodies[steps[i].To.Body].Name, steps[i].To.Kind, budget.Needed[i], steps[i].ActiveVessel.Kind, by,
                     budget.Short[i] > 0.5 ? string.Format(CultureInfo.InvariantCulture, ", SHORT {0:0} m/s", budget.Short[i]) : "");
             }
             text.AppendFormat(CultureInfo.InvariantCulture, "\n  left {0:0} m/s, short {1:0} m/s", budget.TotalLeft, flight.Short);

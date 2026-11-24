@@ -183,8 +183,8 @@ namespace ReDefinition.Planner.Planning
             turnLog.Append(" " + model.StepName(entry.Step) + ": " + members.Count + " parts, stage " + use.Stage + ", "
                            + (double.IsInfinity(entry.Turn) ? "none" : entry.Turn.ToString("0.0")) + " s;");
             if (double.IsNaN(entry.Turn)) return;
-            LiveSection flyer = step.Flyer.Kind == FlyerKind.Alone ? model.Sections.SectionById(step.Flyer.Section) : null;
-            string who = flyer != null ? "the " + Lower(flyer.Name) : "the vessel";
+            LiveSection activeVessel = step.ActiveVessel.Kind == ActiveVesselKind.Alone ? model.Sections.SectionById(step.ActiveVessel.Section) : null;
+            string who = activeVessel != null ? "the " + Lower(activeVessel.Name) : "the vessel";
             string how = launch ? "as it climbs" : landing ? "as it lands" : "to its burn";
             if (TurnSlow(entry) && air)
             {
@@ -223,8 +223,8 @@ namespace ReDefinition.Planner.Planning
         {
             RouteStep step = model.Steps[entry.Step];
             ElectricNote(entry);
-            bool docks = step.Docks && step.Flyer.Kind == FlyerKind.Alone;
-            LiveSection section = step.Flyer.Kind == FlyerKind.Alone ? model.Sections.SectionById(step.Flyer.Section) : null;
+            bool docks = step.Docks && step.ActiveVessel.Kind == ActiveVesselKind.Alone;
+            LiveSection section = step.ActiveVessel.Kind == ActiveVesselKind.Alone ? model.Sections.SectionById(step.ActiveVessel.Section) : null;
             string who = section != null ? "the " + Lower(section.Name) : "the vessel";
             StageBudget.StageUse use = docks ? (entry.Uses.Count > 0 ? entry.Uses[entry.Uses.Count - 1] : null)
                 : entry.Uses.Count > 0 ? entry.Uses[0] : null;

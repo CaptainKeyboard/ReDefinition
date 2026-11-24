@@ -6,7 +6,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
 {
     // What a flight has burned and how the vessel behaved between the burns: the count of the burns by what they are for, one line for each
     // burn, and the fastest turn of the vessel while it coasted. The probes check these against what a route may take.
-    internal sealed class FlightLedger
+    internal sealed class ManeuverSummary
     {
         private readonly int[] counts = new int[6];
         private readonly List<string> lines = new List<string>();

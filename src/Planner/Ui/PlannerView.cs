@@ -346,10 +346,10 @@ namespace ReDefinition.Planner.Ui
 
         // Who can fly a step, for the list the step's button opens: the whole vessel,
         // each section alone, a lander left behind; or back to the planner's choice.
-        private void PickFlyer(int leg, StepRole role, DialogGUIBase button)
+        private void PickActiveVessel(int leg, StepRole role, DialogGUIBase button)
         {
             if (model.Slot(leg, role) < 0) return;
-            Dropdown.Show(this, button, model.Sections.FlyerChoices(leg, role), 150f);
+            Dropdown.Show(this, button, model.Sections.ActiveVesselChoices(leg, role), 150f);
         }
 
         // The parts that can be the section, each lit on the vessel while the pointer

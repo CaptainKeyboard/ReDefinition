@@ -386,7 +386,7 @@ namespace ReDefinition.Planner.Planning
             // from another body.
             if (step.To.Kind == StopKind.Surface && step.To.UseAtmosphere && Bodies.Bodies[step.To.Body].HasAtmosphere)
             {
-                string who = step.Flyer.Kind == FlyerKind.Alone ? "the " + Lower(Sections.FlyerName(step.Flyer)) : "the vessel";
+                string who = step.ActiveVessel.Kind == ActiveVesselKind.Alone ? "the " + Lower(Sections.ActiveVesselName(step.ActiveVessel)) : "the vessel";
                 if (!Sections.Carries(part => part.Parachute, step)) list.Add("No parachutes on " + who);
                 if (FromAfar(index) && !Sections.Carries(part => part.HeatShield, step)) list.Add("No heat shield on " + who);
             }
@@ -448,7 +448,7 @@ namespace ReDefinition.Planner.Planning
                 destination[i] = picked[i].Kind == StopKind.Entry || picked[i].Kind == StopKind.Transfer ? -1 : count++;
             foreach (RouteStep step in Steps)
             {
-                if (step.Role != StepRole.Transfer || step.Flyer.Kind != FlyerKind.Ship || step.Separates || step.Docks || step.Gone.Count > 0) continue;
+                if (step.Role != StepRole.Transfer || step.ActiveVessel.Kind != ActiveVesselKind.Ship || step.Separates || step.Docks || step.Gone.Count > 0) continue;
                 if (step.Goal >= picked.Count || destination[step.Goal] < 0 || Steps.Exists(other => other.Goal == step.Goal && other.Role == StepRole.Arrive)) continue;
                 if (destination[step.Goal] == plan.FirstGoal && !plan.FirstGoalWhole) continue;
                 double nodes = plan.DeltaVOf(destination[step.Goal]);

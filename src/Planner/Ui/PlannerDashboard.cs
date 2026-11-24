@@ -199,7 +199,7 @@ namespace ReDefinition.Planner.Ui
                 RcsInfo rcs = model.Thrust.RcsAt(step);
                 rows.Add(new Dictionary<string, object>
                 {
-                    { "place", model.StepName(step) }, { "flyer", model.StepFlyer(step) }, { "needs", fuel.NeedsText(step) },
+                    { "place", model.StepName(step) }, { "flyer", model.StepActiveVessel(step) }, { "needs", fuel.NeedsText(step) },
                     { "left", fuel.LeftText(step) }, { "stages", stageRows }, { "rcs", rcs != null ? EngineerFormat.Speed(rcs.DeltaV) : null },
                     { "lines", lines }, { "warnings", warningLines },
                 });
@@ -241,7 +241,7 @@ namespace ReDefinition.Planner.Ui
                     burns.Add(new List<object> { thrust.BurnNameText(entry, burn), thrust.BurnText(entry, burn) });
                 rows.Add(new Dictionary<string, object>
                 {
-                    { "place", model.StepName(entry.Step) }, { "flyer", model.StepFlyer(entry.Step) }, { "needs", thrust.NeedsText(entry) },
+                    { "place", model.StepName(entry.Step) }, { "flyer", model.StepActiveVessel(entry.Step) }, { "needs", thrust.NeedsText(entry) },
                     { "has", thrust.HasText(entry) }, { "turn", thrust.TurnText(entry) }, { "stages", stageRows }, { "rcs", rcs },
                     { "burns", burns }, { "notes", new List<object>(entry.Notes) }, { "body", thrust.BodyText(entry) },
                 });
@@ -261,7 +261,7 @@ namespace ReDefinition.Planner.Ui
             switch (list)
             {
                 case "body": return model.BodyChoices(a);
-                case "flyer": return Enum.IsDefined(typeof(StepRole), b) ? sections.FlyerChoices(a, (StepRole)b) : new List<Choice>();
+                case "flyer": return Enum.IsDefined(typeof(StepRole), b) ? sections.ActiveVesselChoices(a, (StepRole)b) : new List<Choice>();
                 case "tanker": return Enum.IsDefined(typeof(StepRole), b) ? model.TankerChoices(a, (StepRole)b) : new List<Choice>();
                 case "parts": return sections.RowSection(a) != null ? sections.PartChoices(sections.RowSection(a).Plan) : new List<Choice>();
                 case "newSection": return sections.NewSectionChoices(null);

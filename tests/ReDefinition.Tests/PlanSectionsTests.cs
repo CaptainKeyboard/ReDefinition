@@ -266,12 +266,12 @@ namespace ReDefinition.Tests
         {
             PlannerModel model = PlannerModelFixture.Model(Readout("Kerbal X"), PlannerModelFixture.ToKerbinOrbit());
 
-            List<Choice> choices = model.Sections.FlyerChoices(0, StepRole.Launch);
+            List<Choice> choices = model.Sections.ActiveVesselChoices(0, StepRole.Launch);
 
             Assert.AreEqual("Ship", choices[0].Label);
             Assert.IsTrue(choices[0].Current, "the whole vessel flies a launch");
             CollectionAssert.Contains(choices.Select(choice => choice.Label).ToArray(), "Capsule");
-            Assert.AreEqual(0, model.Sections.FlyerChoices(0, StepRole.Land).Count, "a step that is not there has no list");
+            Assert.AreEqual(0, model.Sections.ActiveVesselChoices(0, StepRole.Land).Count, "a step that is not there has no list");
         }
     }
 }
