@@ -17,7 +17,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
     // that names it, never with an unhandled exception. What it cannot cover: the real window and its controls, the vessel's physics and hold, the pass's frame order, the files
     // the game writes (the model's are in memory), and whether the thresholds fit the real game; the start review (.local/work/viewer-start-review.md) lists what the start
     // alone can show.
-    [TestClass]
+    // Harness: walks a probe (not shipped) through a fake rig, not the product.
+    [TestClass, TestCategory("Harness")]
     public class ViewerProbeWalkThroughTests
     {
         private const double Dt = 0.05;

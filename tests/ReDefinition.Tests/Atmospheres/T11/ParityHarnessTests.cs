@@ -9,7 +9,8 @@ namespace ReDefinition.Tests.Atmospheres.T11
     // The parity harness (package T11): the check list is complete against the plan's parity table, every check names a function of
     // tools/weather_metrics/parity_checks.py, and every fixed number names its source. The logic lives in tools/weather_metrics/parity_run.py
     // (verify); these tests run it. The self-test of the reference renderer is a Python test (tools/tests/test_parity_run.py).
-    [TestClass]
+    // Harness: tests the parity harness (tools/weather_metrics), not the product.
+    [TestClass, TestCategory("Harness")]
     public class ParityHarnessTests
     {
         private static string Root()

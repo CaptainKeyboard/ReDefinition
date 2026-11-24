@@ -8,7 +8,8 @@ namespace ReDefinition.Tests.Atmospheres.D32
 {
     // L0 of the lamp probe's frame figures (D32, review R1 to R3): the arithmetic that turns frames into the rows of K-W3b, and the cost
     // of choosing among many lamps.
-    [TestClass]
+    // Harness: tests the lamp probe's tooling (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class LampProbeMathTests
     {
         [TestMethod]

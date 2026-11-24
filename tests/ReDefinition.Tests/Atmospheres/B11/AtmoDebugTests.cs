@@ -6,7 +6,8 @@ namespace ReDefinition.Tests.Atmospheres.B11
 {
     // The shader global of the debug overlay: the contribution mask is 1 (what AtmoContribution.cginc compares), and the global is
     // written when the mode changes, not every frame.
-    [TestClass]
+    // Harness: tests the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class AtmoDebugTests
     {
         [TestMethod]

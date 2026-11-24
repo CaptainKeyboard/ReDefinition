@@ -9,7 +9,8 @@ namespace ReDefinition.Tests.Atmospheres.B11
 {
     // Every setting switch of the Atmospheres settings table (an on/off or a choice) has a rendering in tools/benchmark_matrix.json
     // (the groups weather-1 to weather-3, live key atmo.<key>), so that the standing comparison measures it.
-    [TestClass]
+    // Harness: tests the benchmark matrix of the game runs (tools/benchmark_matrix.json), not the product.
+    [TestClass, TestCategory("Harness")]
     public class AtmospheresSwitchesTests
     {
         // Settings that are not switches of a feature but states of the test harness itself.

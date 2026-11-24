@@ -18,7 +18,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // starts 35 to 40 hit, and the probe has to fail with a named reason, never with an unhandled exception ("exception in the scenario").
     // What it cannot cover: the real flight camera and vessel physics, the GPU's timings and the profiler's labels (tools/weather_metrics/kt2.py reads those
     // from the log; its own --selftest covers the parsing), the game's load, the order of the game's own frame callbacks and the real field's state.
-    [TestClass]
+    // Harness: walks the T09 probes (not shipped) through T09FakeWorld; the category covers every partial of this class.
+    [TestClass, TestCategory("Harness")]
     public partial class T09WalkThroughTests
     {
         private static readonly string[] AllOwn = { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "gain" };

@@ -6,7 +6,8 @@ namespace ReDefinition.Tests.Atmospheres.E43
 {
     // The measurement of the rendered layer's motion (review R1): synthetic images shifted by a known amount must give that shift, and a wrong sense or a wrong axis must
     // give a verdict that fails the row.
-    [TestClass]
+    // Harness: tests the motion measure of E43Probe (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class MotionMeasureTests
     {
         private const int W = 96, H = 64;

@@ -9,7 +9,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // The hold against what start 44 showed the game does: the centre of mass sits 9.35 m under the transform SetPosition moves (each placement attempt then sank by that
     // much: the stale read of the old hold was inside its 60 m radius), the vessel is released with gravity on, the surface turns under it (175 m/s, 3.5 m a physics step)
     // and the game hitches for 0.4 to 1 s. The fake world models each (FakeWorld.RealisticHold, ComOffsetM, GravityMS2, ResidualEastMS, HitchEveryS).
-    [TestClass]
+    // Harness: tests the T09 probe's vessel hold against T09FakeWorld (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class T09HoldTests
     {
         private const double Target = 264.8, Frame = 1.0 / 60.0;

@@ -16,7 +16,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
     // exactly these), and one fault test for each thing the probe judges (another layer drawn, the object not in view or filling the frame, the sun running on, rain forced, a mask the
     // pass does not take, a noisy baseline): the probe has to fail with the check that names it, never with an unhandled exception. What it cannot cover: the real pass, the real pictures
     // (PictureMaskTests do the arithmetic on known pictures), and whether the bands fit the real game.
-    [TestClass]
+    // Harness: walks a probe (not shipped) through a fake rig, not the product.
+    [TestClass, TestCategory("Harness")]
     public class SoloProbeWalkThroughTests
     {
         private const double Dt = 0.05;

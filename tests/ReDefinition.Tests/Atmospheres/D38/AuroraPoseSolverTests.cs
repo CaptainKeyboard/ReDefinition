@@ -6,7 +6,8 @@ namespace ReDefinition.Tests.Atmospheres.D38
 {
     // The sun elevation a night pose of the aurora start can ask for at a latitude (K-W3 finding: the pose at 70 degrees N latitude was
     // reported as out of reach; on a body without tilt it is reachable, and the solver says which latitudes are not).
-    [TestClass]
+    // Harness: tests the aurora probe's pose solver (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class AuroraPoseSolverTests
     {
         private static double Elevation(double latDeg, double declinationDeg, double cosHour)

@@ -12,7 +12,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The pinned capture (master plan phase 0 item 3; T09ProbePin.cs, OwnCloudModule.Pin.cs, LayerPassSettings.cs): the frame origin, the settings the game hands the weather
     // player (every field, set back without loss), the keys pass.json gains, the hash and the .npy files.
-    [TestClass]
+    // Harness: tests the T09 probe harness (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class T09PinTests
     {
         [TestMethod]

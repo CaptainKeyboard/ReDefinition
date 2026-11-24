@@ -5,7 +5,8 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.A02
 {
     // The result lines tools/atmo_series.py reads.
-    [TestClass]
+    // Harness: tests the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class AtmoResultTests
     {
         private readonly List<string> lines = new List<string>();
