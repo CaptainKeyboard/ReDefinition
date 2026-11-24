@@ -32,64 +32,16 @@ namespace ReDefinition.Tests.Atmospheres.T16
             }
         }
 
-        // The leap's vertical cap over a sample the map made empty (layers.leapVerticalShare -> _SpacingP.y; the stripe under the horizon from above, PRUEFPROTOKOLL 167): off by
-        // default, so the picture is the one before until the owner says yes; the key sets it, and a share above 1 is clamped (1 = the whole layer's depth, no tighter than no cap).
+        // The layer's thinnest cloud slab (_CullL.x), which bounds the vertical part of a leap over empty samples (the stripe under the horizon from above, PRUEFPROTOKOLL 166-167):
+        // the thinnest type's base to top in m, the height variation's thinnest cloud where it is thinner, types without thickness skipped, 0 for a layer without a type.
         [TestMethod]
-        public void TheLeapVerticalShareIsOffByDefaultAndTheTuningKeySetsIt()
+        public void TheThinnestSlabIsTheThinnestTypeOrTheHeightVariationsFloor()
         {
-            var frame = new LayerFrame();
-            Assert.AreEqual(0f, frame.LeapVerticalShare, "the frame as compiled has no cap");
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(9200011);
-            OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(0f, frame.LeapVerticalShare, "off by default");
-            Assert.AreEqual(OwnCloudOptions.LeapVerticalShareDefault, frame.LeapVerticalShare);
-            try
-            {
-                Tuning.SetOverride(OwnCloudOptions.TuneLeapVerticalShare, 0.1f);
-                Tuning.Instance.BeginFrame(9200012);
-                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(0.1f, frame.LeapVerticalShare, 1e-6f);
-                Tuning.SetOverride(OwnCloudOptions.TuneLeapVerticalShare, 3f);
-                Tuning.Instance.BeginFrame(9200013);
-                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(1f, frame.LeapVerticalShare, "clamped to the layer's whole depth");
-            }
-            finally
-            {
-                Tuning.ClearOverrides();
-                Tuning.Instance.BeginFrame(9200014);
-            }
-        }
-
-        // The sea's cut at the planet's sphere (layers.sceneSeaLevelM -> _SpacingP.x; the line under the horizon from above at the near ocean mesh's edge, PRUEFPROTOKOLL 172): off by default,
-        // the key sets it, and it is clamped to 0 .. 1000 m (a mountain above that keeps cutting the ray by the scene depth).
-        [TestMethod]
-        public void TheSceneSeaLevelIsOffByDefaultAndTheTuningKeySetsIt()
-        {
-            var frame = new LayerFrame();
-            Assert.AreEqual(0f, frame.SceneSeaLevelM, "the frame as compiled lets the scene depth cut every ray");
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(9200021);
-            OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-            Assert.AreEqual(OwnCloudOptions.SceneSeaLevelDefaultM, frame.SceneSeaLevelM);
-            Assert.AreEqual(0f, frame.SceneSeaLevelM, "off by default");
-            try
-            {
-                Tuning.SetOverride(OwnCloudOptions.TuneSceneSeaLevelM, 20f);
-                Tuning.Instance.BeginFrame(9200022);
-                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(20f, frame.SceneSeaLevelM, 1e-6f);
-                Tuning.SetOverride(OwnCloudOptions.TuneSceneSeaLevelM, 5000f);
-                Tuning.Instance.BeginFrame(9200023);
-                OwnCloudOptions.Apply(frame, key => AtmospheresSettings.Definition(key).Default);
-                Assert.AreEqual(1000f, frame.SceneSeaLevelM, "clamped");
-            }
-            finally
-            {
-                Tuning.ClearOverrides();
-                Tuning.Instance.BeginFrame(9200024);
-            }
+            float[] shares = { 0.5f, 0.11f, 0f, 0.3f };
+            Assert.AreEqual(0.11f * 2000f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 0f), 1e-3f, "the thinnest type; a type without thickness skipped");
+            Assert.AreEqual(120f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 120f), 1e-3f, "the height variation's floor where thinner");
+            Assert.AreEqual(220f, CullMath.ThinnestSlabM(4, t => shares[t], 2000f, 500f), 1e-3f, "the type where the floor is thicker");
+            Assert.AreEqual(0f, CullMath.ThinnestSlabM(0, t => 1f, 2000f, 0f), "no type: no slab");
         }
     }
 }

@@ -287,8 +287,6 @@ namespace ReDefinition.Atmospheres
              .Append(", \"transmittanceGrowth\": ").Append(LayerPassReadout.Num(f.TransmittanceGrowth))
              .Append(", \"emptyLeap\": ").Append(LayerPassReadout.Num(f.EmptyLeap))
              .Append(", \"leapScales\": ").Append(LayerPassReadout.Num(f.LeapScales))
-             .Append(", \"leapVerticalShare\": ").Append(LayerPassReadout.Num(f.LeapVerticalShare))
-             .Append(", \"sceneSeaLevelM\": ").Append(LayerPassReadout.Num(f.SceneSeaLevelM))
              .Append(", \"ditherSequence\": ").Append(f.DitherSequence)
              .Append(", \"frameResolution\": ").Append(LayerPassReadout.Num(f.Resolution));
             if (r != null)
