@@ -315,7 +315,20 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     #undef LIGHT_ERODED
     tauSunOut = max(tauSun, 0.0);
     float2 cell = float2(1.0, -1.0);
-    [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);
+    [branch] if (_LightM[li].w > 0)
+    {
+        // PRUEFPROTOKOLL 271: in a plane-parallel layer (cells at least 8 times as wide as the type is tall: a deck) the own optical depth towards the sun is the column above over the
+        // sun's sine; what tauSun holds beyond it lies in other layers' clouds, which pass the two-stream share 1 / (1 + decay tau) of the sun's flux on, diffused
+        // (CloudLightMath.OtherLayersTransmission). With the whole tauSun a deck under a thin cloud read a grazing incidence and lost its diffusion: a cloud of tau 2 took 55 % of
+        // the deck's light, the physics' 18 %. A cell (a cumulus) keeps the whole tauSun: its own optical depth along the sun is not its column over the sine.
+        float typeH = max(topAlt.x - topAlt.y, 1.0);
+        float plane = saturate((_LightM[li].w - 4.0 * typeH) / (4.0 * typeH));
+        float r = length(pc);
+        float own = dens * max(topAlt.x - (r - _PlanetR), 0.0) / clamp(dot(pc, sunDir) / r, 0.05, 1.0);
+        float other = plane * max(tauSunOut - own, 0.0);
+        cell = CellLight(pc, dens, tauSunOut - other, topAlt, _LightM[li].w);
+        cell.y /= 1.0 + _LightM[li].y * other;
+    }
     float3 direct = DirectOfLight(sunCol, sunDir, d, li, max(tauSun, 0.0), cell);
     direct += DirectOfLight(_MoonCol[0].rgb, _MoonDir[0].xyz, d, li, ttau[1], float2(1.0, -1.0));
     if (need[1]) taps += moonSteps;

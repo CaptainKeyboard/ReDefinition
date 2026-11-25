@@ -196,6 +196,29 @@ namespace ReDefinition.Atmospheres
             return Math.Max(ms, 0.0) / (1.0 + Math.Max(decay, 0.0) * Math.Max(tau, 0.0));
         }
 
+        // The share of the sun's flux that passes the OTHER layers' clouds on the way to a sample (mirrors LightSource of the shader; PRUEFPROTOKOLL 271): a non-absorbing cloud
+        // scatters what it takes from the direct beam onwards, so the flux below it is the two-stream transmission 1 / (1 + decay tau), decay = 0.75 (1 - g) (0.11 for g 0.85), not
+        // exp(-tau). It scales the cell diffusion's source of a sample under another layer; the cell's incidence reads the own layer's optical depth only.
+        internal static double OtherLayersTransmission(double tauOther, double decay)
+        {
+            return 1.0 / (1.0 + Math.Max(decay, 0.0) * Math.Max(tauOther, 0.0));
+        }
+
+        // How plane-parallel a layer's clouds are (mirrors LightSource of the shader): 0 for cells less than 4 times as wide as the type is tall (a cumulus), 1 from 8 times (a deck).
+        internal static double PlaneShare(double cellWidthM, double typeHeightM)
+        {
+            double h = Math.Max(typeHeightM, 1.0);
+            return Math.Max(0.0, Math.Min(1.0, (cellWidthM - 4.0 * h) / (4.0 * h)));
+        }
+
+        // The other layers' share of the optical depth towards the sun at a sample (mirrors LightSource of the shader): in a plane-parallel layer the own share is the column above
+        // (tauUp) over the sun's sine; the rest of tauSun lies in other layers' clouds. Scaled by the plane share (a cell keeps the whole tauSun as its own).
+        internal static double OtherOpticalDepth(double tauSun, double tauUp, double sinE, double planeShare)
+        {
+            double own = Math.Max(tauUp, 0.0) / Math.Max(0.05, Math.Min(1.0, sinE));
+            return Math.Max(0.0, Math.Min(1.0, planeShare)) * Math.Max(tauSun - own, 0.0);
+        }
+
         // The powder factor: 1 - exp(-2 sigma L) blended in by strength.
         internal static double Powder(double density, double lengthM, double strength)
         {

@@ -911,7 +911,9 @@ Shader "ReDefinition/AtmospheresLayers"
             if (_FarA.x > 0.5 && r.weightSum > 1e-9)
             {
                 float3 airT = exp(-FarAirTau(o, d, r.distSum / r.weightSum));
-                r.rgb = r.rgb * airT + r.alpha * lerp(_FarE.rgb, _FarC.rgb, 1.0 - airT.z) * (1.0 - airT);   // E40 T1: the in-scatter of a short path is the sun's own colour, of a long one the horizon's
+                // PRUEFPROTOKOLL 272: the air's in-scatter is the clear air's where the sun reaches it; under a deck the air lies in the deck's shadow and gets only the share of the
+                // sun's flux the clouds pass on (two-stream), read at the camera (_FarC.w, the CPU's cloud field along the sun; 1 under a clear sky).
+                r.rgb = r.rgb * airT + r.alpha * _FarC.w * lerp(_FarE.rgb, _FarC.rgb, 1.0 - airT.z) * (1.0 - airT);   // E40 T1: the in-scatter of a short path is the sun's own colour, of a long one the horizon's
             }
             return r;
         }

@@ -1576,6 +1576,15 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.Inscatter = AerialPerspectivePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
             f.Far.InscatterNear = AerialPerspectivePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
+            // The air at the camera under the clouds (PRUEFPROTOKOLL 272): the share of the sun's flux the own layers above it pass on, from the CPU's cloud field along the sun.
+            f.Far.CameraLitShare = 1f;
+            if (sunBody != null && OwnCloudOpticalDepth.Bound)
+            {
+                double sla = b.GetLatitude(sunBody.position) * Math.PI / 180.0, slo = b.GetLongitude(sunBody.position) * Math.PI / 180.0;
+                Vector3d camWorld = camPos;
+                f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
+                                                                                                             Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla)));
+            }
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)

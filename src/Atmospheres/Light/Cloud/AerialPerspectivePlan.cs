@@ -79,10 +79,25 @@ namespace ReDefinition.Atmospheres
         // channel's extinction (1 - airT.z): a few kilometres of air have taken a quarter of the blue, a horizon's worth all of it.
         internal static Color AerialMix(Color premultiplied, float alpha, Vector3 airTransmittance, Color near, Color far)
         {
+            return AerialMix(premultiplied, alpha, airTransmittance, near, far, 1f);
+        }
+
+        // The same with the share of the sun's flux the air gets (PRUEFPROTOKOLL 272): the camera's LitShare (_FarC.w); it scales the in-scatter.
+        internal static Color AerialMix(Color premultiplied, float alpha, Vector3 airTransmittance, Color near, Color far, float litAir)
+        {
             float w = 1f - airTransmittance.z;
-            float r = near.r + (far.r - near.r) * w, g = near.g + (far.g - near.g) * w, b = near.b + (far.b - near.b) * w;
+            float r = (near.r + (far.r - near.r) * w) * litAir, g = (near.g + (far.g - near.g) * w) * litAir, b = (near.b + (far.b - near.b) * w) * litAir;
             return new Color(premultiplied.r * airTransmittance.x + alpha * r * (1f - airTransmittance.x), premultiplied.g * airTransmittance.y + alpha * g * (1f - airTransmittance.y),
                              premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
+        }
+
+        // The share of the sun's flux the air at a place gets below the clouds (PRUEFPROTOKOLL 272): the clouds' direct transmission along the sun becomes their optical depth, and a
+        // non-absorbing cloud passes 1 / (1 + decay tau) of the flux on (CloudLightMath.OtherLayersTransmission, decay 0.75 (1 - g)). 1 under a clear sky; under a deck of tau 26 about a quarter.
+        internal const float TwoStreamDecay = 0.11f;
+        internal static float LitShare(float sunTransmission)
+        {
+            float t = Mathf.Clamp(sunTransmission, 1e-30f, 1f);
+            return (float)CloudLightMath.OtherLayersTransmission(-Math.Log(t), TwoStreamDecay);
         }
 
         // cloud.aerialPerspectiveSky (E40 H1 aerial perspective): 1 (the default) the colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray (CloudHorizonSky), the short-path
