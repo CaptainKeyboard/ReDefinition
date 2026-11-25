@@ -1000,7 +1000,13 @@ def pin_collect(ctx):
                     a0 = json.load(f)
                 with open(u1, encoding="utf-8") as f:
                     a1 = json.load(f)
-                differ = ["%s.%s" % (g, k) for g in a0 for k in a0[g] if a0[g][k] != a1.get(g, {}).get(k)]
+                # A group is a name -> value table, or a plain list or value (the readout writes some groups, e.g. the keywords' list, as lists): compared whole.
+                differ = []
+                for g in a0:
+                    if isinstance(a0[g], dict) and isinstance(a1.get(g), dict):
+                        differ += ["%s.%s" % (g, k) for k in a0[g] if a0[g][k] != a1[g].get(k)]
+                    elif a0[g] != a1.get(g):
+                        differ.append(g)
                 print("  %s uniforms r0 against r1: %s" % (jid, ", ".join(differ) if differ else "all equal"))
                 metrics.append(Metric.info("m0pin.%s.self_uniforms_differing" % jid, len(differ)))
             # Every further replay against the one before it (-repeat 3: whether r1 equals r2 while r0 differs, i.e. state the first replay carries over).
