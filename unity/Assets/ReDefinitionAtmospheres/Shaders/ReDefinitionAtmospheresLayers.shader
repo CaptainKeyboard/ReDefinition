@@ -288,6 +288,218 @@ Shader "ReDefinition/AtmospheresLayers"
             return _StepP.w * _PlanetR * sin(min(e * min(texelLat, 2.0 * PI / _MapDim.x * cos(latMax)), 1.5707));
         }
 
+        // ---- the density read in its parts (master plan 44 step 4: LayerDensityCore calls them in order; the statements are the former single function's) ----
+        // No part takes a struct as out or inout: fxc's copy-back of such a parameter read components whose writes the optimiser had dropped (a field no later code reads,
+        // e.g. TypeRead.puff in the lattice variant), and its validator failed the variant with X8000 "source component in temp not initialized" (PRUEFPROTOKOLL 259).
+        // A part returns its struct, or takes the struct by value and moves single values inout.
+
+        // What the maps say at the point: the coverage after the clear-sky rule (and the cells' put-down in the lattice variant), the type value, the map's uv clamped for the
+        // read and raw (the cells and the height maps take it), the map slice (below 0: the layer has no maps); empty: the coverage bound (or the lattice's cells) already
+        // make the point empty.
+        struct MapRead
+        {
+            float cov;
+            float typeValue;
+            float2 uv;
+            float2 uvRaw;
+            float slice;
+            bool empty;
+        };
+
+        // The maps. Where they make the point empty, emptyM holds the empty reach the march leaps by.
+        MapRead ReadMaps(int li, float3 pc, bool heightOn, float inner, float outer, int light, inout float emptyM)
+        {
+            MapRead m;
+            m.empty = false;
+            m.slice = _LayerC[li].z;
+            m.cov = 1.0;
+            m.typeValue = 0.0;
+            m.uv = 0;
+            m.uvRaw = 0;
+            if (m.slice >= 0 || heightOn)
+            {
+                m.uv = MapUv(pc, _LayerD[li].w);
+                m.uvRaw = m.uv;
+            }
+            if (m.slice >= 0)
+            {
+                float vMin = 0.5 / _MapDim.y;
+                m.uv.y = clamp(m.uv.y, vMin, 1.0 - vMin);
+                m.cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(m.uv, m.slice), 0).rg, _MapReachCov, m.slice);
+                m.cov = min(m.cov, 2.0 * m.cov - _CullL[li].y);  // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
+                // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
+                // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
+                if (DEV(_CostP.x, 1.0) > 0.5 && m.cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
+                {
+                    emptyM = EmptyReach(li, m.uv);
+                    m.empty = true;
+                    return m;
+                }
+                // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
+                // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
+                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a stratiform type is drawn connected (CellStratiformWeight).
+                m.typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(m.uv, m.slice), 0).rg, _MapReachType, m.slice);
+                float stratiformW = CellStratiformWeight(li, m.typeValue);
+                // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
+                // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
+#if defined(CLOUD_LATTICE)
+                [branch] if (_CullL[li].w > 0.0)
+                {
+                    float cellReach, wMap;
+                    float edgeC = max(_LayerB[li].z, 1e-4);
+                    gCellBodyX = CellBodyReachX(li);
+                    m.cov = CellCover(m.cov, m.uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
+                                      (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
+                    if (DEV(_CostP.x, 1.0) > 0.5 && m.cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
+                    {
+                        emptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
+                        m.empty = true;
+                        return m;
+                    }
+                }
+#endif
+            }
+            return m;
+        }
+
+        // The cloud type at the point: the two neighbouring types of the table and the weight between them, the type's base and top (shares of the layer), its erosion, the
+        // water exponent and the single-cloud preset (puff, the nearer type's).
+        struct TypeRead
+        {
+            int ta;
+            int tb;
+            float f;
+            float b;
+            float tp;
+            float erosionType;
+            float waterPow;
+            int puff;
+        };
+
+        // The type. Also sets the noise helpers' gNoiseSm, gCumuliformPreset and gCumuliformCavK for the shape read (their scratch globals).
+        TypeRead ReadType(int li, float typeValue)
+        {
+            TypeRead ty;
+            float typeCount = _LayerC[li].w;
+            // The type value spans the table; two neighbouring types are interpolated (heights and profile).
+            float x2 = saturate(typeValue) * (typeCount - 1);
+            ty.ta = (int)floor(x2);
+            ty.ta = min(ty.ta, (int)typeCount - 1);
+            ty.tb = min(ty.ta + 1, (int)typeCount - 1);
+            ty.f = x2 - ty.ta;
+            float4 ia = TypeInfo(li, ty.ta), ib = TypeInfo(li, ty.tb);
+            ty.b = lerp(ia.x, ib.x, ty.f);
+            ty.tp = lerp(ia.y, ib.y, ty.f);
+            gNoiseSm = lerp(ia.w, ib.w, ty.f);
+            // CLOUDR1: the type's cumuliform preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
+            ty.waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
+            ty.puff = 0;
+            [branch] if (_CumuliformP.w > 0.5 || _FieldP.x > 0.5)
+            {
+                float4 ja = TypeInfo2(li, ty.ta), jb = TypeInfo2(li, ty.tb);
+                ty.puff = (int)(ty.f < 0.5 ? ja.w : jb.w);
+                gCumuliformPreset = (int)(ty.f < 0.5 ? ja.x : jb.x);
+                gCumuliformCavK = lerp(ja.z, jb.z, ty.f);
+                ty.waterPow = lerp(ja.y > 0 ? ja.y : ty.waterPow, jb.y > 0 ? jb.y : ty.waterPow, ty.f);
+            }
+            ty.erosionType = lerp(ia.z, ib.z, ty.f);
+            return ty;
+        }
+
+        // The type's slab at the point: the height maps' local base and top, the undulatus and the top's short waves move the type's base b and top tp (shares of the layer).
+        // False where the point lies outside the slab; slabGap and slabM then hold the slab's gap and thickness, topAlt and baseAlt its top and base where the point is inside.
+        bool TypeSlab(int li, float3 pc, float2 uvRaw, bool heightOn, float inner, float outer, float share, TypeRead ty, inout float b, inout float tp, inout float slabGap,
+                      inout float slabM, inout float topAlt, inout float baseAlt)
+        {
+            if (heightOn)
+            {
+                float localBase, localTop;
+                if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, ty.erosionType, outer - inner, share, localBase, localTop))
+                {
+                    if (localTop > localBase) slabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
+                    return false;
+                }
+                b = localBase;
+                tp = localTop;
+            }
+            // M2c: the stratiform types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
+            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the layer of before, bit for bit).
+            float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ty.ta), TypeUndulatusOf(li, ty.tb), ty.f);
+            [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
+            // Master plan 43: the top's short waves (0 for a type without topRoughness: the layer of before, bit for bit).
+            float topRough = lerp(TypeTopRoughOf(li, ty.ta), TypeTopRoughOf(li, ty.tb), ty.f);
+            [branch] if (topRough > 0.0) tp = b + (tp - b) * TopRoughFactor(li, pc, topRough, outer - inner);
+            slabM = max(tp - b, 0.0) * (outer - inner);
+            if (share < b || share > tp || tp <= b)
+            {
+                if (tp > b) slabGap = (share > tp ? share - tp : share - b) * (outer - inner);
+                return false;
+            }
+            topAlt = inner + tp * (outer - inner);
+            baseAlt = inner + b * (outer - inner);
+            return true;
+        }
+
+        // The share of the point that is cloud (0: none): the type's lift of the threshold, the field's single clouds, the coverage bound, the shape noise and the erosion, the
+        // cells' bodies. pf: the type's profile texel at the height (r the density, g the erosion gain, b the extra noise amount, a the lift); h the height share in the type.
+        float ShapeShare(int li, float3 pc, float share, float cov, float slice, float2 uvRaw, float inner, float outer, int light, TypeRead ty, out float4 pf, out float h)
+        {
+            float erosion = ty.erosionType * _LayerD[li].z;
+            float coverage = _LayerB[li].y;
+            float edge = max(_LayerB[li].z, 1e-4);
+            // E40 L2 D1: the type's height-shaped threshold. The profile texture's channel a (cfg node LIFT of the type, 0 where there is none) lifts the coverage threshold at this height
+            // by up to the layer's headroom, so a cloud is narrower where the lift is high and closed where it is 1 (the top of every type closes, CloudTypeDef.TopClose): a cumulus dome over a
+            // flat base, a cumulonimbus tower under a wide anvil. The lift is never negative, so the coverage bounds of above and below stay exact. The technique is the height
+            // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
+            h = (share - ty.b) / (ty.tp - ty.b);
+            pf = lerp(TypeProfile4(li, ty.ta, h), TypeProfile4(li, ty.tb, h), ty.f);
+            // CLOUD FIELD: a puffy type's single cloud from the field (FieldCloud, CloudCells.cginc; the cloud shadow reads the same function).
+            bool fieldBody = false;
+#if !defined(CLOUD_LATTICE)
+            [branch] if (ty.puff > 0 && slice >= 0)
+            {
+                int fieldCloud = FieldCloud(li, ty.puff, uvRaw, cov, coverage, edge, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot, _PlanetR + 0.5 * (inner + outer), h,
+                                            (ty.tp - ty.b) * (outer - inner));
+                if (fieldCloud == 0) return 0;
+                fieldBody = fieldCloud > 0;
+            }
+#endif
+            cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
+            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
+            // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
+            bool body = gCellX >= 0.0 && gCellW <= 0.0;
+            // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
+            // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
+            if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + TypeNoiseBound(li, pf.b) + 0.5 * edge <= 0.0) return 0;
+            // The cost debug bits switch the shape noise (2) and the erosion (4) off. Master plan 43: the type's FORM AMOUNT (channel b) raises the amount at this height.
+            float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x * (1.0 + pf.b) : 0.0;
+            if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
+            // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
+            erosion *= 1.0 + _BulgeP.z * saturate(h);
+            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the bulge noise itself through the
+            // same call (the threshold at the noise's mean, a unit edge, the full swing, no erosion: the share is the noise's rank), so the noise keeps ONE call site (CLOUDR2 P4).
+            float covN = cov, edgeN = edge, amountN = noiseAmount, erosionN = erosion;
+            if (body)
+            {
+                covN = 1.0 - coverage;
+                edgeN = 1.0;
+                amountN = noiseAmount > 0.0 ? 1.0 : 0.0;
+                erosionN = 0.0;
+            }
+            // Master plan 43: the profile texture's channel g is the type's erosion gain at this height (FORM EROSION; the pannus' EROSION while cloud.pannus is on; 0: none): the fine
+            // detail eats the outline and the top harder there. Not a scale of pc: pc counts from the planet's centre, and a factor on it that changes with height tore the top into steps.
+            erosionN *= 1.0 + pf.g;
+            float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
+            [branch] if (body)
+            {
+                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
+                s = CellBody(li, h, s, fine, (ty.tp - ty.b) * (outer - inner));
+                // The field's distance in m is estimated from the gradient, not exact: the march does not leap over a body's shell on it.
+                if (fieldBody) gBodyRead = false;
+            }
+            return s;
+        }
+
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
         float LayerDensityCore(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
         {
@@ -331,154 +543,16 @@ Shader "ReDefinition/AtmospheresLayers"
                 fade = x * x * (3.0 - 2.0 * x);
                 if (fade <= 0) return 0;
             }
-            float slice = _LayerC[li].z;
-            float cov = 1.0, typeValue = 0.0;
-            float2 uv = 0, uvRaw = 0;
-            if (slice >= 0 || heightOn)
-            {
-                uv = MapUv(pc, _LayerD[li].w);
-                uvRaw = uv;
-            }
-            if (slice >= 0)
-            {
-                float vMin = 0.5 / _MapDim.y;
-                uv.y = clamp(uv.y, vMin, 1.0 - vMin);
-                cov = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CovMaps, float3(uv, slice), 0).rg, _MapReachCov, slice);
-                cov = min(cov, 2.0 * cov - _CullL[li].y);  // E40 soft density: the clear-sky rule of the water content (CloudLayerDef.ClearSkyMap); K = 0 is off
-                // COST (E40 grain against TVC): the coverage bound of below, asked before the type table and the height variation are read. the type's lift only
-                // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
-                if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
-                {
-                    dr.emptyM = EmptyReach(li, uv);
-                    return 0;
-                }
-                // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
-                // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a stratiform type is drawn connected (CellStratiformWeight).
-                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(uv, slice), 0).rg, _MapReachType, slice);
-                float stratiformW = CellStratiformWeight(li, typeValue);
-                // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (LayerRenderer sets it while
-                // cloud.field is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
-#if defined(CLOUD_LATTICE)
-                [branch] if (_CullL[li].w > 0.0)
-                {
-                    float cellReach, wMap;
-                    float edgeC = max(_LayerB[li].z, 1e-4);
-                    gCellBodyX = CellBodyReachX(li);
-                    cov = CellCover(cov, uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                    (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
-                    if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
-                    {
-                        dr.emptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
-                        return 0;
-                    }
-                }
-#endif
-            }
-            float erosion = 0;
-            float typeCount = _LayerC[li].w;
-            // The type value spans the table; two neighbouring types are interpolated (heights and profile).
-            float x2 = saturate(typeValue) * (typeCount - 1);
-            int ta = (int)floor(x2);
-            ta = min(ta, (int)typeCount - 1);
-            int tb = min(ta + 1, (int)typeCount - 1);
-            float f = x2 - ta;
-            float4 ia = TypeInfo(li, ta), ib = TypeInfo(li, tb);
-            float b = lerp(ia.x, ib.x, f), tp = lerp(ia.y, ib.y, f);
-            gNoiseSm = lerp(ia.w, ib.w, f);
-            // CLOUDR1: the type's cumuliform preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
-            float waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
-            int puff = 0;
-            [branch] if (_CumuliformP.w > 0.5 || _FieldP.x > 0.5)
-            {
-                float4 ja = TypeInfo2(li, ta), jb = TypeInfo2(li, tb);
-                puff = (int)(f < 0.5 ? ja.w : jb.w);
-                gCumuliformPreset = (int)(f < 0.5 ? ja.x : jb.x);
-                gCumuliformCavK = lerp(ja.z, jb.z, f);
-                waterPow = lerp(ja.y > 0 ? ja.y : waterPow, jb.y > 0 ? jb.y : waterPow, f);
-            }
-            float erosionType = lerp(ia.z, ib.z, f);
-            if (heightOn)
-            {
-                float localBase, localTop;
-                if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop))
-                {
-                    if (localTop > localBase) dr.slabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
-                    return 0;
-                }
-                b = localBase;
-                tp = localTop;
-            }
-            // M2c: the stratiform types' undulations swing the type's THICKNESS (its top; the base stays even), before the height test so that the leap's gap and the light
-            // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the layer of before, bit for bit).
-            float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
-            [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
-            // Master plan 43: the top's short waves (0 for a type without topRoughness: the layer of before, bit for bit).
-            float topRough = lerp(TypeTopRoughOf(li, ta), TypeTopRoughOf(li, tb), f);
-            [branch] if (topRough > 0.0) tp = b + (tp - b) * TopRoughFactor(li, pc, topRough, outer - inner);
-            dr.slabM = max(tp - b, 0.0) * (outer - inner);
-            if (share < b || share > tp || tp <= b)
-            {
-                if (tp > b) dr.slabGap = (share > tp ? share - tp : share - b) * (outer - inner);
-                return 0;
-            }
-            dr.topAlt = inner + tp * (outer - inner);
-            dr.baseAlt = inner + b * (outer - inner);
-            erosion = erosionType * _LayerD[li].z;
-            float coverage = _LayerB[li].y;
-            float edge = max(_LayerB[li].z, 1e-4);
-            // E40 L2 D1: the type's height-shaped threshold. The profile texture's channel a (cfg node LIFT of the type, 0 where there is none) lifts the coverage threshold at this height
-            // by up to the layer's headroom, so a cloud is narrower where the lift is high and closed where it is 1 (the top of every type closes, CloudTypeDef.TopClose): a cumulus dome over a
-            // flat base, a cumulonimbus tower under a wide anvil. The lift is never negative, so the coverage bounds of above and below stay exact. The technique is the height
-            // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
-            float h = (share - b) / (tp - b);
-            float4 pf = lerp(TypeProfile4(li, ta, h), TypeProfile4(li, tb, h), f);
-            // CLOUD FIELD: a puffy type's single cloud from the field (FieldCloud, CloudCells.cginc; the cloud shadow reads the same function).
-            bool fieldBody = false;
-#if !defined(CLOUD_LATTICE)
-            [branch] if (puff > 0 && slice >= 0)
-            {
-                int fieldCloud = FieldCloud(li, puff, uvRaw, cov, coverage, edge, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot, _PlanetR + 0.5 * (inner + outer), h,
-                                            (tp - b) * (outer - inner));
-                if (fieldCloud == 0) return 0;
-                fieldBody = fieldCloud > 0;
-            }
-#endif
-            cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
-            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
-            // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
-            bool body = gCellX >= 0.0 && gCellW <= 0.0;
-            // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
-            // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
-            if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + TypeNoiseBound(li, pf.b) + 0.5 * edge <= 0.0) return 0;
-            // The cost debug bits switch the shape noise (2) and the erosion (4) off. Master plan 43: the type's FORM AMOUNT (channel b) raises the amount at this height.
-            float noiseAmount = fmod(floor(DEV(_CostP.y, 0.0) * 0.5), 2.0) < 0.5 ? _LayerD[li].x * (1.0 + pf.b) : 0.0;
-            if (fmod(floor(DEV(_CostP.y, 0.0) * 0.25), 2.0) >= 0.5) erosion = 0;
-            // PUFF: the erosion grows toward the top of the cloud (the heads of a cumulus are the cauliflower, its flat base is not): erosion (1 + gain h).
-            erosion *= 1.0 + _BulgeP.z * saturate(h);
-            // The coverage share: the map moved by the shape noise, the soft edge and the erosion (read only in the edge band). The body reads the bulge noise itself through the
-            // same call (the threshold at the noise's mean, a unit edge, the full swing, no erosion: the share is the noise's rank), so the noise keeps ONE call site (CLOUDR2 P4).
-            float covN = cov, edgeN = edge, amountN = noiseAmount, erosionN = erosion;
-            if (body)
-            {
-                covN = 1.0 - coverage;
-                edgeN = 1.0;
-                amountN = noiseAmount > 0.0 ? 1.0 : 0.0;
-                erosionN = 0.0;
-            }
-            // Master plan 43: the profile texture's channel g is the type's erosion gain at this height (FORM EROSION; the pannus' EROSION while cloud.pannus is on; 0: none): the fine
-            // detail eats the outline and the top harder there. Not a scale of pc: pc counts from the planet's centre, and a factor on it that changes with height tore the top into steps.
-            erosionN *= 1.0 + pf.g;
-            float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
-            [branch] if (body)
-            {
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
-                s = CellBody(li, h, s, fine, (tp - b) * (outer - inner));
-                // The field's distance in m is estimated from the gradient, not exact: the march does not leap over a body's shell on it.
-                if (fieldBody) gBodyRead = false;
-            }
+            // The parts in order: the maps, the type, the type's slab, the shape. Each part that finds the point empty says so and the read ends (the values it set in dr stay).
+            MapRead m = ReadMaps(li, pc, heightOn, inner, outer, light, dr.emptyM);
+            if (m.empty) return 0;
+            TypeRead ty = ReadType(li, m.typeValue);
+            if (!TypeSlab(li, pc, m.uvRaw, heightOn, inner, outer, share, ty, ty.b, ty.tp, dr.slabGap, dr.slabM, dr.topAlt, dr.baseAlt)) return 0;
+            float4 pf;
+            float h;
+            float s = ShapeShare(li, pc, share, m.cov, m.slice, m.uvRaw, inner, outer, light, ty, pf, h);
             if (s <= 0) return 0;
-            float pw = waterPow;
+            float pw = ty.waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             return _LayerB[li].x * s * pf.x * fade;
         }
