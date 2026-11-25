@@ -193,7 +193,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 float mid = 0.5 * (prev + edge);
                 float3 q = pc + dir * mid;
                 float qs;
-                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
+                DensityRead qr;   // the tap needs only the density
+                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs, qr) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
                 gain *= r;
             }
@@ -384,7 +385,7 @@ float3 BoltLight(float3 pc)
 // tauReuse >= 0: the optical depth towards the sun of an earlier sample of the span (the cost package's reuse); tauSunOut returns the one used.
 // tauUpReuse >= 0: the optical depth straight up of an earlier sample (the cost package T05's up-tap reuse, UpMode 1); tauUpOut returns the one used.
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
-// topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
+// topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's DensityRead.topAlt, .baseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
 
 float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,

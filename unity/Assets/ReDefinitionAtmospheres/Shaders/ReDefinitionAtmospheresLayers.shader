@@ -250,20 +250,24 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.
         // share: the height share of the layer; erosionOut: the interpolated type's erosion.
-        // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
-        // parity cell). The march copies it right after its own density read; the ambient's analytic occlusion measures the cloud above a sample to this top.
-        static float gTopAlt = 0;
-        // The altitude of the base of the cloud type at the last point LayerDensity reached the type table (E40 LM2: the type's height for the light's far depth); copied with gTopAlt.
-        static float gBaseAlt = 0;
-        // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
-        static float gEmptyM = 0;
-        // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the type's
-        // slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march ends a leap
-        // there (with layers.spanGrowthPerM).
-        static float gSlabGap = 0;
-        // The thickness in m of the cloud slab at the last sample that reached the slab test (the type's base to top after the height variation and the undulations); 0 where
-        // the sample was made empty before (the map, the layer's reach): the march then takes the layer's thinnest slab (_CullL[li].x).
-        static float gSlabM = 0;
+        // What one density read hands the march besides the density (master plan 44 step 3: until 2026-11-25 these were static globals the march read right after the call).
+        struct DensityRead
+        {
+            // The altitude of the top of the cloud type at the point (the layer's outer altitude where no type was reached, and for the parity cell): the ambient's analytic
+            // occlusion measures the cloud above a sample to this top, the far path of the light volume reads above it.
+            float topAlt;
+            // The altitude of the base of the cloud type at the point (the layer's inner where no type was reached; E40 LM2: the type's height for the light's far depth).
+            float baseAlt;
+            // E40 C1: the length along the ray (m) around the point within which the layer's map is certainly empty (0: no statement); the march leaps by it.
+            float emptyM;
+            // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the
+            // type's slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march
+            // ends a leap there (with layers.spanGrowthPerM).
+            float slabGap;
+            // The thickness in m of the cloud slab at the point when it reached the slab test (the type's base to top after the height variation and the undulations); 0 where
+            // the sample was made empty before (the map, the layer's reach): the march then takes the layer's thinnest slab (_CullL[li].x).
+            float slabM;
+        };
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
         // and 2 pi / width times the cosine of the latitude along a parallel), as the chord at the planet's radius (a straight line keeps at least that far from the centre), on a body with a surface.
@@ -276,12 +280,12 @@ Shader "ReDefinition/AtmospheresLayers"
         }
 
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
-        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
+        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
         {
             share = 0;
-            gEmptyM = 0;
-            gSlabGap = 0;
-            gSlabM = 0;
+            dr.emptyM = 0;
+            dr.slabGap = 0;
+            dr.slabM = 0;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -290,8 +294,8 @@ Shader "ReDefinition/AtmospheresLayers"
             gCumuliformCav = 1;
             gCumuliformCavK = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
-            gTopAlt = outer;
-            gBaseAlt = inner;
+            dr.topAlt = outer;
+            dr.baseAlt = inner;
             share = (alt - inner) / (outer - inner);
             // The height variation (T13) lets a base reach below the inner altitude and a top above the outer one, by the layer's reach.
             bool heightOn = _LayerH2[li].y > 0;
@@ -299,7 +303,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float reachUp = heightOn ? HeightReachUp(li) / (outer - inner) : 0.0;
             if (share < -reachDown || share > 1 + reachUp)
             {
-                gSlabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
+                dr.slabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
                 return 0;
             }
             if (DEV(_CellA.w, 0.0) > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
@@ -329,7 +333,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
                 if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
                 {
-                    gEmptyM = EmptyReach(li, uv);
+                    dr.emptyM = EmptyReach(li, uv);
                     return 0;
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
@@ -349,7 +353,7 @@ Shader "ReDefinition/AtmospheresLayers"
                                     (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
                     if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
-                        gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
+                        dr.emptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
                     }
                 }
@@ -383,7 +387,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float localBase, localTop;
                 if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop))
                 {
-                    if (localTop > localBase) gSlabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
+                    if (localTop > localBase) dr.slabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
                     return 0;
                 }
                 b = localBase;
@@ -396,14 +400,14 @@ Shader "ReDefinition/AtmospheresLayers"
             // Master plan 43: the top's short waves (0 for a type without topRoughness: the layer of before, bit for bit).
             float topRough = lerp(TypeTopRoughOf(li, ta), TypeTopRoughOf(li, tb), f);
             [branch] if (topRough > 0.0) tp = b + (tp - b) * TopRoughFactor(li, pc, topRough, outer - inner);
-            gSlabM = max(tp - b, 0.0) * (outer - inner);
+            dr.slabM = max(tp - b, 0.0) * (outer - inner);
             if (share < b || share > tp || tp <= b)
             {
-                if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);
+                if (tp > b) dr.slabGap = (share > tp ? share - tp : share - b) * (outer - inner);
                 return 0;
             }
-            gTopAlt = inner + tp * (outer - inner);
-            gBaseAlt = inner + b * (outer - inner);
+            dr.topAlt = inner + tp * (outer - inner);
+            dr.baseAlt = inner + b * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
@@ -463,9 +467,9 @@ Shader "ReDefinition/AtmospheresLayers"
             return _LayerB[li].x * s * pf.x * fade;
         }
 
-        float LayerDensity(int li, float3 pc, float alt, float t, out float share)
+        float LayerDensity(int li, float3 pc, float alt, float t, out float share, out DensityRead dr)
         {
-            return LayerDensityEx(li, pc, alt, t, 0, share);
+            return LayerDensityEx(li, pc, alt, t, 0, share, dr);
         }
 
         // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----
@@ -628,7 +632,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     // With the points by distance the footprint of the shape is the pixel's size at the sample, not the step along the ray: the step is long far away, and a footprint
                     // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
                     if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
-                    float dens = LayerDensity(li, pc, alt, t, share) * spanF;
+                    DensityRead dr;
+                    float dens = LayerDensity(li, pc, alt, t, share, dr) * spanF;
                     // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
                     // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
@@ -639,10 +644,10 @@ Shader "ReDefinition/AtmospheresLayers"
                         float band = CellBand(li);
                         float gap = min(CellShellGap(li), gCellOther - 4.0 * band);
                         // Only where it leaps further than the empty reach of the coverage (the grid's own skip below) would.
-                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(gEmptyM / dtv)) traceGap = dtv * floor(gap / dtv);
+                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(dr.emptyM / dtv)) traceGap = dtv * floor(gap / dtv);
                     }
-                    float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
-                    float slabM = gSlabM > 0.0 ? gSlabM : _CullL[li].x;
+                    float2 topAlt = float2(dr.topAlt, dr.baseAlt);   // the type's top and base at the sample
+                    float slabM = dr.slabM > 0.0 ? dr.slabM : _CullL[li].x;
                     float bulgeD = gNoiseD;
                     // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
@@ -681,8 +686,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     if (!(dens > 0))
                     {
-                        // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
-                        float reachSkip = dtv * floor(gEmptyM / dtv);
+                        // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (dr.emptyM is 0 where no reach was read).
+                        float reachSkip = dtv * floor(dr.emptyM / dtv);
                         tLast = t + reachSkip;
                         arrived = leap;
                         float jump = dtv * leap + reachSkip;
@@ -692,9 +697,9 @@ Shader "ReDefinition/AtmospheresLayers"
                         // phase and draws the clouds behind it in horizontal streaks (ground view, FAR7). 128: such a leap starts again from one grid step (cloud can begin right
                         // there; the altitude is the type's at the leap's start, another type along the leap may reach higher, so a landing on cloud is still walked back).
                         bool capped = false;
-                        [branch] if (lbGap && gSlabGap * dot(d, pc) < 0.0)
+                        [branch] if (lbGap && dr.slabGap * dot(d, pc) < 0.0)
                         {
-                            float toGap = dtv * max(1.0, floor(abs(gSlabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
+                            float toGap = dtv * max(1.0, floor(abs(dr.slabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
                             capped = toGap < jump;
                             jump = min(jump, toGap);
                         }
