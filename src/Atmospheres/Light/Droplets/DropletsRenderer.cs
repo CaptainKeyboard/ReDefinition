@@ -59,7 +59,7 @@ namespace ReDefinition.Atmospheres
         private int lastBody = -1;
         private float sampleAge = 1e9f, shelterAge = 1e9f, staleS, internalLookAge = 1e9f;
         private float temperatureK = float.NaN;
-        private bool sheltered, abOff, ivaMaskNeeded;
+        private bool sheltered, ivaMaskNeeded;
         private float ivaMaskUntil = -1f;
         private Camera internalCamera;
         private FrostView lastView = FrostView.Off;
@@ -335,8 +335,7 @@ namespace ReDefinition.Atmospheres
 
             bool hostAlive = hostRegistered && !hostFailed && Time.frameCount - lastHostCallFrame <= HostAliveFrames;
             bool dead = where == FrostView.Iva ? ivaHostDead : evaHostDead;
-            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || !ivaMaskNeeded || IvaMaskValid || !Tuning.Flag("frost.ivaMaskRequired", true))
-                              && !Tuning.Flag("drop.forceQuad", false);
+            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || !ivaMaskNeeded || IvaMaskValid);
             if (hostUsable)
             {
                 hostPendingFrames++;
@@ -352,8 +351,7 @@ namespace ReDefinition.Atmospheres
                 hostPendingFrames = 0;
             }
             bool upscaled = Services.PostUpscale.HostAvailable && WeatherHooks.Caps.Upscaler != UpscalerKind.None;
-            bool quadAllowed = FrostDrawPolicy.QuadAllowed(upscaled, Tuning.Flag("drop.quadWithUpscaler", false));
-            abOff = Tuning.Flag("drop.abOff", false);
+            bool quadAllowed = FrostDrawPolicy.QuadAllowed(upscaled, false);
             string mode = FrostDrawPolicy.Mode(hostUsable, quadAllowed);
             if (mode != lastModeLogged)
             {
@@ -361,7 +359,7 @@ namespace ReDefinition.Atmospheres
                 lastModeLogged = mode;
             }
             ActiveMode = mode;
-            if (mode == "quad" && !abOff)
+            if (mode == "quad")
             {
                 pass.DrawQuad(flight, ref draw);
                 DrawnFrames++;
@@ -428,10 +426,8 @@ namespace ReDefinition.Atmospheres
                 }
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
                 bool ours = camera == flight || (ActiveView == FrostView.Iva && lastHostCameraInternal);
-                // drop.abOff leaves the drops undrawn with every other state unchanged; the hook still counts as answered.
                 if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null) return;
                 hostPendingFrames = 0;
-                if (abOff) return;
                 DropletDraw d = draw;
                 d.Aspect = (float)upscaled.width / Mathf.Max(upscaled.height, 1);
                 d.InteriorMask = ActiveView == FrostView.Iva && ivaMaskNeeded ? interior.Mask : null;

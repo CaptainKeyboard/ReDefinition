@@ -187,7 +187,7 @@ namespace ReDefinition.Atmospheres
         //   lamp.glintSizeM 0.5 (0.2-2)  lamp.precipExponent 1.3 (1-2)  lamp.maxSigma 0.5 (0.1-1)
         //   lamp.hostGain 1 (0.2-3)  lamp.jitterFrames 0 (0-8)
         //   lamp.forceCloudDensity 0 (0-1, a test floor under the cloud density)
-        //   flags lamp.src.fog / .precip / .cloud / .dust true, lamp.depthFlipY false, lamp.rtExplicit true,
+        //   flags lamp.src.fog / .precip / .cloud / .dust true,
         //   lamp.hostAllowed false (Host composite selectable at all), lamp.hostProven.<nvidia|amd|intel|other> false
         // The ranges are the tuning ranges proposed here, not enforced.
         internal static LampTuning ReadTuning()
@@ -468,7 +468,6 @@ namespace ReDefinition.Atmospheres
                 Near = cam.nearClipPlane,
                 Far = cam.farClipPlane,
                 UseDepth = true,
-                DepthFlipY = Tuning.Flag("lamp.depthFlipY", false),
                 ReversedZ = SystemInfo.usesReversedZBuffer,
                 JitterOffset = Tuning.Get("lamp.jitterFrames", 0f) > 0f ? (Time.frameCount % (int)Tuning.Get("lamp.jitterFrames", 0f)) : 0f,
                 Drift = drift,
@@ -506,14 +505,12 @@ namespace ReDefinition.Atmospheres
                 depthBuffer.BeginSample("ReDefinition lamp depth");
                 pass.RecordDepthCopy(depthBuffer);
                 // The copy is a blit into its own target; the camera's target is bound again, here and at the start of the draw, so
-                // that neither buffer depends on what Unity does with the target between two camera events (Tuning lamp.rtExplicit,
-                // default on; the series probe measures the beam with it off as well) [VERIFY in K-W3b].
-                bool explicitTarget = Tuning.Flag("lamp.rtExplicit", true);
-                if (explicitTarget) depthBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
+                // that neither buffer depends on what Unity does with the target between two camera events [VERIFY in K-W3b].
+                depthBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
                 depthBuffer.EndSample("ReDefinition lamp depth");
                 drawBuffer.Clear();
                 drawBuffer.BeginSample("ReDefinition lamp scene");
-                if (explicitTarget) drawBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
+                drawBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
                 LampFrame f = frame;
                 f.Weight = compose.SceneWeight;
                 pass.Record(drawBuffer, draws, drawCount, ref f, pass.DepthCopy);

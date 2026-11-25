@@ -30,7 +30,6 @@ namespace ReDefinition.Atmospheres
                 { "enabled", "Switches the whole mod off or on. Off, nothing of it runs." },
                 { "weatherEffects", "The master switch of the weather: clouds, precipitation, wind, cover, sound and forecast. Off, the game looks and runs as without the mod." },
                 { "yearLengthFactor", "How long the seasons last against the body's own year. 2 makes every season twice as long, 0.5 half as long." },
-                { "seasonMode", "Global Summer and Global Winter hold every body at midsummer or midwinter. Global Seasons runs one season for both hemispheres. Real Seasons follows each body's orbit and gives the hemispheres opposite seasons where the body is tilted." },
                 { "qualityTier", "How much the weather may cost. Auto follows the main mod's graphics profile and takes Low below 10 GB of video memory; Max has no limit. A tier changes cost and never taste." },
 
                 // Clouds
@@ -195,8 +194,7 @@ namespace ReDefinition.Atmospheres
 
                 // Diagnostics
                 { "forceLevel", "For screenshots and tests: a precipitation level from 0 to 1 at the camera whatever the weather is. Negative leaves it to the weather." },
-                { "forceType", "For screenshots and tests: the type of precipitation to show. Auto leaves it to the weather." },
-                { "forcePhase", "For screenshots and tests: a season from 0 to 1 that replaces the clock. Negative leaves it to the clock." }
+                { "forceType", "For screenshots and tests: the type of precipitation to show. Auto leaves it to the weather." }
             };
         }
 

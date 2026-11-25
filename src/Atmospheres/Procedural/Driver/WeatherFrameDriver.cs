@@ -139,7 +139,6 @@ namespace ReDefinition.Atmospheres
             input.PrecipExtinctionGroundColour = climate.Look.PrecipExtinctionGroundColour;
             input.PrecipExtinctionSkyColour = climate.Look.PrecipExtinctionSkyColour;
             input.ShowerPulse = Tuning.Flag("driver.showerPulse", true);
-            input.FreezingRain = Tuning.Flag("driver.freezingRain", false);
             float forced = AtmospheresSettings.ForceLevel;
             input.LevelOverride = forced >= 0f ? forced : -1f;
             input.PrecipExtinctionScale = NoPrecipExtinctionByArgument ? 0f : AtmospheresSettings.PrecipExtinctionStrength / 0.85f;

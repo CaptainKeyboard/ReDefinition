@@ -500,8 +500,8 @@ namespace ReDefinition.Atmospheres
             // dropped for that view and the quad draws instead.
             bool hostAlive = hostRegistered && !hostFailed && Time.frameCount - lastHostCallFrame <= HostAliveFrames;
             bool dead = where == FrostView.Iva ? ivaHostDead : evaHostDead;
-            // frost.forceQuad and frost.ivaMaskRequired = 0 are for the series (it measures the quad and the unmasked composite).
-            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || !ivaMaskNeeded || IvaMaskValid || !Tuning.Flag("frost.ivaMaskRequired", true))
+            // frost.forceQuad is for the series (it measures the quad).
+            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || !ivaMaskNeeded || IvaMaskValid)
                               && !Tuning.Flag("frost.forceQuad", false);
             if (hostUsable)
             {

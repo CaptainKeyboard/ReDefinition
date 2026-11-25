@@ -22,7 +22,7 @@ namespace ReDefinition.Atmospheres
     // size is read from the camera each frame and not kept, which is what EveCompatibility has to force EVE's own renderer to do).
     //
     // The weather player's scene cloud-shadow (tests/ReDefinition.Tests/Atmospheres/T04/Probe) drives the forward path of this integration and
-    // measures the picture with and without it; the deferred path (the sun's mask), the disc and the ocean texture are not run by it.
+    // measures the picture with and without it; the deferred path (the sun's mask) and the disc are not run by it.
     //
     // Order against the rest of the frame, stated for the upscaler integration and the other mask writers [VERIFY in K-T1]:
     //  - Deferred: the sun's mask is multiplied by this buffer at AfterScreenspaceMask, after Unity has built the mask from the shadow maps

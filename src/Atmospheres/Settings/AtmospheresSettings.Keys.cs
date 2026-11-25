@@ -15,7 +15,6 @@ namespace ReDefinition.Atmospheres
             internal const string Enabled = "enabled";
             internal const string WeatherEffects = "weatherEffects";
             internal const string YearLengthFactor = "yearLengthFactor";
-            internal const string SeasonMode = "seasonMode";
             internal const string QualityTier = "qualityTier";
             // Clouds and frequency
             internal const string CloudSource = "cloudSource";
@@ -115,7 +114,6 @@ namespace ReDefinition.Atmospheres
             // Diagnostics
             internal const string ForceLevel = "forceLevel";
             internal const string ForceType = "forceType";
-            internal const string ForcePhase = "forcePhase";
         }
 
         // The groups of the settings window.
@@ -245,7 +243,6 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("enabled", true, G, "Atmospheres"),
                 SettingDef.Bool("weatherEffects", false, G, "Weather Effects"),
                 SettingDef.Float("yearLengthFactor", 1.0, 0.01, 10.0, G, "Season Year Length"),
-                SettingDef.Choice("seasonMode", typeof(SeasonMode), SeasonMode.RealSeasons, G, "Season Mode"),
                 SettingDef.Choice("qualityTier", typeof(ReDefinition.Core.QualityTier), ReDefinition.Core.QualityTier.Auto, G, "Quality Tier", "", RQ),
 
                 // Clouds and frequency
@@ -355,8 +352,7 @@ namespace ReDefinition.Atmospheres
 
                 // Diagnostics
                 SettingDef.Float("forceLevel", -1.0, -1.0, 1.0, D, "Force Precipitation Level", "", "", ForceNegativeOff),
-                SettingDef.Choice("forceType", typeof(ForceType), ForceType.Auto, D, "Force Precipitation Type"),
-                SettingDef.Float("forcePhase", -1.0, -1.0, 1.0, D, "Force Season Phase", "", "", ForcePhaseRule)
+                SettingDef.Choice("forceType", typeof(ForceType), ForceType.Auto, D, "Force Precipitation Type")
             };
             // The own cloud system's rows (AtmospheresSettings.Clouds.cs); the window groups by category, so they stand with the other Clouds rows.
             t.AddRange(CloudSettingRows.Rows());
@@ -369,14 +365,6 @@ namespace ReDefinition.Atmospheres
         private static double ForceNegativeOff(double value)
         {
             return value < 0.0 ? -1.0 : value;
-        }
-
-        // A negative number means the clock; anything else is a phase wrapped into 0 to 1.
-        private static double ForcePhaseRule(double value)
-        {
-            if (value < 0.0) return -1.0;
-            double wrapped = value - Math.Floor(value);
-            return wrapped;
         }
     }
 }

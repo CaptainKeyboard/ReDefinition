@@ -177,7 +177,7 @@ namespace ReDefinition.WeatherPlayer
             return new LampFrame
             {
                 CameraPosition = Cam.transform.position, CameraForward = Cam.transform.forward, Near = Cam.nearClipPlane, Far = Cam.farClipPlane,
-                UseDepth = true, DepthFlipY = false, ReversedZ = SystemInfo.usesReversedZBuffer, JitterOffset = 0f, Drift = Vector3.zero,
+                UseDepth = true, ReversedZ = SystemInfo.usesReversedZBuffer, JitterOffset = 0f, Drift = Vector3.zero,
                 Weight = weight, Tuning = Tuning
             };
         }

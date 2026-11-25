@@ -55,7 +55,7 @@ and never edit a shared one.
 | `IBodyProvider`, `Bodies`, `DefaultBodyProvider` | `Infrastructure/Contracts` | `Bodies.Get(CelestialBody)`, `Bodies.Active`; the default gives a generic climate; the body package assigns the real provider. |
 | `BodyClimate`, `BodyStatus` | `Bodies/Schema` | Immutable: Name, Index, Radius, YearSeconds, DaySeconds, Status (Off(reason), CoverOnly, Full, Broken(reason)), Seed and the rule classes. |
 | `SeasonRules`, `TemperatureRules`, `PrecipRules`, `PrecipTypeRule`, `CoverRules`, `IceRules`, `GeneratorRules`, `CloudRules`, `LookRules`, `SoundRules`, `WindRules`, `GameplayRules`, `AuroraRules`, `LightMediumRules`, `FrostRules`, `ForecastRules`, `Curve` | `Bodies/Schema` | The sub-nodes of `REDEFINITION_BODY` (SEASONS, TEMPERATURE, PRECIP with TYPE, COVER, ICE, GENERATOR, CLOUDS, LOOK, SOUND, WIND, GAMEPLAY, AURORA, LIGHT_MEDIUM, FROST, FORECAST). Each constructor's parameters default to the generic default. |
-| `SeasonModel` (not part of A01) | `Bodies` | Created by B13 (it owns `Bodies/*.cs` with `SeasonClock` and `SeasonState`): the season data plus the pure `Phase(ut, model)`; A01 only delivers the data class `SeasonRules`. C25 (`BodyForcing`) reads the insolation phase through it; until B13 lands, `SeasonClock` is the phase. |
+| `SeasonModel` (not part of A01) | `Bodies` | Created by B13 (it owns `Bodies/*.cs` with `SeasonClock`): the season data plus the pure `Phase(ut, model)`; A01 only delivers the data class `SeasonRules`. C25 (`BodyForcing`) reads the insolation phase through it; until B13 lands, `SeasonClock` is the phase. |
 | `GeneratorField`, `GeneratorState`, `GeneratorMaps`, `GeneratorSurface`, `GeneratorModule` | `Field`, `Generator` | The weather field: `IWeatherField`, `ISurfaceForcing` and the forecast's system source; per-body immutable state; maps and surface maps on a worker; single-site surface layer; the module that installs the field and reads the terrain raster (`GeneratorRaster`) and the temperature curves (`ThermalProbe`, `ThermalFit`). |
 | `GeneratorBodies` | `Generator` | The mapping from `BodyClimate`, `BodyFacts`, terrain raster and fit to the core's parameter set. |
 | `ForecastModule` | `Forecast/Engine` | The `[AtmospheresModule(70)]` that owns a `ForecastService`, assigns `WeatherHooks.Forecast` and `BodyTracks` once the field is Ready (null before and while not Ready or Approximate), raises `AlertRaised` through `WeatherHooks.RaiseAlert`, and follows the setting `alertSites` (the pad and the active vessel) through `SetAutoWatched` every 2 s. Its static `TryPadSite` and `TryVesselSite` build the sites with the altitude rule above. |
@@ -142,7 +142,6 @@ The table of `SettingsTable.All`, in the order of the window.
 | `enabled` | on | on / off | Atmospheres | - | - |
 | `weatherEffects` | off | on / off | Weather Effects | - | - |
 | `yearLengthFactor` | 1 | 0.01 to 10 | Season Year Length | - | - |
-| `seasonMode` | RealSeasons | GlobalSummer / GlobalWinter / GlobalSeasons / RealSeasons | Season Mode | - | - |
 | `qualityTier` | Auto | Auto / Low / Medium / High / Ultra / Max | Quality Tier | - | quality |
 
 **Clouds**
@@ -346,7 +345,6 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 |---|---|---|---|---|---|
 | `forceLevel` | -1 | -1 to 1 | Force Precipitation Level | - | - |
 | `forceType` | Auto | Auto / Snow / Rain / Sleet / FreezingRain / Dust / Sand / Ash / Methane | Force Precipitation Type | - | - |
-| `forcePhase` | -1 | -1 to 1 | Force Season Phase | - | - |
 
 ### Audit of the settings that existed before the contract
 
@@ -378,7 +376,7 @@ The mod is unreleased, so no old name is kept: not as a key, not as a C# alias (
 | `orbitSnowWidth` | rename | `orbitMapWidth` |
 | `forceStorm` | rename | `forceLevel` |
 | `forceStormCell` | delete | a forced cell is a test forcing of the field (`ISurfaceForcing`) |
-| `forcePhase` | keep | unchanged |
+| `forcePhase` | delete | only `SeasonState` read it, and nothing called `SeasonState` (2026-11-25) |
 
 Keys of the plans that are not part of the contract: `iceWinterLine`, `freezeLineDeg`, `lagYears` (the field decides what freezes; there is no second cold and no lag).
 

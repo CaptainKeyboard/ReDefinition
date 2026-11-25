@@ -457,15 +457,15 @@ namespace ReDefinition.Tests.Atmospheres.D36
         // --- The words of a value ---
 
         [TestMethod]
-        public void TheSeasonModeIsAChoiceOfFourNamedInWords()
+        public void TheLayerWindSteeringIsAChoiceOfThreeNamedInWords()
         {
-            SettingDef def = Def("seasonMode");
+            SettingDef def = Def("layerWindSteering");
             Assert.AreEqual(SettingKind.Choice, def.Kind);
-            Assert.AreEqual(AtmospheresSettings.Categories.General, def.Category);
+            Assert.AreEqual(AtmospheresSettings.Categories.Wind, def.Category);
             var names = def.Choices.Select(ValueFormat.ChoiceName).ToArray();
-            CollectionAssert.AreEqual(new[] { "Global Summer", "Global Winter", "Global Seasons", "Real Seasons" }, names);
-            Assert.AreEqual("Real Seasons", ValueFormat.Of(def, def.Default));
-            Assert.AreEqual(SettingHelp.For("seasonMode").Contains("Real Seasons"), true);
+            CollectionAssert.AreEqual(new[] { "Off", "Main Period", "Maps Only" }, names);
+            Assert.AreEqual("Main Period", ValueFormat.Of(def, def.Default));
+            Assert.AreEqual(SettingHelp.For("layerWindSteering").Contains("Main Period"), true);
         }
 
         [TestMethod]
@@ -559,7 +559,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             StringAssert.Contains(tip, "Greyed out: Weather Effects is off.");
             model.Set(Def("weatherEffects"), 1);
             Assert.IsFalse(model.Tooltip(Def("gustStrength")).Contains("Greyed out"));
-            foreach (string line in model.Tooltip(Def("seasonMode")).Split('\n')) Assert.IsTrue(line.Length <= 83, line);
+            foreach (string line in model.Tooltip(Def("layerWindSteering")).Split('\n')) Assert.IsTrue(line.Length <= 83, line);
         }
 
         [TestMethod]
@@ -571,13 +571,13 @@ namespace ReDefinition.Tests.Atmospheres.D36
             WindowModel model = Model(WindowEnvironment.Full(), marked, written);
             model.Set(Def("weatherEffects"), 1);
             model.Set(Def("heavyShare"), 1.9);
-            model.Set(Def("seasonMode"), (double)(int)SeasonMode.GlobalWinter);
+            model.Set(Def("audioBedSource"), (double)(int)AudioBedSource.Mix);
             int restored = 0;
             ForeignChanges.Record("eve", () => restored++);
             Assert.AreEqual(QualityTier.Medium, model.Reset());
             Assert.AreEqual(0.0, AtmospheresSettings.Number("weatherEffects"));
             Assert.AreEqual(1.0f, AtmospheresSettings.HeavyShare);
-            Assert.AreEqual(SeasonMode.RealSeasons, AtmospheresSettings.SeasonMode);
+            Assert.AreEqual(AudioBedSource.Synth, AtmospheresSettings.AudioBedSource);
             Assert.AreNotEqual(TierRows.For(QualityTier.Medium).VolumeSteps, (int)Def("volumeSteps").Default, "the Medium row differs from the table's default, so the row's write is seen");
             Assert.AreEqual(TierRows.For(QualityTier.Medium).VolumeSteps, AtmospheresSettings.VolumeSteps, "the Medium row, not the table's default");
             Assert.AreEqual(1, restored);
@@ -641,7 +641,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
                 Assert.IsTrue(SettingHelp.CategoryTitle(category).Length > 0);
             }
             Assert.AreEqual(AtmospheresSettings.Definitions.Count, rows);
-            Assert.AreEqual("seasonMode", model.Rows(AtmospheresSettings.Categories.General)[3].Key);
+            Assert.AreEqual("qualityTier", model.Rows(AtmospheresSettings.Categories.General)[3].Key);
         }
 
         // --- Bodies ---

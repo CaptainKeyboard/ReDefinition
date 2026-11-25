@@ -62,7 +62,7 @@ Shader "ReDefinition/AtmospheresLamp"
             float4 _LampGlint;
             // xyz = the hydrometeors' drift since the start (world, m).
             float4 _LampDrift;
-            // The camera: position, forward (unit); and the depth set-up: x = flip y, y = reversed z, zw = unused.
+            // The camera: position, forward (unit); and the depth set-up: y = reversed z, x, z and w = unused.
             float4 _LampCamPos;
             float4 _LampCamFwd;
             float4 _LampDepthMode;
@@ -226,7 +226,6 @@ Shader "ReDefinition/AtmospheresLamp"
             float SceneDistance(float2 uv, float3 dir)
             {
                 if (_LampGlint.w < 0.5) return 1e6;
-                if (_LampDepthMode.x > 0.5) uv.y = 1 - uv.y;
                 float raw = tex2Dlod(_ReDefLampDepth, float4(uv, 0, 0)).r;
                 float eye;
                 if (_LampDepthMode.y > 0.5)

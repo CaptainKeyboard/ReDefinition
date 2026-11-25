@@ -109,7 +109,7 @@ namespace ReDefinition.Atmospheres
         //   precip.edgeShare 0.12 (0-0.4)   precip.gustScale 1 (0-2)   precip.hostHydrometeorGain 1 (0.5-2)
         //   precip.splashMax 1500 (0-4000)   precip.splashRangeM 40 (10-100)   precip.splashMaxGroundM 200 (50-500)
         //   precip.extinctionLumaFloor 0.02 (0-0.1)   precip.lumaTauS 0.5 (0.2-2)   precip.extinctionLumaGain 1 (0.5-1.5)
-        //   precip.grade 0.55 (0-1)   flags precip.depthFlipY false, precip.hostProven.<nvidia|amd|intel|other> false
+        //   precip.grade 0.55 (0-1)   flags precip.hostProven.<nvidia|amd|intel|other> false
         //   visibility.gustAmp 0.1 (0-0.12)   visibility.gustPeriodS 6 (3-20)   visibility.hertz 3 (0.5-3)
         // The ranges are the tuning ranges proposed here, not enforced; visibility.gustAmp and visibility.hertz are capped by VisibilityExtinctionRamp (12 %, 3 Hz).
         internal static PrecipTuning ReadTuning()
@@ -299,7 +299,6 @@ namespace ReDefinition.Atmospheres
                 Grade = Tuning.Get("precip.grade", 0.55f),
                 LumaGain = AtmospheresSettings.VisibilityExtinctionBrightness,
                 Dt = dt,
-                DepthFlipY = Tuning.Flag("precip.depthFlipY", false),
                 Tuning = tuning
             };
 

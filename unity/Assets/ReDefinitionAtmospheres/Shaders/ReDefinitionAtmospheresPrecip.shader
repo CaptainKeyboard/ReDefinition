@@ -27,7 +27,7 @@ Shader "ReDefinition/AtmospheresPrecip"
     float4x4 _PrecipV;
     float4x4 _PrecipP;
     float _PrecipUseMat;
-    // xy = the size of the target in pixels, z = flip the depth lookup in y, w = 1 where the depth texture is used.
+    // xy = the size of the target in pixels, z = unused (0), w = 1 where the depth texture is used.
     float4 _PrecipTarget;
     // xy = one texel of the depth texture.
     float4 _PrecipDepthTexel;
@@ -119,7 +119,6 @@ Shader "ReDefinition/AtmospheresPrecip"
     {
         if (_PrecipTarget.w < 0.5) return 1;
         float2 uv = pos.xy / _PrecipTarget.xy;
-        if (_PrecipTarget.z > 0.5) uv.y = 1 - uv.y;
         float scene = NearestDepth(uv);
         #if defined(UNITY_REVERSED_Z)
         return pos.z >= scene ? 1 : 0;
