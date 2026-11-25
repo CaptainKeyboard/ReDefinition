@@ -54,6 +54,8 @@ namespace ReDefinition.Atmospheres
         internal const string ShaderName = "ReDefinition/AtmospheresCloudShadow";
         // The shader's pass 5 (the depth of a given texture to half size) was the ocean path's; nothing records it now.
         internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4;
+        // The passes the shader must have: one more than the highest above.
+        internal const int RequiredPasses = PassDisc + 1;
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
@@ -104,7 +106,9 @@ namespace ReDefinition.Atmospheres
                 return false;
             }
             material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-            if (material.passCount < 6)
+            // Every pass the renderer blits must be there (the highest is the disc's). It said 6 after pass 5 was removed (a0d64292), and the cloud
+            // shadow was off in the game from then until 2026-11-25 22:1x (PRUEFPROTOKOLL 276).
+            if (material.passCount < RequiredPasses)
             {
                 Problem = "the cloud shadow shader does not compile (" + material.passCount + " passes)";
                 return false;

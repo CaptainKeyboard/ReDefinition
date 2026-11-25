@@ -12,11 +12,10 @@ namespace ReDefinition.Atmospheres
         private static readonly WeatherMapKind[] MapSkyKinds =
         {
             WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.LowStratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop,
-            WeatherMapKind.StableShare, WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.Descent, WeatherMapKind.Instability,
-            WeatherMapKind.Uplift, WeatherMapKind.CellReach, WeatherMapKind.SurfaceTemperature
+            WeatherMapKind.StableShare, WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.CellReach
         };
 
-        private readonly WeatherMap[] mapSkyMaps = new WeatherMap[14];
+        private readonly WeatherMap[] mapSkyMaps = new WeatherMap[10];
         private readonly MapSkyRegions.Inputs mapSkyInputs = new MapSkyRegions.Inputs();
         private MapSkyRegions.Parts mapSkyParts;
         // Whether this round draws the map sky (decided at its fog step), and the parts' time.
@@ -32,29 +31,26 @@ namespace ReDefinition.Atmospheres
         private bool heightsHadMapSky, heightsBuildingMapSky, heightsAppliedMapSky;
 
         // The proof of what the pass drew (pass.json "mapSky", the probe's row T09.pin.<label>.map_sky): the number of finished map rounds that published the map sky, and the
-        // last finished round's state: -1 today's chain, otherwise stratiform rule x 10 + depth rule.
+        // last finished round's state: -1 today's chain, 1 the sky from the weather map (until 2026-11-25 the rules' number, stratiform rule x 10 + depth rule; master plan 45).
         internal int MapSkyRounds { get; private set; }
         private int lastRoundMapSky = -1;
         internal int LastRoundMapSky { get { return lastRoundMapSky; } private set { lastRoundMapSky = value; } }
 
-        // The state the rule keys ask for now, in the form of LastRoundMapSky.
-        internal static int MapSkyWanted
-        {
-            get { return MapSkyRegions.StratiformRule * 10 + MapSkyRegions.DepthRule; }
-        }
+        // The state the pass asks for, in the form of LastRoundMapSky: the sky from the weather map.
+        internal const int MapSkyWanted = 1;
 
         private void MapSkyRoundEnded()
         {
-            LastRoundMapSky = mapSkyRound && mapSkyParts != null ? mapSkyParts.StratiformRule * 10 + mapSkyParts.DepthRule : -1;
+            LastRoundMapSky = mapSkyRound && mapSkyParts != null ? MapSkyWanted : -1;
             if (LastRoundMapSky >= 0) MapSkyRounds++;
         }
 
-        // Whether the last map round and the applied heights are those the keys ask for (why: the first that is not).
+        // Whether the last map round and the applied heights are those the pass asks for (why: the first that is not).
         internal bool MapSkySettled(out string why)
         {
             why = null;
             int wanted = MapSkyWanted;
-            if (LastRoundMapSky != wanted) why = "the last map round drew sky state " + LastRoundMapSky + ", the keys ask for " + wanted + " (-1: today's chain; else stratiform rule x 10 + depth rule)";
+            if (LastRoundMapSky != wanted) why = "the last map round drew sky state " + LastRoundMapSky + ", the pass asks for " + wanted + " (-1: today's chain; 1: the sky from the weather map)";
             else if (heightsAppliedMapSky != (wanted >= 0)) why = "the applied height maps were built " + (heightsAppliedMapSky ? "with" : "without") + " the map's bases";
             return why == null;
         }
@@ -98,15 +94,9 @@ namespace ReDefinition.Atmospheres
             m0.RhLow = mapSkyMaps[6].Values;
             m0.RhMid = mapSkyMaps[7].Values;
             m0.RhHigh = mapSkyMaps[8].Values;
-            m0.Descent = mapSkyMaps[9].Values;
-            m0.Instability = mapSkyMaps[10].Values;
-            m0.Uplift = mapSkyMaps[11].Values;
-            m0.Reach = mapSkyMaps[12].Values;
-            m0.SurfaceTempK = mapSkyMaps[13].Values;
+            m0.Reach = mapSkyMaps[9].Values;
             m0.PrecipLevel = typeMap.Values;
             m0.TropopauseM = gs.Parameters.TropopauseM;
-            m0.LapseKPerM = gs.Parameters.LapseKPerM;
-            m0.DayS = b.rotationPeriod;
             m0.Ut = ut;
             CloudLayerDef cumuliform = null, tall = null;
             for (int l = 0; l < stack.LayerCount; l++)
@@ -116,11 +106,11 @@ namespace ReDefinition.Atmospheres
                 if (role == WeatherMapSky.Role.Tall && tall == null) tall = stack.LayerAt(l);
             }
             // A new Parts each round: the height build of the last round may still read the one before on its worker.
-            mapSkyParts = MapSkyRegions.Plan(m0, cumuliform, tall, MapSkyRegions.StratiformRule, MapSkyRegions.DepthRule);
+            mapSkyParts = MapSkyRegions.Plan(m0, cumuliform, tall);
             mapSkyPartsForHeights = mapSkyParts;
             mapSkyUt = ut;
             mapSkyRound = true;
-            string state = "on (stratiform rule " + mapSkyParts.StratiformRule + ", depth rule " + mapSkyParts.DepthRule + ")";
+            const string state = "on";
             if (mapSkyState != state) AtmospheresLog.Say("own clouds: the sky from the weather map " + state + " at ut " + ut.ToString("0"));
             mapSkyState = state;
         }
@@ -166,8 +156,8 @@ namespace ReDefinition.Atmospheres
             MapSkyRegions.Parts p = mapSkyPartsForHeights;
             if (p == null || def == null) return null;
             WeatherMapSky.Role role = WeatherMapSky.RoleOf(def);
-            // The low stratiform layer follows the field's base too (owner 2026-11-23, MapSkyRegions.TuneLowStratiformBase).
-            if (role == WeatherMapSky.Role.LowStratiform && MapSkyRegions.LowStratiformBase)
+            // The low stratiform layer follows the field's base too (owner 2026-11-23, MapSkyRegions.LowStratiformRoots).
+            if (role == WeatherMapSky.Role.LowStratiform)
             {
                 rangeM = MapSkyRegions.LowStratiformRootRangeM(def);
                 byte[] lowStratiformType = l >= 0 && l < mapSkyType.Length ? mapSkyType[l] : null;
@@ -210,7 +200,7 @@ namespace ReDefinition.Atmospheres
                     WriteScaled(dir, "wms-part-high.u8", p.High, 1f);
                     WriteScaled(dir, "wms-part-depth.u8", p.DepthM, 1f / 12000f);
                     System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "wms.json"), "{\"ut\": " + p.Ut.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-                        + ", \"stratiformRule\": " + p.StratiformRule + ", \"depthRule\": " + p.DepthRule + ", \"tropopauseM\": "
+                        + ", \"tropopauseM\": "
                         + p.TropopauseM.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ", \"depthScaleM\": 12000, \"lastRound\": " + LastRoundMapSky
                         + ", \"rounds\": " + MapSkyRounds + "}\n");
                 }

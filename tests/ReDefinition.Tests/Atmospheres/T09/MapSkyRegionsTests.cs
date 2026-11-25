@@ -6,7 +6,7 @@ using ReDefinition.Core;
 namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The sky drawn from the weather map (MapSkyRegions, master plan section 34) on single texels of Kerbin's shipped layers: clear where the map is clear, the cumuliform on the lattice,
-    // capped cumuliform and unsaturated sheets as connected stratocumulus, saturated levels in their layers, deep cumuliform in the tall layer, and the calibrated rule's noise as the proposal's script.
+    // capped cumuliform and unsaturated sheets as connected stratocumulus, saturated levels in their layers, deep cumuliform in the tall layer.
     [TestClass]
     public class MapSkyRegionsTests
     {
@@ -21,8 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             {
                 Width = 1, Height = 1, Cover = new[] { cumuliform + sheet }, Cumuliform = new[] { cumuliform }, Stratiform = new[] { sheet }, LowStratiform = new[] { lowStratiform }, BaseShare = new[] { (float)(baseM / H) },
                 TopShare = new[] { (float)(topM / H) }, StableShare = new[] { (float)(stableM / H) }, RhLow = new[] { rhLow }, RhMid = new[] { rhMid }, RhHigh = new[] { rhHigh },
-                Descent = new[] { 0.2f }, Instability = new[] { 0.5f }, Uplift = new[] { 0.1f }, Reach = new[] { reach }, PrecipLevel = new[] { precip }, SurfaceTempK = new[] { 290f },
-                TropopauseM = H, LapseKPerM = 0.00711, DayS = 21549.425, Ut = 1486800.0
+                Reach = new[] { reach }, PrecipLevel = new[] { precip }, TropopauseM = H, Ut = 1486800.0
             };
         }
 
@@ -31,20 +30,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return TypeMixFixture.ShippedLayers();
         }
 
-        // Owner 2026-11-23: the stratiform rule is B (2) and the depth rule a (1, the field's depth: the more realistic) by default (the other tests here name their rule).
-        [TestMethod]
-        public void TheOwnersRulesAreTheDefaults()
-        {
-            Tuning.ClearOverrides();
-            Tuning.Instance.BeginFrame(9200101);
-            Assert.AreEqual(2, MapSkyRegions.StratiformRule);
-            Assert.AreEqual(1, MapSkyRegions.DepthRule);
-        }
-
-        private static MapSkyRegions.Parts Plan(MapSkyRegions.Inputs m, int stratiformRule = 1, int depthRule = 1)
+        private static MapSkyRegions.Parts Plan(MapSkyRegions.Inputs m)
         {
             CloudLayerDef[] l = Layers();
-            return MapSkyRegions.Plan(m, l[1], l[2], stratiformRule, depthRule);
+            return MapSkyRegions.Plan(m, l[1], l[2]);
         }
 
         private static void Draw(MapSkyRegions.Parts p, int layer, out byte cover, out byte type)
@@ -87,21 +76,20 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void CappedCumuliformIsAConnectedStratocumulusSheetByTheDepthRule()
+        public void CappedCumuliformIsAConnectedStratocumulusSheet()
         {
             // stable layer below the base: capped
-            MapSkyRegions.Parts a = Plan(One(0.6f, 0f, 1200, 1200, 900), 1, 1), b = Plan(One(0.6f, 0f, 1200, 1200, 900), 1, 2);
-            Assert.AreEqual(0.6f, a.Sc[0], 1e-6f, "rule a: above the lattice's fair share all of it is sheet");
+            MapSkyRegions.Parts a = Plan(One(0.6f, 0f, 1200, 1200, 900));
+            Assert.AreEqual(0.6f, a.Sc[0], 1e-6f, "above the lattice's fair share all of it is sheet");
             Assert.AreEqual(0f, a.Lattice[0], 1e-6f);
-            MapSkyRegions.Parts aLow = Plan(One(0.1f, 0f, 1200, 1200, 900), 1, 1);
-            Assert.AreEqual(0.1f * 0.4f, aLow.Sc[0], 1e-6f, "rule a: a small capped cumuliform is mostly lattice");
+            MapSkyRegions.Parts aLow = Plan(One(0.1f, 0f, 1200, 1200, 900));
+            Assert.AreEqual(0.1f * 0.4f, aLow.Sc[0], 1e-6f, "a small capped cumuliform is mostly lattice");
             Assert.AreEqual(0.06f, aLow.Lattice[0], 1e-6f);
-            Assert.AreEqual(0.6f, b.Sc[0], 1e-6f, "rule b: capped means sheet");
             byte c, t;
             Draw(a, 1, out c, out t);
             Assert.AreEqual(0, t, "the stratiform type (Stratocumulus, the first)");
             // a cell is never capped
-            MapSkyRegions.Parts cell = Plan(One(0.6f, 0f, 1200, 9000, 900, reach: 0.8f), 1, 2);
+            MapSkyRegions.Parts cell = Plan(One(0.6f, 0f, 1200, 9000, 900, reach: 0.8f));
             Assert.AreEqual(0f, cell.Sc[0]);
             Assert.AreEqual(9000f - 1200f, cell.DepthM[0], 1f);
         }
@@ -121,15 +109,13 @@ namespace ReDefinition.Tests.Atmospheres.T09
             MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 800, 800, 1500, 0.5f, 0.5f, 1f));
             Draw(high, 3, out c, out t);
             Assert.AreEqual(Seventy, c);
-            // no saturated level: rule A at the condensation level, rule B the low stratiform layer's share in the middle, rule 0 the most humid level
-            MapSkyRegions.Parts ra = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 1);
-            Assert.AreEqual(0.7f, ra.Sc[0], 1e-6f);
-            Assert.AreEqual(0f, ra.Ac[0]);
-            MapSkyRegions.Parts rb = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 2);
+            // no saturated level ("by source", owner 2026-11-23): the low stratiform layer's share as the middle level's Altocumulus, the rest a Stratocumulus layer at the condensation level
+            MapSkyRegions.Parts rb = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f));
             Assert.AreEqual(0.3f, rb.Ac[0], 1e-6f);
             Assert.AreEqual(0.4f, rb.Sc[0], 1e-6f);
-            MapSkyRegions.Parts r0 = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f, lowStratiform: 0.3f), 0);
-            Assert.AreEqual(0.7f, r0.Ac[0], 1e-6f);
+            MapSkyRegions.Parts none = Plan(One(0f, 0.7f, 800, 800, 1500, 0.6f, 0.9f, 0.5f));
+            Assert.AreEqual(0f, none.Ac[0], 1e-6f);
+            Assert.AreEqual(0.7f, none.Sc[0], 1e-6f, "without a low stratiform share all of the sheet is Stratocumulus");
         }
 
         [TestMethod]
@@ -148,28 +134,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 last = p.Tall[0];
             }
             Assert.AreEqual(0.5f, last, 1e-6f);
-        }
-
-        [TestMethod]
-        public void TheCalibratedNoiseIsTheProposalsScript()
-        {
-            // calibrated_depth.py smooth_noise at these points (period one Kerbin day, 21549.425 s)
-            double[] lat = { 28.6, -10.0, 55.3, 0.1 }, lon = { -74.6, 120.0, -3.3, 179.9 }, t = { 1486800.0, 2000000.0, 12345.0, 1e7 };
-            double[] want = { 0.50264451, 0.31817152, 0.8909271, 0.99148839 };
-            for (int k = 0; k < 4; k++) Assert.AreEqual(want[k], MapSkyRegions.SmoothNoise(lat[k], lon[k], t[k], 21549.425), 1e-6, "point " + k);
-        }
-
-        [TestMethod]
-        public void TheCalibratedDepthStaysBelowTheIceLevelAndTheTropopause()
-        {
-            MapSkyRegions.Inputs m = One(0.4f, 0f, 1000, 1200, 3000, rhMid: 1f);
-            for (int k = 0; k < 50; k++)
-            {
-                m.Ut = 1486800.0 + k * 3000.0;
-                double d = MapSkyRegions.CalibratedDepthM(m, 0, 1000.0);
-                double zIce = (290.0 - 263.15) / 0.00711;
-                Assert.IsTrue(d >= 0.0 && 1000.0 + d <= Math.Max(zIce, 1000.0 + 0.25 * 1000.0) + 1e-6 && 1000.0 + d <= H, "depth " + d);
-            }
         }
 
         // Owner 2026-11-23 "Ja, Feld-Basis": the low stratiform layer's types are lifted to the field's cloud base (never lowered, at most the low stratiform layer's depth); the fog type stays on the ground.
@@ -194,7 +158,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             MapSkyRegions.Parts high = Plan(One(0f, 0.7f, 9000, 9500, 9500, 1f, 0.5f, 0.5f));
             r = MapSkyRegions.LowStratiformRoots(lowStratiform, high, null);
             Assert.AreEqual(depth, r[0], 1e-3f, "at most the low stratiform layer's depth");
-            Assert.AreEqual(1f, MapSkyRegions.LowStratiformBaseDefault, "on since the owner's choice of 2026-11-23 16:02");
         }
 
         private static float BaseShareAt(CloudLayerDef l, float typeValue)

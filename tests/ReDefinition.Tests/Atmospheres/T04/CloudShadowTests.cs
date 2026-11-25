@@ -105,6 +105,21 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudShadowMathTests
     {
+        // PRUEFPROTOKOLL 276: the renderer refused the shader when a pass was removed and its check asked for one more than there were, so the cloud
+        // shadow was off in the game without a failing test. The shader file's passes and the renderer's highest pass agree.
+        [TestMethod]
+        public void TheShadowShaderHasExactlyThePassesTheRendererBlits()
+        {
+            string path = RepoRoot.Locate("unity", "Assets", "ReDefinitionAtmospheres", "Shaders", "ReDefinitionAtmospheresCloudShadow.shader");
+            int passes = 0;
+            foreach (string line in File.ReadAllLines(path))
+            {
+                string t = line.Trim();
+                if (t == "Pass" || t.StartsWith("Pass //", StringComparison.Ordinal) || t.StartsWith("Pass {", StringComparison.Ordinal)) passes++;
+            }
+            Assert.AreEqual(CloudShadowRenderer.RequiredPasses, passes, "the shader's Pass blocks against the renderer's highest pass + 1");
+        }
+
         [TestMethod]
         public void TheDirectTransmissionIsBeerLambert()
         {

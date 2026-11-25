@@ -331,6 +331,16 @@ Scatterer_atmosphere
             Assert.AreEqual(cloud.b * t.z + 0.25f * (lit.b - cloud.b * t.z), shaded.b, 1e-6f);
         }
 
+        [TestMethod]
+        public void TheFlareTakesTheDirectTransmissionClampedToOne()
+        {
+            // master plan 46.1: Scatterer's flare times the texture's alpha; the direct beam under a tau-26 deck is nothing, a clear sky everything
+            Assert.AreEqual(1f, ScattererFlareClouds.Encode(1f));
+            Assert.AreEqual(1f, ScattererFlareClouds.Encode(1.2f));
+            Assert.AreEqual(0f, ScattererFlareClouds.Encode(-0.1f));
+            Assert.IsTrue(ScattererFlareClouds.Encode((float)Math.Exp(-26.0)) < 1e-6f);
+        }
+
         // The fog mix at the numbers of start 55 (K-T2d, above view, bands 3 and 4 below the horizon row, order 1 and 0 of the same pixels) as an offline row: the pass's mix
         // C T + L (1 - T) with Scatterer's transmittance moves the low stratiform layer of 0.48 neutral (ord1) toward the aerial perspective colour, and the lift is of the size the game measured for Scatterer's own
         // air (ord0 minus ord1 +0.17 / +0.20 / +0.23): the sign and order of magnitude, not the pixel values (the in-scatter colour of the game is not known offline).

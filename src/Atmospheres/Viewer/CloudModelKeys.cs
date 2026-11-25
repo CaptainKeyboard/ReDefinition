@@ -53,12 +53,6 @@ namespace ReDefinition.Atmospheres.Viewer
                 "single clouds: the march leaps the grid points beyond the reach of a body's bulges (the same picture, fewer samples)", KeyLiveness.FrameHistory);
             r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
                 "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
-            r.Key(MapSkyRegions.TuneStratiformRule, MapSkyRegions.StratiformRuleDefault, KeySection.Shape,
-                "weather map sky: a sheet at no saturated level (0 the most humid level, 1 a stratiform layer at the condensation level, 2 the low stratiform map)", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 2f);
-            r.Key(MapSkyRegions.TuneDepthRule, MapSkyRegions.DepthRuleDefault, KeySection.Shape,
-                "weather map sky: the cumuliform depth (1 the field's depth, 2 the calibrated depth)", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 2f);
-            r.Key(MapSkyRegions.TuneLowStratiformBase, MapSkyRegions.LowStratiformBaseDefault, KeySection.Shape,
-                "weather map sky: the low stratiform rain and snow layer's base from the field (1; its fog stays on the ground), 0 the layer's cfg type shares", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneOn, CloudHeightScale.OnDefault, KeySection.Shape,
                 "height scale: 1 every cloud height a share of the body's measured troposphere (the sizes follow), 0 the layers as written", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneFactor, CloudHeightScale.FactorDefault, KeySection.Shape,
