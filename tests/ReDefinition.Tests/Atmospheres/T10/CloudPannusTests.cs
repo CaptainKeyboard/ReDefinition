@@ -102,20 +102,22 @@ namespace ReDefinition.Tests.Atmospheres.T10
         }
 
         [TestMethod]
-        public void ThePannusNoiseScaleIsZeroOffAndTheCurveInTheShredsBandOn()
+        public void ThePannusErosionIsZeroOffAndTheCurveInTheShredsBandOn()
         {
             Clear();
             CloudLayerDef layer = Layer("Kerbin-weather-rain");
             int ns = TypeIndex(layer, "Nimbostratus");
             var table = new LayerTypeTable(layer);
-            Assert.IsTrue(table.NoiseScaleData.All(v => v == 0f), "off: no type's noise is rescaled (the shader reads pc as before)");
+            int st = TypeIndex(layer, "Stratus");
+            float[] stratusOff = Enumerable.Range(0, LayerTypeTable.ProfileSamples).Select(i => table.ErosionGainData[st * LayerTypeTable.ProfileSamples + i]).ToArray();
+            for (int i = 0; i < LayerTypeTable.ProfileSamples; i++)
+                Assert.AreEqual(0f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + i], "off: the nimbostratus' erosion is as before");
             Set(1f);
             int band = (int)(0.05 * (LayerTypeTable.ProfileSamples - 1)), deck = (int)(0.5 * (LayerTypeTable.ProfileSamples - 1));
-            Assert.AreEqual(2f, table.NoiseScaleData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the shreds' band reads the noise 3 times finer");
-            Assert.AreEqual(0f, table.NoiseScaleData[ns * LayerTypeTable.ProfileSamples + deck], 1e-6, "on: the deck keeps the layer's noise scale");
-            int st = TypeIndex(layer, "Stratus");
+            Assert.AreEqual(2f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the shreds' band is eroded 3 times harder");
+            Assert.AreEqual(0f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + deck], 1e-6, "on: the deck keeps its erosion");
             for (int i = 0; i < LayerTypeTable.ProfileSamples; i++)
-                Assert.AreEqual(0f, table.NoiseScaleData[st * LayerTypeTable.ProfileSamples + i], "a type without a pannus keeps its noise");
+                Assert.AreEqual(stratusOff[i], table.ErosionGainData[st * LayerTypeTable.ProfileSamples + i], "a type without a pannus keeps its own form");
         }
 
         [TestMethod]

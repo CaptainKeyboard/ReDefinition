@@ -12,7 +12,8 @@ namespace ReDefinition.Tests.Atmospheres.A02
     // FlightGlobals.ActiveVessel before the flight scene existed. Two tests keep that from coming back: the wait/step logic is driven with a fake scene
     // (menu, loading, flight not ready, flight ready, flight lost), and the source of every probe is parsed for waits that read the flight without
     // the scene guard.
-    [TestClass]
+    // Harness: tests the game-run test harness (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class ProbeSceneGuardTests
     {
         private enum FakeScene { Menu, Loading, FlightNotReady, FlightReady, SpaceCentre }

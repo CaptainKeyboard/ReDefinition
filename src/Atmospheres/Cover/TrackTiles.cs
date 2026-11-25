@@ -383,16 +383,6 @@ namespace ReDefinition.Atmospheres
             return dropped;
         }
 
-        // Drops the tiles that have faded out completely at ut (nothing shows and 12 tau have passed); returns how many.
-        internal int DropFaded(double ut)
-        {
-            var gone = new List<long>();
-            foreach (KeyValuePair<long, TrackTile> pair in live)
-                if (ut - pair.Value.StampUt > 12.0 * Math.Max(1.0, pair.Value.TauSeconds)) gone.Add(pair.Key);
-            foreach (long key in gone) live.Remove(key);
-            return gone.Count;
-        }
-
         // ---- the side file -------------------------------------------------------------------------------------------------
 
         private const string Magic = "RDTRK1";

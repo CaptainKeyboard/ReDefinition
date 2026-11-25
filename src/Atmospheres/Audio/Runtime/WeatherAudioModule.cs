@@ -76,7 +76,6 @@ namespace ReDefinition.Atmospheres.Audio
         internal AudioGate Gate { get { return gate; } }
         internal SharedAudioState Shared { get { return shared; } }
         internal WeatherAudioObjects Objects { get { return objects; } }
-        internal EveSoundDecision EveDecision { get { return eve; } }
         internal MufflingPlan Muffling { get { return muffling; } }
         internal ListenerState Listener { get { return listener; } }
         internal CellPlace Cell { get { return cell; } }
@@ -88,13 +87,10 @@ namespace ReDefinition.Atmospheres.Audio
         internal WeatherAudioInputs LastInputs { get { return lastInputs; } }
         internal GameVolumes Volumes { get { return volumes; } }
         internal float CellPanNow { get { return cellPan; } }
-        internal float CellClosenessNow { get { return cellCloseness; } }
-        internal bool TextureLoaded { get { return textureLoaded; } }
         internal int StepsFound { get { return stepsFound; } }
         internal int StepsPlayed { get { return stepsPlayed; } }
         internal float DistanceWalkedM { get { return distanceWalked; } }
         internal int FootstepClips { get { return library.Count; } }
-        internal AudioListener ActiveListener { get { return cachedListener; } }
         internal int CreatedObjects { get; private set; }
 
         public void Init()

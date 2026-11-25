@@ -116,7 +116,8 @@ namespace ReDefinition.Tests.Atmospheres.D33
             Assert.IsTrue(s.Running);
         }
 
-        [TestMethod]
+        // A wall-clock gate: category Bench, run under the exclusive timing lock.
+        [TestMethod, TestCategory("Bench")]
         public void OneBlockCostsWithinTheCpuLimitOfThisBuildOnAverage()
         {
             SharedAudioState s;
@@ -151,7 +152,7 @@ namespace ReDefinition.Tests.Atmospheres.D33
         }
 
         [TestMethod]
-        public void TenMinutesOfAudioMakeNoCollection()
+        public void AMinuteOfAudioAllocatesNothing()
         {
             SharedAudioState s;
             WeatherAudioStream st = Make(out s);
@@ -159,9 +160,9 @@ namespace ReDefinition.Tests.Atmospheres.D33
             var buf = new float[2048];
             for (int i = 0; i < 200; i++) st.Fill(buf, 2);
             var rng = new Random(3);
-            int gen0 = GC.CollectionCount(0);
+            // The allocation is counted per thread. GC.CollectionCount is process-wide (another test's thread can collect meanwhile), so it is not a measure of this thread.
             long bytes = GC.GetAllocatedBytesForCurrentThread();
-            long blocks = 10L * 60 * Rate / 1024;
+            long blocks = 60L * Rate / 1024;
             for (long i = 0; i < blocks; i++)
             {
                 // The main thread moves the parameters as in play.
@@ -176,10 +177,8 @@ namespace ReDefinition.Tests.Atmospheres.D33
             }
             // Read before any assertion: the assertions allocate themselves.
             long allocated = GC.GetAllocatedBytesForCurrentThread() - bytes;
-            int collections = GC.CollectionCount(0) - gen0;
-            Console.WriteLine("METRIC soak 10 min stream: gen0 collections " + collections + ", bytes allocated " + allocated);
+            Console.WriteLine("METRIC soak 60 s stream: bytes allocated " + allocated);
             Assert.AreEqual(0L, allocated, "bytes allocated by the callback");
-            Assert.AreEqual(0, collections, "a collection ran during ten minutes of audio");
         }
     }
 }

@@ -7,7 +7,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
 {
     // The numeric readout of series K-T2d (T09Readout): the horizon row from the camera's pitch, the three regions, the percentiles, the cloud layer against the baseline and the
     // ratios, on pictures whose answer is known by construction.
-    [TestClass]
+    // Harness: tests the T09 probe's readout (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class T09ReadoutTests
     {
         private const int W = 80, H = 60;

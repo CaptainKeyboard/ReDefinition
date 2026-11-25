@@ -42,16 +42,6 @@ namespace ReDefinition.Atmospheres
             return mode + " intensity " + RenderSettings.ambientIntensity.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
-        // The baseline and the value written last, for the log.
-        internal string DescribeScaling()
-        {
-            if (!scaling) return "not scaling";
-            if (modeScaled == AmbientMode.Flat) return "flat baseline " + Text(flat.Baseline) + " written " + Text(flat.Written);
-            if (modeScaled == AmbientMode.Trilight) return "trilight baseline " + Text(sky.Baseline) + " written " + Text(sky.Written);
-            return modeScaled + " baseline " + intensity.Baseline.r.ToString("0.000", CultureInfo.InvariantCulture)
-                   + " written " + intensity.Written.r.ToString("0.000", CultureInfo.InvariantCulture);
-        }
-
         private static string Text(Color c)
         {
             return c.r.ToString("0.000", CultureInfo.InvariantCulture) + "," + c.g.ToString("0.000", CultureInfo.InvariantCulture) + ","

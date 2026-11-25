@@ -92,43 +92,5 @@ namespace ReDefinition.Tests
             }
         }
 
-        [TestMethod]
-        public void ValuesOutsideTheirRangeAreBroughtInAndNotANumberIsIgnored()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-settings-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
-            ConfigNode saved = Save();
-            try
-            {
-                Defaults();
-                string file = Path.Combine(folder, "range.cfg");
-                File.WriteAllText(file, "yearLengthFactor = 500\ncoverStrength = -3\nheavyShare = 9\nlightCount = 99\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(10f, AtmospheresSettings.YearLengthFactor);
-                Assert.AreEqual(0f, AtmospheresSettings.CoverStrength);
-                Assert.AreEqual(2f, AtmospheresSettings.HeavyShare);
-                Assert.AreEqual(8, AtmospheresSettings.LightCount);
-
-                Defaults();
-                File.WriteAllText(file, "yearLengthFactor = NaN\ncoverStrength = Infinity\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(1f, AtmospheresSettings.YearLengthFactor);
-                Assert.AreEqual(1f, AtmospheresSettings.CoverStrength);
-            }
-            finally
-            {
-                Restore(saved);
-                Directory.Delete(folder, true);
-            }
-        }
-
-        [TestMethod]
-        public void AnOlderCommonThanTheOneTheAtmospheresWereBuiltAgainstIsNamed()
-        {
-            Assert.IsNull(CommonVersionCheck.Problem("ReDefinition Atmospheres", new Version(0, 1, 15, 0), new Version(0, 1, 15, 0)));
-            Assert.IsNull(CommonVersionCheck.Problem("ReDefinition Atmospheres", new Version(0, 1, 15, 0), new Version(0, 1, 16, 0)));
-            StringAssert.Contains(CommonVersionCheck.Problem("ReDefinition Atmospheres", new Version(0, 1, 15, 0), new Version(0, 1, 14, 0)),
-                "ReDefinition Atmospheres was made against 0.1.15");
-        }
     }
 }

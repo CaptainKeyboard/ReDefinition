@@ -16,7 +16,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
     // The probe of the K-S2 starts that load the game with the cover off (SurfaceGroundProbe) against the solo rig's model of the game, and the command-line settings those starts
     // carry (AtmospheresSettings.ApplyLaunchPairs): the four frames in their order, the cover's state each start has to show, the rows file that lists exactly what each start
     // emits, the series file that names the three starts, and the faults the probe judges.
-    [TestClass]
+    // Harness: walks a probe (not shipped) through a fake rig, not the product.
+    [TestClass, TestCategory("Harness")]
     public class SurfaceGroundProbeWalkThroughTests
     {
         private const double Dt = 0.05;

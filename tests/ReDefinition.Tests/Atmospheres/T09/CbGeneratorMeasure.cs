@@ -38,7 +38,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void MeasureCells()
         {
             string outPath = Environment.GetEnvironmentVariable("CBGEN_OUT");
-            if (string.IsNullOrEmpty(outPath)) return;
+            if (string.IsNullOrEmpty(outPath)) Assert.Inconclusive("A measurement run: it runs only when its output variable is set.");
             var sb = new StringBuilder();
             GeneratorField field = Kerbin(1, Environment.GetEnvironmentVariable("CBGEN_STATIONARY") != "0");
             WeatherGenerator g = field.StateOf(FieldFixture.BodyIndex).Generator;
@@ -111,7 +111,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void MeasureTheCbLayer()
         {
             string outPath = Environment.GetEnvironmentVariable("CBGEN_OUT5");
-            if (string.IsNullOrEmpty(outPath)) return;
+            if (string.IsNullOrEmpty(outPath)) Assert.Inconclusive("A measurement run: it runs only when its output variable is set.");
             var sb = new StringBuilder();
             double bucket = WeatherGenerator.CellHourBucketS;
             LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;

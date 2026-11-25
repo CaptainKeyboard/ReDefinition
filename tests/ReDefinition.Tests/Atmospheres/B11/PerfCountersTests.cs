@@ -7,7 +7,8 @@ namespace ReDefinition.Tests.Atmospheres.B11
 {
     // The cost counters: windows of one second, the line every 10 seconds, the allocation per frame from the heap's deltas, and the
     // memory from the known texture sizes where there is no live reading. Clock and heap are stepped by hand.
-    [TestClass]
+    // Harness: tests the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class PerfCountersTests
     {
         private long clockTicks, heap;

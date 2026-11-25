@@ -21,7 +21,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void TheMeanOfThePatternAgainstTheMapValue()
         {
             string output = Environment.GetEnvironmentVariable("TYPEMIX_TUNE_OUT");
-            if (string.IsNullOrEmpty(output)) return;
+            if (string.IsNullOrEmpty(output)) Assert.Inconclusive("A measurement run: it runs only when TYPEMIX_TUNE_OUT is set.");
             Directory.CreateDirectory(output);
             CloudLayerDef layer = TypeMixFixture.ShippedLayers()[1];
             var meso = layer.Meso;
@@ -52,7 +52,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void ApplyTheMesoNumbersToADump()
         {
             string output = Environment.GetEnvironmentVariable("TYPEMIX_TUNE_OUT"), input = Environment.GetEnvironmentVariable("TYPEMIX_IN");
-            if (string.IsNullOrEmpty(output) || string.IsNullOrEmpty(input)) return;
+            if (string.IsNullOrEmpty(output) || string.IsNullOrEmpty(input)) Assert.Inconclusive("A measurement run: it runs only when TYPEMIX_TUNE_OUT and TYPEMIX_IN are set.");
             Directory.CreateDirectory(output);
             int index = (int)Env("TUNE_LAYER", 1);
             CloudLayerDef layer = TypeMixFixture.ShippedLayers()[index];

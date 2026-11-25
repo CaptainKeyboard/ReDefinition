@@ -37,7 +37,8 @@ namespace ReDefinition.Tests
             }
         }
 
-        [TestMethod]
+        // A dump for the aid pictures, not a check: category Explore, which tools/dotnet_test.py leaves out unless asked (--all).
+        [TestMethod, TestCategory("Explore")]
         public void TheAidPicturesNumbersAreWritten()
         {
             string dir = Folder();

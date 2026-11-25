@@ -8,6 +8,19 @@ namespace ReDefinition.Tests
     [TestClass]
     public class AmbientTrackerAndEveRainLinkTests
     {
+        // The clouds' sun is the sun above the weather (LightWriter.UndimmedSunIntensity): while our dimming's value stands, its baseline; a value someone else wrote, as it is.
+        [TestMethod]
+        public void TheCloudsSunIsTheIntensityBeforeOurWeatherDimming()
+        {
+            var tracker = new AmbientTracker();
+            float dimmed = tracker.Scale(new Color(0.9f, 0f, 0f, 1f), 0.76f).r;
+            Assert.AreEqual(0.684f, dimmed, 1e-5);
+            Assert.AreEqual(0.9f, LightWriter.Undimmed(tracker, true, dimmed), 1e-6, "our dimmed value: the sun above the weather");
+            Assert.AreEqual(1.2f, LightWriter.Undimmed(tracker, true, 1.2f), 1e-6, "someone else's newer value stays");
+            Assert.AreEqual(dimmed, LightWriter.Undimmed(tracker, false, dimmed), 1e-6, "no dimming: the value as it is");
+            Assert.AreEqual(0.5f, LightWriter.Undimmed(new AmbientTracker(), true, 0.5f), 1e-6, "an idle tracker: the value as it is");
+        }
+
         [TestMethod]
         public void AValueSomeoneElseWritesIsTheNewBaselineAndOnlyOurWriteIsTakenBack()
         {

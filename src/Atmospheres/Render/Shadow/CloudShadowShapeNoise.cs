@@ -72,10 +72,9 @@ namespace ReDefinition.Atmospheres
         internal double Share(int layerIndex, CloudLayerDef layer, double x, double y, double z, double cov, LayerTypeTable table, double typeValue, double layerShare)
         {
             if (volumes == null || layerIndex < 0 || layerIndex >= layers) return -1.0;
-            // Master plan 43: the type's extra noise amount b and scale factor g at this height (channels b and g of the pass's profile; 0 without a height or a table).
+            // Master plan 43: the type's extra noise amount b at this height (channel b of the pass's profile; 0 without a height or a table); the erosion gain g has no erosion here.
             double typeH = table == null || double.IsNaN(layerShare) ? double.NaN : table.TypeHeightOf(typeValue, layerShare);
             double extra = double.IsNaN(typeH) ? 0.0 : table.NoiseAmountOf(typeValue, typeH);
-            double scaleG = double.IsNaN(typeH) ? 0.0 : table.NoiseScaleOf(typeValue, typeH);
             double amount = layer.EffectiveNoiseAmount * (1.0 + extra);
             double lift = table == null || double.IsNaN(layerShare) ? 0.0 : table.LiftOf(typeValue, layerShare);
             // The map value after the clear-sky rule, and with the cells (CELLS: the layer pass's single clouds from the map's share, CloudCells.CoverAt) where the layer has a pitch.
@@ -96,8 +95,7 @@ namespace ReDefinition.Atmospheres
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
             NoiseLayerParams prm = TypeParams(layerIndex, table, typeValue);
-            double s = 1.0 + scaleG;
-            double share = CloudShapeModel.Share(volumes, ref prm, wx * s, wy * s, wz * s, covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
+            double share = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount, 0.0, false);
             return CloudWater.Pow(share, table == null ? layer.EffectiveWaterPower : layer.EffectiveWaterPowerAt(table, typeValue));
         }
 

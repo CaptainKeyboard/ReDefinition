@@ -44,7 +44,6 @@ namespace ReDefinition.Atmospheres
         internal RtCloudPack Current { get; private set; }
 
         internal bool Baking { get { return baker != null; } }
-        internal double BakeProgress { get { return baker == null ? 1.0 : baker.Progress; } }
 
         // One frame. `source` and `tables` are the stack (null: no stack, which drops the pack). `texelsPerTickCap` bounds the work of a tick besides the
         // time budget (a test passes a large number and a long budget to bake in one call).

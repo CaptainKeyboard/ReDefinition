@@ -171,7 +171,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void K_T2_GateAudit_EveryGateOfTheChainIsOpenForEveryStartWithTheStartStateOfTheSettings()
         {
             List<StartDef> starts = KT2Starts();
-            Assert.AreEqual(204, starts.Count, "the starts of K-T2.json were read");
+            // Every start that has probe arguments was parsed: the line parser of KT2Starts against a plain count of the key in the file.
+            int withArgs = Regex.Matches(File.ReadAllText(RepoFile("tests", "series", "K-T2.json")), "\"probeArgs\"").Count;
+            Assert.IsTrue(starts.Count > 0, "the starts of K-T2.json were read");
+            Assert.AreEqual(withArgs, starts.Count, "every start with probeArgs was parsed");
             // tools/atmo_series.py refuses the whole series on a duplicate id ("starts: duplicate id"), so a new start must not reuse one.
             string[] duplicates = starts.GroupBy(s => s.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToArray();
             Assert.AreEqual(0, duplicates.Length, "duplicate start ids: " + string.Join(", ", duplicates));

@@ -197,16 +197,6 @@ namespace ReDefinition.Tests.Atmospheres.B13
 
         private static readonly Regex BodyNames = new Regex("Kerbin|600000");
 
-        // Files of the whole src/Atmospheres folder that still name a body or a Kerbin number today. The gate of package E40 (the same
-        // test over every file) shrinks this list to empty after W3: each package that removes its use removes its entry, and an entry
-        // whose file is clean fails the test so that the list cannot go stale.
-        private static readonly string[] AllowList =
-        {
-            "BodyClimate.cs", "ClimateRules.cs", "EveCoverageMath.cs",
-            "EveRainLink.cs", "EveSnowLink.cs", "EveSwirlMath.cs", "GroundRebuilder.cs",
-            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs"
-        };
-
         private static string AtmospheresFolder()
         {
             return Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres");
@@ -236,29 +226,6 @@ namespace ReDefinition.Tests.Atmospheres.B13
             }
             Assert.AreEqual(0, offenders.Count, "names a body or a body's number: " + string.Join(", ", offenders));
             Assert.IsTrue(SourceFiles(Path.Combine(root, "Bodies", "Terrain")).Count() >= 3, "the terrain helpers are in Bodies/Terrain");
-        }
-
-        // The gate of package E40. While packages still merge in parallel it runs only where ATMO_BODY_GATE=1 is set (E40 sets it and
-        // empties the list after W3); otherwise it is inconclusive, so that a package that lands a file with a body name does not break
-        // the suite of the others.
-        [TestMethod]
-        public void TheWholeAtmospheresFolderNamesNoBodyBeyondTheAllowList()
-        {
-            if (Environment.GetEnvironmentVariable("ATMO_BODY_GATE") != "1") Assert.Inconclusive("Enabled by ATMO_BODY_GATE=1 (package E40).");
-            string root = AtmospheresFolder();
-            var offenders = new List<string>();
-            var clean = new List<string>(AllowList);
-            foreach (string file in SourceFiles(root))
-            {
-                // By file name, so that a package that moves a file does not break the list.
-                string rel = Relative(root, file);
-                string name = Path.GetFileName(file);
-                bool names = BodyNames.IsMatch(File.ReadAllText(file));
-                if (names && !AllowList.Contains(name)) offenders.Add(rel);
-                if (names) clean.Remove(name);
-            }
-            Assert.AreEqual(0, offenders.Count, "new body names outside the allow-list: " + string.Join(", ", offenders));
-            Assert.AreEqual(0, clean.Count, "allow-list entries that are clean now (remove them): " + string.Join(", ", clean));
         }
     }
 }

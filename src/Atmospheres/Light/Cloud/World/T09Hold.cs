@@ -58,12 +58,10 @@ namespace ReDefinition.Atmospheres
             this.log = log ?? (m => { });
         }
 
-        internal bool HasAnchor { get { return phase == Phase.Holding; } }
         // The vessel stands at the placed point (a settled read within ToleranceM) and is held there.
         internal bool Reached { get { return phase == Phase.Holding && !unreached; } }
         // The vessel has been within ToleranceM for StableNeededFrames frames in a row: a picture may be taken.
         internal bool Stable { get { return phase == Phase.Holding && !unreached && stableFrames >= StableNeededFrames; } }
-        internal int StableFrames { get { return stableFrames; } }
 
         internal string Status
         {

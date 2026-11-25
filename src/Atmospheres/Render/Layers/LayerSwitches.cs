@@ -8,10 +8,7 @@ namespace ReDefinition.Atmospheres
     // (T09) accepts the system, then on for cloudSource Ours; under Volumetric the system is always off.
     internal static class LayerSwitches
     {
-        // The default of ownClouds.
-        internal const bool OwnCloudsDefault = false;
-        // The layers one pass draws at most (1 to CloudLayerDef.MaxLayers).
-        internal const int LayerCapDefault = CloudLayerDef.MaxLayers;
+        // The defaults of ownClouds and layerCap are their SettingDef rows (AtmospheresSettings.Clouds.cs).
 
         // The march quality levels: most steps per span, steps towards the sun (the frame's fallback; the light quality's taps replace it), and the shortest step in m.
         // The shortest step is the level's own (2026-11-23, the owner: the quality settings act per graphics profile): High 6 m is the owner's look of 2026-11-19 (the full

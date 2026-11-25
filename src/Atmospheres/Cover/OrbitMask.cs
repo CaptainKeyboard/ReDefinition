@@ -20,9 +20,7 @@ namespace ReDefinition.Atmospheres
         internal const int HeightWidth = 256;
         internal const int HeightHeight = 128;
 
-        // How the cover trails the field: the least real time between two compositions, and the shorter one after a change of the
-        // settings or the heights.
-        internal const double SmallStepSeconds = 30.0;
+        // How the cover trails the field: the least real time between two compositions, after a change of the settings or the heights too.
         internal const double LargeStepSeconds = 2.0;
 
         // The unit direction of the texel at texture coordinates u, v (0 to 1), as the PQS has it.

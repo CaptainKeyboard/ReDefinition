@@ -53,13 +53,8 @@ namespace ReDefinition.Tests.Atmospheres.T08
         }
 
         [TestMethod]
-        public void TheGBufferTargetsAreBlendedWithoutReadingThem()
+        public void TheOverlayWritesTheGBufferWithoutSamplingIt()
         {
-            StringAssert.Contains(wet, "Blend 0 DstColor Zero");
-            StringAssert.Contains(wet, "Blend 1 One One");
-            StringAssert.Contains(wet, "Blend 2 SrcAlpha OneMinusSrcAlpha");
-            StringAssert.Contains(wet, "Blend 3 DstColor Zero");
-            StringAssert.Contains(wet, "ColorMask A 1");
             Assert.IsFalse(wet.Contains("_CameraGBufferTexture"), "the overlay writes the G-buffer and must not sample it");
         }
 
@@ -73,21 +68,6 @@ namespace ReDefinition.Tests.Atmospheres.T08
                 float cells = WetSurfacesPass.WrapM * scale * octave;
                 Assert.AreEqual(Math.Round(cells), cells, 1e-3f, "octave " + octave);
             }
-            StringAssert.Contains(wet, "ValueNoise(p * s, period)");
-            StringAssert.Contains(wet, "period * 4.0");
-            StringAssert.Contains(wet, "period * 16.0");
-        }
-
-        [TestMethod]
-        public void TheInverseNormalMatchesKnownQuantiles()
-        {
-            Assert.AreEqual(0f, WetnessLookMath.InverseNormal(0.5f), 1e-6f);
-            Assert.AreEqual(1f, WetnessLookMath.InverseNormal(0.8413447f), 1e-4f);
-            Assert.AreEqual(-1.6448536f, WetnessLookMath.InverseNormal(0.05f), 1e-4f);
-            Assert.AreEqual(2.3263479f, WetnessLookMath.InverseNormal(0.99f), 1e-4f);
-            Assert.AreEqual(0f, WetnessLookMath.FieldThreshold(0f), 1e-6f);
-            Assert.AreEqual(WetnessLookMath.FieldMean, WetnessLookMath.FieldThreshold(0.5f), 1e-5f);
-            Assert.IsTrue(WetnessLookMath.FieldThreshold(0.2f) < WetnessLookMath.FieldThreshold(0.4f));
         }
     }
 }

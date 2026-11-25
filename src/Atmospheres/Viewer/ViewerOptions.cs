@@ -162,11 +162,6 @@ namespace ReDefinition.Atmospheres.Viewer
         // 'A' or 'B': the side the store holds now; '-' before StoreA.
         internal char Showing { get; private set; } = '-';
 
-        internal bool HasStored
-        {
-            get { return stored != null; }
-        }
-
         internal void StoreA(OptionSet current)
         {
             stored = current;

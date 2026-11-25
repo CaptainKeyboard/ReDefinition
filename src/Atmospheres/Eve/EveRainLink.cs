@@ -31,7 +31,6 @@ namespace ReDefinition.Atmospheres
         }
 
         // The arguments of the calls made every frame, made once.
-        private static readonly object ZeroValue = 0f;
         private static readonly object[] RendererOff = { false };
 
         private sealed class Entry
@@ -295,52 +294,10 @@ namespace ReDefinition.Atmospheres
             return record.Kept ? kept : (float)field.GetValue(record.Type);
         }
 
-        // Replaces the rain at the camera for this frame (once per frame) and returns what the rain would have been there, 0 to 1.
-        // The caller raises the snow to that value.
-        internal static float Suppress()
-        {
-            if (entries.Count == 0) return 0f;
-            if (lastFrame == Time.frameCount) return lastCoverage;
-            lastFrame = Time.frameCount;
-            float rain = 0f;
-            lastUnpaintedCoverage = 0f;
-            lastUnpaintedThunder = false;
-            try
-            {
-                for (int i = 0; i < entries.Count; i++)
-                {
-                    Entry entry = entries[i];
-                    if (entry.RainField)
-                    {
-                        float current = (float)coverageField.GetValue(entry.Field);
-                        if (current > rain) rain = current;
-                        NoteUnpainted(entry, current);
-                        if (current != 0f)
-                        {
-                            coverageField.SetValue(entry.Field, ZeroValue);
-                            setRenderer.Invoke(entry.Field, RendererOff);
-                        }
-                    }
-                    if (!entry.Zeroed) Zero(entry);
-                }
-                suppressed = true;
-            }
-            catch (Exception e)
-            {
-                // What was zeroed goes back before the path is given up.
-                for (int i = 0; i < entries.Count; i++) Restore(entries[i]);
-                getList = null;
-                summary = "not controllable (" + CompatibilityLog.Reason(e) + ")";
-                AtmospheresLog.Warn("atmospheres-eve-rain", "EVE rain: " + summary);
-            }
-            lastCoverage = Mathf.Clamp01(rain);
-            return lastCoverage;
-        }
-
         // Scales EVE's rain at the camera by what the field says falls there (once per frame, in Camera.onPreCull after EVE's Update):
         // the rain particle field's coverage by the rain share (a sleet fall counts half), and the cloud types' droplets, wet surfaces,
         // lightning and ambient volume by their factors of GroundEffectMath, written as original x factor and put back by Release. With
-        // all factors 1 EVE's rain is untouched; with all 0 it is gone (the old Suppress). Returns what the rain would have been.
+        // all factors 1 EVE's rain is untouched; with all 0 it is gone. Returns what the rain would have been.
         internal static float Scale(GroundEffectMath.Factors f)
         {
             if (entries.Count == 0) return 0f;
@@ -421,23 +378,6 @@ namespace ReDefinition.Atmospheres
                 record.Lightning = (float)lightningFrequency.GetValue(record.Type);
                 record.Ambient = (float)ambientVolume.GetValue(record.Type);
                 record.Kept = true;
-            }
-        }
-
-        // Keeps the first values of a layer's cloud types and sets the rain effects to 0. Droplets only for a layer without rain.
-        private static void Zero(Entry entry)
-        {
-            Keep(entry);
-            for (int j = 0; j < entry.Types.Count; j++)
-            {
-                TypeRecord record = entry.Types[j];
-                dropletsDensity.SetValue(record.Type, ZeroValue);
-                if (entry.RainField)
-                {
-                    wetIntensity.SetValue(record.Type, ZeroValue);
-                    lightningFrequency.SetValue(record.Type, ZeroValue);
-                    ambientVolume.SetValue(record.Type, ZeroValue);
-                }
             }
         }
 

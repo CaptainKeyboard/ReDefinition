@@ -15,7 +15,8 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
 {
     // The whole K-S2 scenario of SurfaceProbe against the solo rig's model of the game: the five frames in their order, each with its fog line, the rows file that lists exactly the
     // metrics the start emits, the series file that names the probe, and the faults the probe judges (the sun runs on, the cell is not alone, a camera that moved).
-    [TestClass]
+    // Harness: walks a probe (not shipped) through a fake rig, not the product.
+    [TestClass, TestCategory("Harness")]
     public class SurfaceProbeWalkThroughTests
     {
         private const double Dt = 0.05;

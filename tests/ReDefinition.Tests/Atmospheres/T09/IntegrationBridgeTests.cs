@@ -255,7 +255,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsFalse(EdgeSettings.AdaptiveDefault);
             Assert.IsFalse(EdgeSettings.ReconstructorDefault);
             Assert.IsFalse(LightningSwitches.EnabledDefault);
-            Assert.IsFalse(LayerSwitches.OwnCloudsDefault);
             Assert.IsFalse(new FarViewSettings().AerialPerspective);
             Assert.IsFalse(new FarViewSettings().Policy);
             Assert.AreEqual(LayerFrame.SunMarchShortM, new LayerFrame().SunMarchM);

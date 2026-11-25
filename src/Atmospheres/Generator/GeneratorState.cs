@@ -53,11 +53,6 @@ namespace ReDefinition.Atmospheres
             get { return Volatile.Read(ref bands); }
         }
 
-        internal float[] BaseBands
-        {
-            get { return baseBands; }
-        }
-
         // Whether a guard tripped: the body answers with its climatology only.
         internal bool Broken
         {

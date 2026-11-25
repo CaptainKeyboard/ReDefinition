@@ -124,7 +124,7 @@ namespace ReDefinition.Atmospheres
             });
         }
 
-        // Asks for the cumuliform volume (CLOUDR1 P2): starts its worker once; the GPU texture and the CPU twin's data appear when it is done (CumuliformReady).
+        // Asks for the cumuliform volume (CLOUDR1 P2): starts its worker once; the GPU texture and the CPU twin's data appear when it is done.
         internal void RequestCumuliform()
         {
             if (cumuliformWanted) return;
@@ -137,9 +137,6 @@ namespace ReDefinition.Atmospheres
 
         // True (the weather player): Bind waits for the cumuliform volume's worker, so no frame is drawn with the shape volume in its place.
         internal bool BlockOnCumuliform;
-
-        internal bool CumuliformReady { get { return cumuliformSet != null; } }
-        internal CumuliformVolumeSet CumuliformVolume { get { return cumuliformSet; } }
 
         private void StartCumuliform()
         {

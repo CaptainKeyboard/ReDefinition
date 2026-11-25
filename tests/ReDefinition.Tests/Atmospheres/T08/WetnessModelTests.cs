@@ -250,5 +250,17 @@ namespace ReDefinition.Tests.Atmospheres.T08
             WetnessModel.Step(ref s, ref w, WetClass.Craft, ref t, 10f);
             Assert.IsFalse(float.IsNaN(s.StoredMm) || float.IsNaN(s.StandingMm));
         }
+
+        [TestMethod]
+        public void TheInverseNormalMatchesKnownQuantiles()
+        {
+            Assert.AreEqual(0f, WetnessLookMath.InverseNormal(0.5f), 1e-6f);
+            Assert.AreEqual(1f, WetnessLookMath.InverseNormal(0.8413447f), 1e-4f);
+            Assert.AreEqual(-1.6448536f, WetnessLookMath.InverseNormal(0.05f), 1e-4f);
+            Assert.AreEqual(2.3263479f, WetnessLookMath.InverseNormal(0.99f), 1e-4f);
+            Assert.AreEqual(0f, WetnessLookMath.FieldThreshold(0f), 1e-6f);
+            Assert.AreEqual(WetnessLookMath.FieldMean, WetnessLookMath.FieldThreshold(0.5f), 1e-5f);
+            Assert.IsTrue(WetnessLookMath.FieldThreshold(0.2f) < WetnessLookMath.FieldThreshold(0.4f));
+        }
     }
 }

@@ -1,4 +1,4 @@
-// The contribution mask of ReDefinition Atmospheres (atmoDebug = contrib): which pass drew each pixel, and how much.
+// The contribution mask of ReDefinition Atmospheres (_AtmoDebug = 1, contrib): which pass drew each pixel, and how much.
 //
 // A pass that draws into the scene (the volume pass, the precipitation, the lamp scatter, the camera frost, the ground cover, the
 // sky layers) includes this file and, in its fragment function, returns AtmoContribOutput(normalColour, contribution, featureId):
@@ -11,8 +11,8 @@
 // frame cleared to black and blended as the pass blends holds black where the pass drew nothing. tools/atmo_ab.py contrib reads such
 // a capture: the pixels contributed, their share of the frame and the overlap with an expected region.
 //
-// The runtime sets _AtmoDebug from the setting atmoDebug (AtmoDebugMode: Off 0, Contrib 1, Level 2, Maps 3) with
-// Shader.SetGlobalFloat; without it the global stays zero and nothing changes. Unity 2019.4 (KSP 1.12), built-in pipeline.
+// The game sets no _AtmoDebug (the player setting atmoDebug was removed on 2026-11-25: nothing read it); the weather player's check
+// scenes set it with Shader.SetGlobalFloat. Without it the global stays zero and nothing changes. Unity 2019.4 (KSP 1.12), built-in pipeline.
 
 #ifndef REDEFINITION_ATMO_CONTRIBUTION_INCLUDED
 #define REDEFINITION_ATMO_CONTRIBUTION_INCLUDED

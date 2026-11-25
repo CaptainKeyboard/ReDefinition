@@ -195,7 +195,6 @@ namespace ReDefinition.Atmospheres
         // Package T12: the edge mask of the last Record (one texel per 4 x 4 block; null before the first edge frame), the edge pattern's samples,
         // the blocks the dilation widened it by, and the extra marks (may be null) after the mask passes and after the edge march.
         internal RenderTexture Mask { get { return mask; } }
-        internal RenderTexture EdgeMarch { get { return edgeLow; } }
         // The mask's state before the dilation (this frame's, after Record) and the coarse samples, for the measurements.
         internal RenderTexture MaskState { get { return stateLast; } }
         internal RenderTexture MaskHorizontal { get { return dilated; } }

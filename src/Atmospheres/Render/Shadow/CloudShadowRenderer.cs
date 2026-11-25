@@ -158,7 +158,7 @@ namespace ReDefinition.Atmospheres
             }
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
-            // Four channels a sample, as the layer pass's (master plan 43): the type's density profile (r), its noise scale factor (g), its extra noise amount (b), its LIFT (a).
+            // Four channels a sample, as the layer pass's (master plan 43): the type's density profile (r), its erosion gain (g; the shadow has no erosion and leaves it), its extra noise amount (b), its LIFT (a).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
             for (int l = 0; l < layerCount; l++)
@@ -174,7 +174,7 @@ namespace ReDefinition.Atmospheres
                 // The noise numbers as the layer pass has them (LayerRenderer: amount, 1 / scale, erosion, map shift), the erosion 0: the shape alone, as the pass's light march reads it.
                 noiseD[l] = new Vector4(layer.EffectiveNoiseAmount, layer.EffectiveNoiseScaleM > 0f ? 1f / layer.EffectiveNoiseScaleM : 0f, 0f, layer.MapShiftDeg);
                 noiseOff[l] = new Vector4(0f, 0f, 0f, layer.MapShiftDeg);
-                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData, amountData = table.NoiseAmountData;
+                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.ErosionGainData, amountData = table.NoiseAmountData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
                     int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;

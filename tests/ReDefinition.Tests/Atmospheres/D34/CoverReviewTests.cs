@@ -42,8 +42,6 @@ namespace ReDefinition.Tests.Atmospheres.D34
             Assert.IsTrue(RtFilter.LeftOut("Custom/DiscardAll"), "Parallax's discarding material is still left out");
             foreach (string name in new[] { "KSP/Diffuse", "Standard", "ReDefinition/AtmospheresShellScreen", "", null })
                 Assert.IsFalse(RtFilter.LeftOut(name), name ?? "(null)");
-            Assert.IsTrue(VehicleCoverGate.RayTracingLeavesOut(VehicleCover.ShaderName));
-            Assert.IsFalse(VehicleCoverGate.RayTracingLeavesOut("KSP/Diffuse"));
         }
 
         // ---- R1: the region maths of the screen-space pass --------------------------------------------------------------------------------

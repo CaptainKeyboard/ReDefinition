@@ -56,7 +56,6 @@ namespace ReDefinition.Atmospheres
         // The factors the last Update asked for.
         internal float AmbientFactor { get { return ambientFactor; } }
         internal float SunFactor { get { return sunFactor; } }
-        internal float ShadowFactor { get { return shadowFactor; } }
 
         // The sun factor for a look: the curve's direct dimming, counted with the EVE weight where an EVE layer carries the weather.
         internal static float SunFactorOf(float curveSunDirect, bool eveLayerPresent)
@@ -112,6 +111,22 @@ namespace ReDefinition.Atmospheres
             sunScaling = true;
             sun.intensity = sunIntensity.Scale(new Color(sun.intensity, 0f, 0f, 1f), sunFactor).r;
             sun.shadowStrength = sunShadow.Scale(new Color(sun.shadowStrength, 0f, 0f, 1f), shadowFactor).r;
+        }
+
+        // The sun Light's intensity without this writer's weather dimming (ApplySun's scale): what the sun gives above the weather. The dimming imitates for the SCENE the cloud
+        // that the weather at the camera stands for; our own clouds compute their own extinction and must be lit by the sun above them, so the cloud pass reads this value: with
+        // the scene's dimmed intensity a cloud kilometres up was lit weaker because it rained at the camera, and as the dimming is smoothed in time a pinned capture's sun
+        // differed from run to run (0.69 to 0.90, PRUEFPROTOKOLL 239).
+        internal float UndimmedSunIntensity(float current)
+        {
+            return Undimmed(sunIntensity, sunScaling, current);
+        }
+
+        // The tracker's baseline where the current value is still the one the tracker wrote, else the current value (someone else owns it now, or nothing is scaled).
+        internal static float Undimmed(AmbientTracker tracker, bool scaling, float current)
+        {
+            if (!scaling || tracker == null || !tracker.Active) return current;
+            return Math.Abs(current - tracker.Written.r) < 1e-5f ? tracker.Baseline.r : current;
         }
 
         // Puts everything back (the weather ended or the scene is left).

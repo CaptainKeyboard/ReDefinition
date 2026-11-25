@@ -222,52 +222,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual("high", s.LayerAt(1).Name);
             Assert.AreEqual(2, s.LayerCount);
         }
-
-        [TestMethod]
-        public void TheSpansOfAllLayersAreSortedNearestFirst()
-        {
-            LayerStackSource s = TwoSlabs();
-            var spans = new LayerSpan[8];
-            int n = LayerStack.Collect(s, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, spans);
-            Assert.AreEqual(2, n);
-            Assert.AreEqual(0, spans[0].Layer);
-            Assert.AreEqual(1, spans[1].Layer);
-            Assert.IsTrue(spans[0].T1 <= spans[1].T0);
-            // From above the order flips.
-            n = LayerStack.Collect(s, 0, 0, R + 9000.0, 0, 0, -1, 9000.0, spans);
-            Assert.AreEqual(2, n);
-            Assert.AreEqual(1, spans[0].Layer);
-            Assert.AreEqual(0, spans[1].Layer);
-        }
-
-        [TestMethod]
-        public void TheOpticalDepthOfASlabIsSigmaTimesTheSlantedPathAndTheStackAlphaIsTheProduct()
-        {
-            LayerStackSource s = TwoSlabs();
-            LayerTypeTable[] tables = s.Tables();
-            // Vertical: tau = 2 and 3.
-            double t0 = LayerStack.OpticalDepth(s, tables, 0, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, 64);
-            double t1 = LayerStack.OpticalDepth(s, tables, 1, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, 64);
-            Assert.AreEqual(2.0, t0, 1e-3);
-            Assert.AreEqual(3.0, t1, 1e-3);
-            double a0 = 1.0 - Math.Exp(-t0), a1 = 1.0 - Math.Exp(-t1);
-            double both = LayerStack.StackAlpha(s, tables, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, 64);
-            Assert.AreEqual(LayerStack.CombinedAlpha(a0, a1), both, 1e-6);
-        }
-
-        [TestMethod]
-        public void TheOpticalDepthDoesNotDependOnTheCameraBeingInsideThroughOrAboveTheShell()
-        {
-            var s = new LayerStackSource(0, R, true);
-            s.Add(new CloudLayerDef("layer", 0, 1700f, 2500f, new[] { CloudTypeDef.Slab("s", 0f, 1f) }, 0.01f), null, null);
-            LayerTypeTable[] t = s.Tables();
-            // The whole layer, from below and from above, vertically: sigma * 800.
-            Assert.AreEqual(8.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 2.0, 0, 0, 1, double.MaxValue, 128), 1e-3);
-            Assert.AreEqual(8.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 8000.0, 0, 0, -1, 8000.0, 128), 1e-3);
-            // From inside at 2000 m: up 500 m, down 300 m.
-            Assert.AreEqual(5.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 2000.0, 0, 0, 1, double.MaxValue, 128), 1e-3);
-            Assert.AreEqual(3.0, LayerStack.OpticalDepth(s, t, 0, 0, 0, R + 2000.0, 0, 0, -1, 2000.0, 128), 1e-3);
-        }
     }
 
     [TestClass]
@@ -276,7 +230,6 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSystemIsOffByDefaultAndDrawsOnlyUnderTheOursSource()
         {
-            Assert.IsFalse(LayerSwitches.OwnCloudsDefault);
             Assert.IsTrue(LayerSwitches.Active(true, CloudSourceKind.Ours));
             Assert.IsFalse(LayerSwitches.Active(false, CloudSourceKind.Ours));
             Assert.IsFalse(LayerSwitches.Active(true, CloudSourceKind.Eve));

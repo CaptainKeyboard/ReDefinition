@@ -17,7 +17,6 @@ namespace ReDefinition.Atmospheres
             internal const string YearLengthFactor = "yearLengthFactor";
             internal const string SeasonMode = "seasonMode";
             internal const string QualityTier = "qualityTier";
-            internal const string QualityGovernor = "qualityGovernor";
             // Clouds and frequency
             internal const string CloudSource = "cloudSource";
             internal const string WeatherCompose = "weatherCompose";
@@ -43,8 +42,6 @@ namespace ReDefinition.Atmospheres
             // Simulation
             internal const string GenEnabled = "genEnabled";
             internal const string SimGrid = "simGrid";
-            internal const string SimLevels = "simLevels";
-            internal const string SimSliceMs = "simSliceMs";
             internal const string GenSeed = "genSeed";
             // Volume
             internal const string VolumePass = "volumePass";
@@ -60,7 +57,6 @@ namespace ReDefinition.Atmospheres
             internal const string PrecipSand = "precipSand";
             internal const string PrecipAsh = "precipAsh";
             internal const string PrecipMethane = "precipMethane";
-            internal const string StormCullDistance = "stormCullDistance";
             internal const string VisibilityExtinctionBrightness = "visibilityExtinctionBrightness";
             internal const string PrecipExtinctionStrength = "precipExtinctionStrength";
             internal const string BlizzardVisibilityM = "blizzardVisibilityM";
@@ -94,7 +90,6 @@ namespace ReDefinition.Atmospheres
             internal const string CoverDrift = "coverDrift";
             internal const string SeaIce = "seaIce";
             internal const string IceDrawDistanceKm = "iceDrawDistanceKm";
-            internal const string IceCollision = "iceCollision";
             // Forecast, alerts and launch limits
             internal const string ForecastEnabled = "forecastEnabled";
             internal const string AlertsEnabled = "alertsEnabled";
@@ -120,9 +115,7 @@ namespace ReDefinition.Atmospheres
             // Diagnostics
             internal const string ForceLevel = "forceLevel";
             internal const string ForceType = "forceType";
-            internal const string ForceBody = "forceBody";
             internal const string ForcePhase = "forcePhase";
-            internal const string AtmoDebug = "atmoDebug";
         }
 
         // The groups of the settings window.
@@ -254,7 +247,6 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Float("yearLengthFactor", 1.0, 0.01, 10.0, G, "Season Year Length"),
                 SettingDef.Choice("seasonMode", typeof(SeasonMode), SeasonMode.RealSeasons, G, "Season Mode"),
                 SettingDef.Choice("qualityTier", typeof(ReDefinition.Core.QualityTier), ReDefinition.Core.QualityTier.Auto, G, "Quality Tier", "", RQ),
-                SettingDef.Bool("qualityGovernor", false, G, "Quality Governor", MASTER, RQ),
 
                 // Clouds and frequency
                 SettingDef.Choice("cloudSource", typeof(CloudSourceKind), CloudSourceKind.Eve, CL, "Cloud Source", MASTER, RV),
@@ -283,8 +275,6 @@ namespace ReDefinition.Atmospheres
                 // Simulation
                 SettingDef.Bool("genEnabled", true, S, "Weather Generator", MASTER, RS),
                 SettingDef.Choice("simGrid", typeof(SimGridChoice), SimGridChoice.Auto, S, "Simulation Grid", SIM, RS),
-                SettingDef.Int("simLevels", 0, 0, 32, S, "Simulation Levels", SIM, RS),
-                SettingDef.Float("simSliceMs", 0.5, 0.1, 4.0, S, "Simulation Slice", SIM, RS),
                 SettingDef.Int("genSeed", 1, int.MinValue, int.MaxValue, S, "Weather Seed", SIM),
 
                 // Volume
@@ -302,7 +292,6 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("precipSand", true, P, "Draw Sand", PR),
                 SettingDef.Bool("precipAsh", true, P, "Draw Ash", PR),
                 SettingDef.Bool("precipMethane", true, P, "Draw Methane", PR),
-                SettingDef.Bool("stormCullDistance", false, P, "Cull Distant Terrain In Storms", MASTER, RP),
                 SettingDef.Float("visibilityExtinctionBrightness", 1.0, 0.25, 2.0, P, "Visibility Extinction Brightness", MASTER),
                 SettingDef.Float("precipExtinctionStrength", 0.85, 0.0, 0.95, P, "Precipitation Extinction", MASTER),
                 SettingDef.Float("blizzardVisibilityM", 60.0, 20.0, 500.0, P, "Blizzard Visibility", MASTER),
@@ -339,7 +328,6 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Float("coverDrift", 0.3, 0.0, 1.0, C, "Cover Drift", GC),
                 SettingDef.Choice("seaIce", typeof(SeaIceMode), SeaIceMode.Orbit, I, "Sea Ice", MASTER, RI),
                 SettingDef.Float("iceDrawDistanceKm", 5.0, 1.0, 50.0, I, "Ice Draw Distance", SI, RI),
-                SettingDef.Bool("iceCollision", false, I, "Ice Collision", SI),
 
                 // Forecast, alerts and launch limits
                 SettingDef.Bool("forecastEnabled", true, F, "Forecast", MASTER, RF),
@@ -368,9 +356,7 @@ namespace ReDefinition.Atmospheres
                 // Diagnostics
                 SettingDef.Float("forceLevel", -1.0, -1.0, 1.0, D, "Force Precipitation Level", "", "", ForceNegativeOff),
                 SettingDef.Choice("forceType", typeof(ForceType), ForceType.Auto, D, "Force Precipitation Type"),
-                SettingDef.Text("forceBody", "", D, "Force Body"),
-                SettingDef.Float("forcePhase", -1.0, -1.0, 1.0, D, "Force Season Phase", "", "", ForcePhaseRule),
-                SettingDef.Choice("atmoDebug", typeof(AtmoDebugMode), AtmoDebugMode.Off, D, "Debug Overlay")
+                SettingDef.Float("forcePhase", -1.0, -1.0, 1.0, D, "Force Season Phase", "", "", ForcePhaseRule)
             };
             // The own cloud system's rows (AtmospheresSettings.Clouds.cs); the window groups by category, so they stand with the other Clouds rows.
             t.AddRange(CloudSettingRows.Rows());

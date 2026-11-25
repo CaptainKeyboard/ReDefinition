@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
@@ -45,21 +46,41 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return s;
         }
 
-        private static WeatherMap LayerAt(GeneratorField field, int body, double ut, double heightM)
+        // The layer maps made while a CachedLayers scope is open, by field, time and height key. LayerAt renders the map anew on every call (about 0.5 to 1 s a map), and the type-mix check
+        // asks for the same maps several times per time (the stage off and on, the alto heights). The render depends on LayerWindOptions too, so only a caller that keeps them fixed inside
+        // the scope may open one.
+        private static Dictionary<Tuple<GeneratorField, double, int>, byte[]> layerCache;
+
+        internal static IDisposable CachedLayers()
         {
+            layerCache = new Dictionary<Tuple<GeneratorField, double, int>, byte[]>();
+            return new CacheScope();
+        }
+
+        private sealed class CacheScope : IDisposable
+        {
+            public void Dispose() { layerCache = null; }
+        }
+
+        private static byte[] LayerAt(GeneratorField field, int body, double ut, double heightM)
+        {
+            int key = (int)Math.Round(Math.Max(0.0, heightM) / GeneratorMaps.LayerStepM);
+            var cacheKey = Tuple.Create(field, ut, key);
+            byte[] cached;
+            if (layerCache != null && layerCache.TryGetValue(cacheKey, out cached)) return (byte[])cached.Clone();
             var map = new WeatherMap();
             field.GetLayerCoverage(body, ut, heightM, map);
-            field.Maps.RenderLayerNow(body, (int)Math.Round(Math.Max(0.0, heightM) / GeneratorMaps.LayerStepM));
+            field.Maps.RenderLayerNow(body, key);
             Assert.IsTrue(field.GetLayerCoverage(body, ut, heightM, map));
             map.PackBytes(0f, 1f);
-            return map;
+            if (layerCache != null) layerCache[cacheKey] = (byte[])map.Bytes.Clone();
+            return map.Bytes;
         }
 
         // One layer's cover and type bytes at the shared maps' time. stage false: the generator's maps and the old rule (the precipitation's curve and the blend towards the sheet).
         internal static void Layer(GeneratorField field, int body, Shared s, CloudLayerDef l, bool stage, out byte[] cover, out byte[] type)
         {
-            WeatherMap layerMap = LayerAt(field, body, s.Ut, CloudBridgeStack.MidHeightM(l));
-            cover = layerMap.Bytes;
+            cover = LayerAt(field, body, s.Ut, CloudBridgeStack.MidHeightM(l));
             byte[] altoMid = null, altoLow = null;
             if (l.LowStratiform != null)
             {
@@ -75,8 +96,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 type = CloudLookTuning.TypeBytes(s.Precip.Bytes, l.FairType, -1f, ref scratch, l.RainType);
                 if (l.AltoType >= 0f)
                 {
-                    altoMid = LayerAt(field, body, s.Ut, l.TypeMidHeightM(l.AltoType)).Bytes;
-                    altoLow = LayerAt(field, body, s.Ut, l.TypeMidHeightM(l.FairType >= 0f ? l.FairType : 0f)).Bytes;
+                    altoMid = LayerAt(field, body, s.Ut, l.TypeMidHeightM(l.AltoType));
+                    altoLow = LayerAt(field, body, s.Ut, l.TypeMidHeightM(l.FairType >= 0f ? l.FairType : 0f));
                     if (!stage || !l.HasClimate) type = CloudLookTuning.ApplyAlto(type, s.Precip.Bytes, altoMid, altoLow, l.AltoType, l.AltoFrom, l.AltoFull, ref altoScratch);
                 }
             }

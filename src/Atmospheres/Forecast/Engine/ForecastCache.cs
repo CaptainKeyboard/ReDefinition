@@ -115,7 +115,7 @@ namespace ReDefinition.Atmospheres.Forecast
         private readonly Dictionary<TrackKey, ForecastTrack[]> tracks = new Dictionary<TrackKey, ForecastTrack[]>();
         private long seenGeneration;
         private long clock;
-        private long reusedSteps, computedSteps, hits, trackHits, trackMisses;
+        private long reusedSteps, computedSteps, hits;
 
         // generation reads the number that rises when the inputs of the forecast change; the default is WeatherHooks.ForecastGeneration.
         internal ForecastCache(Func<long> generation = null)
@@ -144,8 +144,6 @@ namespace ReDefinition.Atmospheres.Forecast
         internal long ReusedSteps { get { return System.Threading.Interlocked.Read(ref reusedSteps); } }
         internal long ComputedSteps { get { return System.Threading.Interlocked.Read(ref computedSteps); } }
         internal long Hits { get { return System.Threading.Interlocked.Read(ref hits); } }
-        internal long TrackHits { get { return System.Threading.Interlocked.Read(ref trackHits); } }
-        internal long TrackMisses { get { return System.Threading.Interlocked.Read(ref trackMisses); } }
 
         private long Validate()
         {
@@ -225,13 +223,7 @@ namespace ReDefinition.Atmospheres.Forecast
             lock (gate)
             {
                 ForecastTrack[] t;
-                if (tracks.TryGetValue(new TrackKey { Body = bodyIndex, RulesHash = ctx.RulesHash, DefinitionId = definitionId, Bucket = bucket }, out t))
-                {
-                    System.Threading.Interlocked.Increment(ref trackHits);
-                    return t;
-                }
-                System.Threading.Interlocked.Increment(ref trackMisses);
-                return null;
+                return tracks.TryGetValue(new TrackKey { Body = bodyIndex, RulesHash = ctx.RulesHash, DefinitionId = definitionId, Bucket = bucket }, out t) ? t : null;
             }
         }
 

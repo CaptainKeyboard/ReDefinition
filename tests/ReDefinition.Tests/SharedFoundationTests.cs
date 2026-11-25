@@ -104,15 +104,16 @@ namespace ReDefinition.Tests
             StringAssert.Contains(reports[0], "probes");
         }
 
-        // The Direct3D 12 compute packets' sizes and field offsets match the proxy's.
+        // The Direct3D 12 compute packets' sizes and field offsets match the static_asserts of the proxy's D3d12Compute.h.
         [TestMethod]
         public void TheDirect3D12PacketsAreLaidOutAsTheProxyReadsThem()
         {
-            Assert.AreEqual(88, Marshal.SizeOf(typeof(D3d12Bridge.CreatePacket)));
-            Assert.AreEqual(424, Marshal.SizeOf(typeof(D3d12Bridge.DispatchPacket)));
-            Assert.AreEqual(40, Marshal.OffsetOf(typeof(D3d12Bridge.DispatchPacket), "Read").ToInt32());
-            Assert.AreEqual(168, Marshal.OffsetOf(typeof(D3d12Bridge.DispatchPacket), "Constants").ToInt32());
-            Assert.AreEqual(24, Marshal.SizeOf(typeof(D3d12Bridge.HandlePacket)));
+            var header = NativeLayoutAsserts.Read("src", "DxgiProxy", "Managed", "D3d12Compute.h");
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "D3d12CreatePacket"), Marshal.SizeOf(typeof(D3d12Bridge.CreatePacket)));
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "D3d12DispatchPacket"), Marshal.SizeOf(typeof(D3d12Bridge.DispatchPacket)));
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "D3d12DispatchPacket.read"), Marshal.OffsetOf(typeof(D3d12Bridge.DispatchPacket), "Read").ToInt32());
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "D3d12DispatchPacket.constants"), Marshal.OffsetOf(typeof(D3d12Bridge.DispatchPacket), "Constants").ToInt32());
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "D3d12HandlePacket"), Marshal.SizeOf(typeof(D3d12Bridge.HandlePacket)));
         }
 
         // The wrapper mods copy (docs/modders/examples/ReDefinitionApi.cs) finds every member of the interface,
@@ -120,7 +121,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheWrapperFindsEveryMemberOfTheInterface()
         {
-            Assert.IsNotNull(typeof(Api.ApiInfo).Assembly);
+            // Loads ReDefinition.dll before the wrapper looks for it among the loaded assemblies; not a check.
+            GC.KeepAlive(typeof(Api.ApiInfo).Assembly);
             IList<string> missing = YourMod.ReDefinitionApi.MissingMembers();
             Assert.AreEqual(0, missing.Count, "missing: " + string.Join(", ", missing));
             Assert.AreEqual(Api.ApiInfo.Version, YourMod.ReDefinitionApi.Version);

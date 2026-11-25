@@ -148,15 +148,10 @@ namespace ReDefinition.Tests.Atmospheres.D35
         }
 
         [TestMethod]
-        public void TheCoverageChangesContinuouslyOverTheYearWrap()
+        public void TheCoverageChangesContinuouslyAndMonotonicallyWithTheFraction()
         {
             IceParams p = Params();
-            // A scripted field whose fraction follows a cosine of the season phase: the phase 0.999 and 0.001 are 0.002 of a year apart.
-            Func<double, float> field = phase => (float)(0.5 + 0.45 * Math.Cos(2 * Math.PI * phase));
-            double before = IceShare(p, field(0.999), 150000, i => 0.5f, i => 0.5f);
-            double after = IceShare(p, field(0.001), 150000, i => 0.5f, i => 0.5f);
-            Assert.AreEqual(before, after, 0.01, "coverage across the year wrap");
-            // And in small steps of the fraction the coverage never jumps.
+            // IceMask sees the field's fraction, not the season's phase: in small steps of the fraction the coverage never jumps and never falls.
             double last = IceShare(p, 0.1f, 60000, i => 0.5f, i => 0.5f);
             for (float f = 0.11f; f < 0.95f; f += 0.01f)
             {

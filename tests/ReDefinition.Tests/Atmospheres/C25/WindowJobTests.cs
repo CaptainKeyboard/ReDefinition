@@ -137,36 +137,6 @@ namespace ReDefinition.Tests.Atmospheres.C25
             Assert.AreEqual(WindowJobState.Idle, field.WindowState);
         }
 
-        // The numbers the factor to the game's runtime is read from (K-W3b2: window 19.66 ms, sample 4.31 us, map 390.6 ms in the game's
-        // Release series; the window before E43 5.13 ms): medians of 31 fills of the layered and the plain window in this process.
-        [TestMethod]
-        public void TheWindowCostMediansAreStated()
-        {
-            GeneratorField field = FieldFixture.Field();
-            var window = new WeatherWindow();
-            field.FillWindow(Body, 50, 10, 30, 3.0e6, window);
-            double layered = MedianFillMs(field, window);
-            LayerWindOptions.WindShearOverride = LayerWindOptions.VerticalMotionOverride = LayerWindOptions.AnvilTiltOverride = false;
-            LayerWindOptions.Couple = false;
-            double plain = MedianFillMs(field, window);
-            Console.WriteLine("C25 window medians of 31: layered " + layered.ToString("0.00") + " ms, plain " + plain.ToString("0.00") + " ms, ratio "
-                              + (layered / plain).ToString("0.00"));
-            Assert.IsTrue(layered > 0.0 && plain > 0.0);
-        }
-
-        private static double MedianFillMs(GeneratorField field, WeatherWindow window)
-        {
-            var ms = new double[31];
-            for (int i = 0; i < ms.Length; i++)
-            {
-                long t0 = Stopwatch.GetTimestamp();
-                field.FillWindow(Body, 50, 10 + i * 0.3, 30, 3.0e6 + i * 600.0, window);
-                ms[i] = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
-            }
-            Array.Sort(ms);
-            return ms[ms.Length / 2];
-        }
-
         [TestMethod]
         public void TheMainThreadOnlyAsksAndTakes()
         {

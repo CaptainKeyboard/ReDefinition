@@ -8,7 +8,6 @@ namespace ReDefinition.Atmospheres.Forecast
     internal static class ForecastStrings
     {
         internal const string WindowTitle = "Weather Forecast";
-        internal const string LauncherTooltip = "Weather Forecast";
         internal const string Close = "Close";
         internal const string Refresh = "Refresh";
         internal const string PinHere = "Pin";

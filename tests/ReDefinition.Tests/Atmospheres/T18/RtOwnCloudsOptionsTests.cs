@@ -5,7 +5,7 @@ using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests.Atmospheres.T18
 {
-    // The switches of the ray-side pack (package T18): off by default, a help text, a tier reason, a matrix row, the tuning numbers within their ranges.
+    // The switches of the ray-side pack (package T18): rtOwnClouds on and its layer cap off by default, a help text, a tier reason, a matrix row, the tuning numbers within their ranges.
     [TestClass]
     public class RtOwnCloudsOptionsTests
     {
@@ -34,13 +34,10 @@ namespace ReDefinition.Tests.Atmospheres.T18
         {
             var compiled = RtCloudPackSettings.From(false, 0, (key, value) => value);
             Assert.IsFalse(compiled.Enabled);
-            Assert.AreEqual(512, compiled.Width, "the weather maps' own lattice");
-            Assert.AreEqual(256, compiled.Height);
-            Assert.AreEqual(8, compiled.Steps);
-            Assert.AreEqual(0.3f, compiled.BudgetMs);
-            Assert.AreEqual(6.0f, compiled.FirstBudgetMs, "the first pack is made in seconds");
-            Assert.AreEqual(2, compiled.DepthStride);
-            Assert.AreEqual(10f, compiled.RebakeIntervalS);
+            // The tuning defaults themselves (steps, budgets, stride, interval) are the class's numbers and are not repeated here; the lattice and the relations are rules.
+            Assert.AreEqual(GeneratorMaps.Width, compiled.Width, "the weather maps' own lattice");
+            Assert.AreEqual(GeneratorMaps.Height, compiled.Height);
+            Assert.IsTrue(compiled.FirstBudgetMs > compiled.BudgetMs, "the first pack gets more time a frame than a refresh");
             Assert.AreEqual(RtCloudRayMath.MaxTaps, compiled.RayTaps, "the shaders' taps are the law's");
             Assert.AreEqual(16, RtCloudPackSettings.From(true, 0, (key, value) => key == RtCloudPackSettings.TuneRayTaps ? 99f : value).RayTaps);
             var extreme = RtCloudPackSettings.From(true, 0, (key, value) => key == RtCloudPackSettings.TuneDepthStride ? 99f : key == RtCloudPackSettings.TuneRebakeIntervalS ? -4f : value);
@@ -60,14 +57,13 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.AreEqual(0, odd.Width % 2, "an even width, so that the height is half of it");
         }
 
+        // The switch rtOwnClouds is covered by AtmospheresSwitchesTests (every bool and choice setting); the cap is a number, which that test does not cover.
         [TestMethod]
-        public void EveryNewKeyHasARenderingInTheBenchmarkMatrix()
+        public void TheLayerCapHasARenderingInTheBenchmarkMatrix()
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             string json = File.ReadAllText(Path.Combine(root, "tools", "benchmark_matrix.json"));
-            foreach (string key in new[] { "rtOwnClouds", "rtOwnCloudsLayerCap" })
-                Assert.IsTrue(json.IndexOf("\"atmo." + key + "\"", StringComparison.Ordinal) >= 0, key);
-            Assert.IsTrue(json.IndexOf("\"id\": \"weather-rtOwnClouds\", \"name\"", StringComparison.Ordinal) >= 0);
+            Assert.IsTrue(json.IndexOf("\"atmo.rtOwnCloudsLayerCap\"", StringComparison.Ordinal) >= 0);
         }
     }
 }

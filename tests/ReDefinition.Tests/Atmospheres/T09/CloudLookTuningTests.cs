@@ -116,16 +116,15 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Clear();
             CloudLayerDef l1 = CloudLookFixtures.Cumulus();
             long stamp = CloudCoverShift.Stamp;
+            float configured = l1.SigmaPerM;
             Set(CloudLookTuning.TuneSigma, 0.7f);
             Set(CloudLookTuning.TuneSoftness, 2f);
             Set(CloudLookTuning.TuneNoiseSize, 0.5f);
             Assert.AreEqual(0.035f, l1.EffectiveSigmaPerM, 1e-6f);
             Assert.AreEqual(0.30f, l1.LookedEdgeSoftness, 1e-6f);
             Assert.AreEqual(l1.NoiseScaleM * 0.5f, l1.EffectiveNoiseScaleM, 1e-3f);
-            Assert.AreEqual(l1.SigmaPerM, l1.SigmaPerM, 0f, "the configured number is untouched");
+            Assert.AreEqual(configured, l1.SigmaPerM, 0f, "the configured number is untouched");
             Assert.IsTrue(CloudCoverShift.Stamp > stamp);
-            long again = CloudCoverShift.Stamp;
-            Assert.AreEqual(again, CloudCoverShift.Stamp, "no change, no new stamp");
             // The CPU density follows (on a layer without noise: with noise the water content at the outline depends on the extinction, so the density is not linear in it).
             CloudLayerDef l2 = CloudLookFixtures.Cumulus();
             l2.NoiseAmount = 0f;

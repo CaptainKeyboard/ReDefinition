@@ -64,7 +64,6 @@ namespace AtmoSim.Core
         // The parts of CloudWater before its cap at 1.5: the humidity background (bg), the dynamic lift and fronts (stratiform, the low stratiform layer), the convective cells (0.7 x strength) plus the
         // trade-wind cumulus. CloudWater = min(1.5, sum).
         public double CloudBackground, CloudDynamic, CloudConvective;
-        public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
         public double DensityAt(double altM)
@@ -1002,24 +1001,6 @@ namespace AtmoSim.Core
                 e += D.JetSpeed0 * (1.0 - 0.3 * DMath.Clamp(hs * f.DLag / 0.4084, -1.0, 1.0)) * jp * DMath.SmoothStep(0.4 * htrop, htrop, alt);
             }
             east = e; north = n;
-        }
-
-        // The pressure of the zonal-mean structure (subtropical highs, subpolar lows) is added by callers that want the full
-        // pressure; Sample returns the wave part only. Zonal-mean pressure anomaly in Pa at a latitude and season.
-        public double ZonalPressureAnomaly(double latRad, double ut)
-        {
-            Frame f = GetFrame(ut);
-            int hs = latRad >= 0.0 ? 1 : -1;
-            double la = hs * latRad - 0.22 * hs * f.DLag;
-            double ps = Body.SurfacePressurePa;
-            double z = -0.004 * ps * DMath.Exp(-(latRad - f.ItczLat) * (latRad - f.ItczLat) / 0.04);
-            if (D.Cells >= 2)
-            {
-                z += 0.006 * ps * DMath.Exp(-(la - D.Edge1) * (la - D.Edge1) / 0.0256);
-                double e2 = D.Cells == 3 ? D.Edge2 : 1.1;
-                z -= 0.008 * ps * DMath.Exp(-(la - e2) * (la - e2) / 0.0256);
-            }
-            return z * (1.0 - D.SubSolarWeight);
         }
 
         // ---- smooth periodic value noise (round 2) ------------------------------------------------------------------------

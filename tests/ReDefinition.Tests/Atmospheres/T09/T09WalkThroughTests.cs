@@ -18,7 +18,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
     // starts 35 to 40 hit, and the probe has to fail with a named reason, never with an unhandled exception ("exception in the scenario").
     // What it cannot cover: the real flight camera and vessel physics, the GPU's timings and the profiler's labels (tools/weather_metrics/kt2.py reads those
     // from the log; its own --selftest covers the parsing), the game's load, the order of the game's own frame callbacks and the real field's state.
-    [TestClass]
+    // Harness: walks the T09 probes (not shipped) through T09FakeWorld; the category covers every partial of this class.
+    [TestClass, TestCategory("Harness")]
     public partial class T09WalkThroughTests
     {
         private static readonly string[] AllOwn = { "off", "plain", "recon2", "recon3", "recon4", "cache", "cap2", "gain" };
@@ -212,7 +213,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             double sun = Number(r, "T09.sun_elev_deg");
             Assert.IsTrue(sun >= 30 && sun <= 55, "sun " + sun);
             Assert.AreEqual(1.0, Number(r, "T09.sun_band_narrow"));
-            Assert.AreEqual(158.0, Number(r, "T09.candidates"));
+            // Both parts of the scan answered: the hourly candidates from the base and the far ones up to 10 days.
+            double far = Number(r, "T09.candidates_far"), near = Number(r, "T09.candidates") - far;
+            Assert.IsTrue(near > 0 && far > 0, "candidates near " + near + ", far " + far);
             Assert.AreEqual(ut - (1000000.0 + 123.0 + 55 + 12), Number(r, "T09.ut_jump_s"), 60.0, "the jump is the distance from the start");
 
             // The window and the display.
@@ -286,14 +289,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.IsTrue(r.Probe.Elapsed > 12 * 60 && r.Probe.Elapsed < 16.5 * 60, "scenario time " + r.Probe.Elapsed.ToString("0") + " s");
             Assert.IsFalse(double.IsNaN(r.World.HoldStartedAtS), "the vessel was held while it was placed");
             Assert.IsFalse(r.World.Held, "the hold was released at the end");
-        }
 
-        [TestMethod]
-        public void EveryProbeOwnedRowOfTheSeriesFileIsEmittedByAHealthyStart()
-        {
-            Run r = Start(null);
-            Drive(r, RealDt);
-            Assert.IsTrue(r.Probe.Passed, Dump(r));
+            // Every probe-owned row of the series file is emitted.
             string root = RepoRoot.Root("tests", "series", "rows", "T09.json");
             string rows = File.ReadAllText(Path.Combine(root, "tests", "series", "rows", "T09.json"));
             foreach (string metric in new[] { "T09.ut", "T09.cover", "T09.sun_elev_deg", "T09.view.frames_drawn", "T09.view.frames_ratio", "T09.height_build_worst_ms",

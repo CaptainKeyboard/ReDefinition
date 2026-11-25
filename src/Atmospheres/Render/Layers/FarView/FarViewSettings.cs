@@ -63,12 +63,6 @@ namespace ReDefinition.Atmospheres
                 D = Shader.PropertyToID("_FarD"), E = Shader.PropertyToID("_FarE");
         }
 
-        // The top of the air that counts for the aerial perspective, in m above sea level: where the denser of the two species has fallen to a thousandth.
-        internal static float AirTop(float rayleighHeightM, float mieHeightM)
-        {
-            return 7f * Mathf.Max(rayleighHeightM, mieHeightM);
-        }
-
         internal void Upload(Material m)
         {
             m.SetVector(Ids.A, new Vector4(AerialPerspective ? 1f : 0f, Mathf.Max(AerialPerspectiveStrength, 0f), Mathf.Max(RayleighHeightM, 1f), Mathf.Max(MieHeightM, 1f)));

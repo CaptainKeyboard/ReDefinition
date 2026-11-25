@@ -29,7 +29,6 @@ namespace ReDefinition.Atmospheres
         internal const int QuadQueue = 3500;
         private const int PassHost = 0;
         private const int PassCopy = 1;
-        private const int PassQuad = 2;
         private const int PassMap = 3;
 
         private static readonly int IdA = Shader.PropertyToID("_DrpA");

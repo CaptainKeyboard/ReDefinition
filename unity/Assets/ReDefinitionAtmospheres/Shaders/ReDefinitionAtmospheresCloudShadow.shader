@@ -246,10 +246,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             // _CsParams2.z is 1 where the shadow reads the pass's shape, 0 for the map alone).
             float h = (share - b) / (tp - b);
             float4 pf = lerp(TypeProfile(li, ta, h), TypeProfile(li, tb, h), f);
-            // The type's own bound at this height (the layer pass's TypeNoiseBound) and its noise amount and scale (master plan 43).
+            // The type's own bound at this height (the layer pass's TypeNoiseBound) and its noise amount (master plan 43; channel g, the erosion gain, has no erosion to act on here).
             float typeBound = 0.5 * abs(_CsNoiseD[li].x) * (1.0 + pf.b);
             float typeAmount = _CsNoiseD[li].x * (1.0 + pf.b);
-            float3 pcN = pf.g > 0.0 ? pc * (1.0 + pf.g) : pc;
             // CLOUD FIELD: the layer pass's single clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
             // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
 #if !defined(CLOUD_LATTICE)
@@ -273,7 +272,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
             }
-            else s = NoiseShareNear(li, pcN, cov, _CsLayerB[li].y, edge, typeAmount, 0.0);
+            else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, typeAmount, 0.0);
             if (s <= 0) return 0;
             float pw = 1.0 + _CsLayerC[li].y;   // E40 soft density: the layer's water exponent (stored minus 1: 0 = none)
             pw = lerp(ia.z > 0 ? ia.z : pw, ib.z > 0 ? ib.z : pw, f);   // CLOUDR1 P1: the type's own exponent

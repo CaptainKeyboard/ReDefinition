@@ -47,12 +47,6 @@ namespace ReDefinition.Atmospheres.Audio
             return (int)NextUInt() * (1.0f / 2147483648.0f);
         }
 
-        // Uniform in [0, 1).
-        public float NextUnit()
-        {
-            return UnitOf(NextUInt());
-        }
-
         // A word of the stream as a number in [0, 1), and as one in [-1, 1).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float UnitOf(uint word)

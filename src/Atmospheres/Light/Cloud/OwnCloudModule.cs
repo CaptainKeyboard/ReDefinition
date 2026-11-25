@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     // layer pass into a command buffer on that camera every frame. Everything the earlier packages built but nothing called is called here:
     // LayerRenderer (T01), the noise model (T02), the light with the moons and the lightning bolts (T03, T07), the temporal reconstruction
     // with the edge mode (T05, T12; LayerReconstructDriver Configure and Record), the far view with the aerial perspective of the body's own
-    // air (T06; CloudBridgeAir) and the hand-over of the 2D shell (OwnShell.NearMarchActive), the height maps (T13; HeightDriver.Update), the
+    // air (T06; CloudBridgeAir) and the hand-over of the 2D shell (OwnShell.NearMarchActive), the height maps (T13; HeightJob), the
     // optical depth hook of the cloud shadow (OwnCloudHook). The settings reach the structs through OwnCloudOptions.
     //
     // When it draws: the mod and the own clouds are on, the cloud source in force is Ours (OwnCloudOptions.Active), the scene is a flight scene
@@ -256,6 +256,13 @@ namespace ReDefinition.Atmospheres
         private CloudBridgeAir.Air air;
         // The sun's light as Unity has it outside the render, before Scatterer's modulation (read in the tick: Scatterer applies its colour in the far camera's pre-render and
         // restores it after the near camera); the sun colour of the pass never exceeds it.
+        // The sun Light's intensity without our weather dimming of the scene (LightWriter.UndimmedSunIntensity); the intensity itself outside the flight's weather driver.
+        private static float UndimmedSun(float intensity)
+        {
+            LightWriter writer = WeatherFrameDriver.Light;
+            return writer != null ? writer.UndimmedSunIntensity(intensity) : intensity;
+        }
+
         private Color sunUnmodulated;
         private bool haveSunUnmodulated;
         private int airBody = -1;
@@ -419,7 +426,7 @@ namespace ReDefinition.Atmospheres
             }
             Light sunLight = Sun.Instance != null ? Sun.Instance.sunLight : null;
             haveSunUnmodulated = sunLight != null;
-            if (haveSunUnmodulated) sunUnmodulated = sunLight.color * sunLight.intensity;
+            if (haveSunUnmodulated) sunUnmodulated = sunLight.color * UndimmedSun(sunLight.intensity);
             // The camera's pose and the floating origin move after the modules tick (FlightCamera's LateUpdate): the numbers that hold the pose are
             // written and the buffer recorded in the camera's pre-cull, with the state of this tick.
             pendingCamera = cam;
@@ -1299,12 +1306,6 @@ namespace ReDefinition.Atmospheres
             get { return Stats.MapFetches; }
         }
 
-        // The main-thread milliseconds of the last map round and the worst single frame of a round (the cost the viewer shows next to a rebuild).
-        internal double LastMapRoundMs
-        {
-            get { return Stats.LastMapMs; }
-        }
-
         // The inputs of the low stratiform rule (WeatherLowStratiformRule) once per round, for every layer that has one: the dew-point spread of the surface air (from the humidity and
         // temperature maps) and the wind. A map the field cannot give leaves its input null: no fog from the spread, a calm wind.
         private void FetchFogInputs(CelestialBody b, IWeatherField field, double ut)
@@ -1442,7 +1443,8 @@ namespace ReDefinition.Atmospheres
             Light sun = Sun.Instance != null ? Sun.Instance.sunLight : null;
             float gain = Tuning.Get(TuneSunGain, SunGainDefault);
             // The scene's sun colour is the display value of a white card facing the sun (the output stage's white); the pass is radiometric and gets pi times it.
-            Color sceneSun = sun != null ? sun.color * sun.intensity : Color.white;
+            // The sun above the weather: our weather dimming of the scene's sun (LightWriter) is not the clouds' light (they compute their own extinction).
+            Color sceneSun = sun != null ? sun.color * UndimmedSun(sun.intensity) : Color.white;
             float sunUnit = Tuning.Get(TuneSunUnit, CloudOutputStage.SunUnitDefault);
             // E40 sun colour: where Scatterer filters the sun (it multiplies the light by the air between the active vessel and the sun), the pass takes the viewer's air out of the
             // colour and the shader puts the air above each sample back, so a cloud gets the sun through the air above the cloud, not above the camera. With Scatterer's own air

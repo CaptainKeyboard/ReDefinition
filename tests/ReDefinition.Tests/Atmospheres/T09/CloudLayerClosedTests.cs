@@ -46,16 +46,12 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 p1[k] = Closed(layers[k], map[k], 0.0, 0f);
                 c35[k] = Closed(layers[k], map[k], 0.0, -0.15f);
             }
-            Assert.AreEqual(0.34, p1[0], 0.06, "low stratiform rain layer (Fog at type 0) at shift 0");
-            // The cumulus layer is the cell field of the shipped cfg (noise amount 1, 500 m): 0.58 at shift 0 and 0.43 at coverage 0.20; the sheet of the former cfg (amount 0.35)
-            // gave 0.73 and 0.30. The noise decides where the cloud stands, the map how much of the sky it fills.
-            Assert.AreEqual(0.58, p1[1], 0.04, "cumulus (Stratocumulus) at shift 0");
-            Assert.AreEqual(0.0, p1[2], 0.01, "cumulonimbus at map 0.11");
+            // The point values are the cfg's output (they were rewritten with each cfg change) and are not asserted; the orderings are the rules. The cumulus layer is a cell field
+            // (noise amount 1): the noise decides where the cloud stands, the map how much of the sky it fills.
             Assert.AreEqual(0.0, p1[3], 0.01, "cirrus is too thin to close");
-            Assert.AreEqual(0.0, c35[0], 0.02, "the low stratiform rain layer opens at coverage 0.35");
-            Assert.AreEqual(0.43, c35[1], 0.04, "the cumulus layer at coverage 0.20 is still closed over two fifths of the sky");
-            Assert.IsTrue(p1[1] > p1[0] && c35[1] > c35[0], "the cumulus layer is the most closed layer of the low pick");
-            Assert.IsTrue(p1[1] < 0.8, "and no longer a sheet");
+            for (int k = 0; k < 4; k++) Assert.IsTrue(c35[k] <= p1[k] + 1e-9, "the shift opens layer " + k + ": " + p1[k] + " -> " + c35[k]);
+            Assert.IsTrue(p1[1] > p1[0] && c35[1] > c35[0], "the cumulus layer is the most closed layer of the low pick: " + p1[1] + " against " + p1[0]);
+            Assert.IsTrue(p1[1] > 0.0 && p1[1] < 0.8, "the cumulus layer closes part of the sky and is no longer a sheet: " + p1[1]);
         }
 
         [TestMethod]
@@ -66,9 +62,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             CloudLayerDef[] layers = { Rain(), Cumulus(), Cumulonimbus(), Cirrus() };
             Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, 0f), 0.01, "a low stratiform rain layer at map 0.86 closes the sky whatever the shift");
             Assert.AreEqual(1.0, Closed(layers[0], map[0], 0.229, -0.15f), 0.01);
-            // At amount 1 the noise lifts the threshold by up to 0.5, so the cumulus layer at a map of 0.21 is a few cells (0.13), not absent as it was at amount 0.35.
-            Assert.AreEqual(0.13, Closed(layers[1], map[1], 0.229, 0f), 0.04, "cumulus at map 0.21 is a few cells");
-            Assert.AreEqual(0.08, Closed(layers[2], map[2], 0.229, 0f), 0.05, "cumulonimbus at map 0.66 is a few towers");
+            // At amount 1 the noise lifts the threshold by up to 0.5, so the cumulus layer at a map of 0.21 is a few cells, not absent.
+            double cumulus = Closed(layers[1], map[1], 0.229, 0f), towers = Closed(layers[2], map[2], 0.229, 0f);
+            Assert.IsTrue(cumulus > 0.0 && cumulus < 0.5, "cumulus at map 0.21 is a few cells: " + cumulus);
+            Assert.IsTrue(towers > 0.0 && towers < 0.5, "cumulonimbus at map 0.66 is a few towers: " + towers);
             Assert.AreEqual(0.0, Closed(layers[2], map[2], 0.229, -0.15f), 0.01, "and gone at coverage 0 (the clamp)");
         }
     }

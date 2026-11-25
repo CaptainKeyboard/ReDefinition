@@ -9,7 +9,8 @@ namespace ReDefinition.Tests.Atmospheres.B11
 {
     // The test decorator of the weather field: forwarding of the surface forcing (and doing nothing where the field cannot take it),
     // forced level, type, time and place, no side files while it is attached, and the phase of the year through a checkpoint restore.
-    [TestClass]
+    // Harness: tests the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class ForcedFieldTests
     {
         // A field that records what it was asked and can take a surface forcing.

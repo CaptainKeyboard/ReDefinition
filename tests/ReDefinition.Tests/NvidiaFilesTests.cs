@@ -51,13 +51,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x1B0, Ada102).Count, "Blackwell");
         }
 
-        // The download for an Ada GPU, with DLSS, frame generation and Ray Reconstruction, is about 57 MB.
+        // The download for an Ada GPU (DLSS, frame generation and Ray Reconstruction) is larger than an Ampere GPU's, which gets no frame
+        // generation plugins. The sizes themselves are the release's and change with every SDK update.
         [TestMethod]
-        public void TheReleaseIsAboutFiftySevenMegabytesForAnAdaGpu()
+        public void AnAdaGpuDownloadsMoreThanAnAmpereGpu()
         {
-            // DLSS, frame generation and Ray Reconstruction (nvngx_dlssd.dll, 21.6 MB).
-            long bytes = NvidiaFiles.DownloadSize(NvidiaFiles.For(0x190, Ada102));
-            Assert.IsTrue(bytes > 56000000 && bytes < 58500000, bytes.ToString());
+            long ada = NvidiaFiles.DownloadSize(NvidiaFiles.For(0x190, Ada102));
+            long ampere = NvidiaFiles.DownloadSize(NvidiaFiles.For(0x170, 0x4));
+            Assert.IsTrue(ampere > 0 && ada > ampere, ada + " against " + ampere);
         }
 
         // An empty folder lacks everything; NGX's DLLs the player brought count whatever their version, while

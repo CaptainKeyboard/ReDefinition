@@ -588,16 +588,6 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Removes every forced disc.
-        internal void ClearDiscs()
-        {
-            lock (gate)
-            {
-                Volatile.Write(ref discs, new Disc[0]);
-                Changed();
-            }
-        }
-
         private void ApplyDiscs(GeneratorState s, Disc[] forced, double lat, double lon, double ut, ref WeatherSample sample)
         {
             for (int i = 0; i < forced.Length; i++)

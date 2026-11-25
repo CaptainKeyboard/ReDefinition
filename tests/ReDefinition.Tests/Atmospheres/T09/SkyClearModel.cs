@@ -35,15 +35,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             return e0 + (e1 - e0) * f;
         }
 
-        // The optical depth of the column at noise rank n for a map value: the layer pass's share (after the clear-sky rule), eroded at the detail's mean, to the water exponent.
-        internal static double Tau(CloudLayerDef layer, double mapValue, double n, double erosion, double tauFull)
+        // The optical depth of the column at noise rank n for a map value: the product's share (LayerDensity.Shape of the map after the clear-sky rule, moved by the noise),
+        // eroded at the detail's mean, to the exponent of the type at the type value (a type's edgePower replaces the layer's waterPower, as in LayerDensity.Share).
+        private static double Tau(CloudLayerDef layer, LayerTypeTable table, double typeValue, double mapValue, double n, double erosion, double tauFull)
         {
-            double edge = Math.Max(layer.EffectiveEdgeSoftness, 1e-4);
-            double x = (layer.ClearSkyMap(mapValue) + (n - 0.5) * layer.EffectiveNoiseAmount + layer.EffectiveCoverage - 1.0) / edge + 0.5;
-            double s = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;
+            double s = LayerDensity.Shape(layer.ClearSkyMap(mapValue) + (n - 0.5) * layer.EffectiveNoiseAmount, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
             if (s <= 0.0) return 0.0;
             double eroded = CloudWater.Erode(s, CloudSoftDensity.DetailMean, erosion);
-            return tauFull * CloudWater.Pow(eroded, layer.EffectiveWaterPower);
+            return tauFull * CloudWater.Pow(eroded, layer.EffectiveWaterPowerAt(table, typeValue));
         }
 
         // The shares of the sky above a map value that are visible and closed (uniform noise ranks, `samples` of them).
@@ -55,7 +54,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             int v = 0, c = 0;
             for (int i = 0; i < samples; i++)
             {
-                double tau = Tau(layer, mapValue, (i + 0.5) / samples, erosion, tauFull);
+                double tau = Tau(layer, table, typeValue, mapValue, (i + 0.5) / samples, erosion, tauFull);
                 if (tau >= tauVisible) v++;
                 if (tau >= tauClosed) c++;
             }

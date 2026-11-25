@@ -7,7 +7,8 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.A02
 {
     // The base of a series probe: active only with -atmoSeries, stepping of the scenario, variants, the verdict line, and the quit.
-    [TestClass]
+    // Harness: tests the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class SeriesProbeTests
     {
         private static readonly List<string> Log = new List<string>();

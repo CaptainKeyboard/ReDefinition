@@ -132,13 +132,6 @@ namespace ReDefinition.Atmospheres.Forecast
             }
         }
 
-        // A context with other alert rules; steps and tracks (and so the cache key) are the same.
-        internal ForecastContext WithAlerts(AlertRules alerts, bool alertsOn = true)
-        {
-            return new ForecastContext(Rules, BodyRadiusM, MapRangeKm, TrackStepSeconds, Uncertainty01, WindSource, windSources, alerts, alertsOn,
-                MaxSystemSpeedMs);
-        }
-
         private ulong ComputeHash()
         {
             ulong h = 0x1F3D5B79UL;

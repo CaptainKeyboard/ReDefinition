@@ -39,15 +39,6 @@ namespace ReDefinition.Atmospheres
 
         // The last factor worked out for any vessel and its transmission, for the log and the probe.
         internal static double LastFactor = 1.0, LastTransmission = 1.0;
-        // The number of panels that carry a scaled curve now.
-        internal static int ScaledPanels { get { int n = 0; foreach (Record r in Panels.Values) if (r.Applied < 1.0) n++; return n; } }
-
-        // The factor now smoothed for a vessel (1 for one never seen).
-        internal static double FactorOf(Vessel v)
-        {
-            VesselRecord r;
-            return v != null && Vessels.TryGetValue(v, out r) ? r.Factor : 1.0;
-        }
 
         // Called from the vessel's physics tick: works the factor out at the interval and applies it.
         internal static void Tick(Vessel v, double dt)

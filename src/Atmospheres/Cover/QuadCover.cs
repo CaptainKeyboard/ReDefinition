@@ -101,8 +101,6 @@ namespace ReDefinition.Atmospheres
         internal double LatitudeOf(int i) { return latitude[i]; }
         internal double LongitudeOf(int i) { return longitude[i]; }
         internal double HeightOf(int i) { return height[i]; }
-        internal double NoiseOf(int i) { return noise[i]; }
-        internal double SlopeOf(int i) { return slope[i]; }
         internal double NormalEastOf(int i) { return normalEast == null ? 0.0 : normalEast[i] / 127.0; }
         internal double NormalNorthOf(int i) { return normalNorth == null ? 0.0 : normalNorth[i] / 127.0; }
 

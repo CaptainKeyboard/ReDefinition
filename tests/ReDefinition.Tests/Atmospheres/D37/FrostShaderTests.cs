@@ -35,14 +35,17 @@ namespace ReDefinition.Tests.Atmospheres.D37
             Assert.AreEqual(CameraFrost.MaxFlakes, ArraySize("_FrostFlakes"));
             Assert.AreEqual(CameraFrost.MaxDrops, ArraySize("_FrostDrops"));
             Assert.AreEqual(FrostTiles.Count, ArraySize("_FrostTiles"));
-            Assert.AreEqual(576, FrostTiles.Count);
-            // The lookup of the tile in the shader uses the same grid and the same bit split.
-            StringAssert.Contains(shader, "float2(32.0, 18.0)");
-            StringAssert.Contains(shader, "cell.y * 32 + cell.x");
-            StringAssert.Contains(shader, "i < 20 ? lo : hi");
-            Assert.AreEqual(32, FrostTiles.GridX);
-            Assert.AreEqual(18, FrostTiles.GridY);
-            Assert.AreEqual(20, FrostTiles.FlakeBitsPerFloat);
+            // The lookup of the tile in the shader uses the same grid and the same bit split: the shader's numbers read from its text against the C# twin.
+            Match grid = Regex.Match(shader, @"floor\(\s*puv\s*\*\s*float2\(\s*(\d+)\.0\s*,\s*(\d+)\.0\s*\)");
+            Assert.IsTrue(grid.Success, "the tile grid's float2");
+            Assert.AreEqual(FrostTiles.GridX, int.Parse(grid.Groups[1].Value), "grid x");
+            Assert.AreEqual(FrostTiles.GridY, int.Parse(grid.Groups[2].Value), "grid y");
+            Match index = Regex.Match(shader, @"cell\.y\s*\*\s*(\d+)\s*\+\s*cell\.x");
+            Assert.IsTrue(index.Success, "the tile index");
+            Assert.AreEqual(FrostTiles.GridX, int.Parse(index.Groups[1].Value), "the tile index's row length");
+            Match split = Regex.Match(shader, @"i\s*<\s*(\d+)\s*\?\s*lo\s*:\s*hi");
+            Assert.IsTrue(split.Success, "the bit split");
+            Assert.AreEqual(FrostTiles.FlakeBitsPerFloat, int.Parse(split.Groups[1].Value), "flake bits per float");
         }
 
         [TestMethod]

@@ -336,9 +336,9 @@ namespace ReDefinition.Atmospheres
             {
                 PannusProfile = pannusProfile,
                 PannusLift = pannusProfile == null ? null : ProfileCurve(pannusNode.Child("LIFT"), "lift"),
-                PannusScale = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("SCALE")),
-                // FORM { SCALE { key = height factor } AMOUNT { key = height extra } } (master plan 43; CloudTypeDef.FormScale): both 0 to 8.
-                FormScale = ScaleCurve(r.Child("FORM").Child("SCALE")),
+                PannusErosion = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("EROSION")),
+                // FORM { EROSION { key = height gain } AMOUNT { key = height extra } } (master plan 43; CloudTypeDef.FormErosion): both 0 to 8.
+                FormErosion = ScaleCurve(r.Child("FORM").Child("EROSION")),
                 FormAmount = ScaleCurve(r.Child("FORM").Child("AMOUNT")),
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
@@ -397,7 +397,7 @@ namespace ReDefinition.Atmospheres
             };
         }
 
-        // SCALE { key0 = height factor, ... } (the pannus' noise scale factor, CloudTypeDef.PannusScale): heights 0 to 1 ascending, factors 0 to 8. Null where there is no valid curve.
+        // A gain curve { key0 = height gain, ... } (FORM's and the pannus' EROSION and AMOUNT): heights 0 to 1 ascending, gains 0 to 8. Null where there is no valid curve.
         private static Curve ScaleCurve(BodyNodeReader r)
         {
             if (!r.Present) return null;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace ReDefinition.Atmospheres
 {
     // One volumetric EVE cloud layer as a config file states it, as plain data: the input of the role discovery. It is made from an
-    // EVE_CLOUDS OBJECT node (PackConfigReader, for the fixtures and the shipped files) or from a live layer (the scan of the game).
+    // EVE_CLOUDS OBJECT node (the tests' PackConfigReader, for the fixtures and the shipped files) or from a live layer (the scan of the game, LiveLayerInfo).
     internal sealed class PackLayerInfo
     {
         // The layer's name and the body it belongs to, as EVE reads them.

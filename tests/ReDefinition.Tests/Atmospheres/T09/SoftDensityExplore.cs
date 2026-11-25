@@ -82,8 +82,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 var taus = new System.Collections.Generic.List<double>();
                 for (int s = 0; s < sites; s++)
                 {
-                    NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, index);
-                    CoverMeaningModel.Place(ref prm, s);
+                    NoiseLayerParams prm = NoiseSites.ParamsOf(layer, index);
+                    NoiseSites.Place(ref prm, s);
                     for (int j = 0; j < cells; j++)
                         for (int i = 0; i < cells; i++)
                         {
@@ -145,7 +145,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void OpacityPerTypeThroughTheProduct()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus(), CloudLookFixtures.Cirrus() };
             double[] maps = { 0.2, 0.4, 0.6, 0.8 };
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
@@ -171,8 +171,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int n = 0, a50 = 0, a95 = 0;
                         for (int s = 0; s < 12; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, li);
+                            NoiseSites.Place(ref prm, s);
                             for (int j = 0; j < 10; j++)
                                 for (int i = 0; i < 10; i++)
                                 {
@@ -202,7 +202,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void CellStructureFromAbove()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
             const int N = 56;
             double[] maps = { 0.2, 0.3, 0.4, 0.5, 0.6 };
@@ -221,8 +221,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int sites = 6;
                         for (int s = 0; s < sites; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, 1);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, 1);
+                            NoiseSites.Place(ref prm, s);
                             var closed = new bool[N * N];
                             int count = 0;
                             for (int j = 0; j < N; j++)
@@ -268,7 +268,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void LiftedShapePerType()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudSoftDensity.DetailMean = Volumes.DetailMean;
             const int N = 40;
             File.AppendAllText(path, "HEIGHT-SHAPED THRESHOLD, product mapping (softness " + CloudSoftDensity.Softness.ToString("0.0") + "), " + N + " x " + N + " columns at half a noise scale, 4 sites; per map value:"
@@ -294,10 +294,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
                         int sites = 4;
                         for (int s = 0; s < sites; s++)
                         {
-                            NoiseLayerParams prm = CoverMeaningExplore.ParamsOf(layer, li + 1);
+                            NoiseLayerParams prm = NoiseSites.ParamsOf(layer, li + 1);
                             prm.SphereScale = sphere;
                             prm.ReferenceRadiusM = 600000.0 + 0.5 * (layer.InnerAltitudeM + layer.OuterAltitudeM);
-                            CoverMeaningModel.Place(ref prm, s);
+                            NoiseSites.Place(ref prm, s);
                             for (int variant = 0; variant < 2; variant++)
                             {
                                 var topBody = new bool[N * N];
@@ -362,7 +362,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void ClosedSharePerMapValue()
         {
             string path = Environment.GetEnvironmentVariable("SOFT_REPORT");
-            if (string.IsNullOrEmpty(path)) return;
+            if (string.IsNullOrEmpty(path)) Assert.Inconclusive("A measurement run: it runs only when SOFT_REPORT is set.");
             CloudLayerDef[] layers = { CloudLookFixtures.Rain(), CloudLookFixtures.Cumulus(), CloudLookFixtures.Cumulonimbus() };
             double[][] types = { new[] { 0.5 }, new[] { 0.0, 0.25, 0.75 }, new[] { 0.229 } };
             var sets = new[]

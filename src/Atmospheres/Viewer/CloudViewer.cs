@@ -16,14 +16,6 @@ namespace ReDefinition.Atmospheres.Viewer
     {
         internal static readonly CloudViewer Instance = new CloudViewer();
 
-        // The settings the short option list shows (in this order); A/B and the presets hold every setting of the Clouds group.
-        internal static readonly string[] ShortSettings =
-        {
-            AtmospheresSettings.Keys.CloudSoftness, AtmospheresSettings.Keys.CloudSamples, AtmospheresSettings.Keys.CloudResolution, AtmospheresSettings.Keys.CloudReconMode,
-            AtmospheresSettings.Keys.LayerStepQuality, AtmospheresSettings.Keys.CloudLightQuality, AtmospheresSettings.Keys.CloudShadows, AtmospheresSettings.Keys.CloudShadowQuality,
-            AtmospheresSettings.Keys.CloudNoiseTier, AtmospheresSettings.Keys.LayerCap, AtmospheresSettings.Keys.CloudAerialPerspective
-        };
-
         private const int AimDelayFrames = 20, RestoreHoldFrames = 90, CaptureHideFrames = 2;
         private readonly CaptureSchedule capture = new CaptureSchedule(CaptureHideFrames);
         private const double AltitudeSettleS = 0.4;
