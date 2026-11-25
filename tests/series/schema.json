@@ -59,7 +59,7 @@
       "additionalProperties": false,
       "required": ["file", "set"],
       "properties": {
-        "file": { "type": "string", "pattern": "^(settings\\.cfg|GameData/ReDefinition/[A-Za-z0-9_]+/PluginData/settings\\.cfg)$", "description": "Relative to the KSP folder; only files the runner snapshots: KSP's settings.cfg or a ReDefinition PluginData settings.cfg." },
+        "file": { "type": "string", "pattern": "^(settings\\.cfg|GameData/ReDefinition/[A-Za-z0-9_]+/PluginData/settings\\.cfg|GameData/scatterer/config/config\\.cfg)$", "description": "Relative to the KSP folder; only files the runner snapshots: KSP's settings.cfg, a ReDefinition PluginData settings.cfg, or Scatterer's config.cfg (diagnosis starts)." },
         "set": { "type": "object", "description": "key: value (strings or numbers); the key must already stand in the file as 'key = value'." }
       }
     },
