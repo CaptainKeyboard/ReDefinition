@@ -58,12 +58,31 @@ namespace ReDefinition.Atmospheres
         internal void Update()
         {
             if (!AssumptionsOceanShadow.OceanCloudShadow.Holds) return;
+            // Re-asserted each frame (PRUEFPROTOKOLL 284): EVE puts its own delegate back when its clouds are applied again (EVEReflectionHandler.MapEVEClouds),
+            // and a new Scatterer instance (a scene) has a new handler; either way ours is set again and the ocean records again.
+            if (installed && !StillOurs()) installed = false;
             if (!installed && !Install()) return;
             bool on = enabled() && renderer.Ready;
             if (on != lastEnabled)
             {
                 lastEnabled = on;
                 RecordAgain();
+            }
+        }
+
+        // Whether Scatterer's current handler still holds our delegate.
+        private bool StillOurs()
+        {
+            try
+            {
+                Type scattererType = TypeLookup.Find("Scatterer.Scatterer");
+                object scatterer = scattererType?.GetProperty("Instance", TypeLookup.Any)?.GetValue(null, null);
+                object h = scatterer != null ? scattererType.GetField("EveReflectionHandler", TypeLookup.Any)?.GetValue(scatterer) : null;
+                return h != null && ReferenceEquals(h, handler) && ReferenceEquals(field.GetValue(h), ours);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
