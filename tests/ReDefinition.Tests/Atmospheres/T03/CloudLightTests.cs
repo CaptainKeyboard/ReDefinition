@@ -266,6 +266,27 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void ACloudOfAnotherLayerPassesTheTwoStreamShareOfTheSunsFlux()
+        {
+            // PRUEFPROTOKOLL 271: a non-absorbing cloud of tau 2 / 10 passes 1 / (1 + 0.11 tau) of the flux, not exp(-tau)
+            Assert.AreEqual(1.0, CloudLightMath.OtherLayersTransmission(0.0, 0.11), 1e-12);
+            Assert.AreEqual(1.0 / 1.22, CloudLightMath.OtherLayersTransmission(2.0, 0.11), 1e-12);
+            Assert.AreEqual(1.0 / 2.1, CloudLightMath.OtherLayersTransmission(10.0, 0.11), 1e-12);
+            Assert.AreEqual(1.0, CloudLightMath.OtherLayersTransmission(-3.0, 0.11), 1e-12);
+            // a stratus deck 10 m below its top (density 0.026 / m, sun at 45 degrees) under a cloud of tau 2 of another layer: the cell diffusion read with the own optical depth
+            // and the two-stream share keeps about 0.8 of the lit deck's source; read with the total, as before, the incidence fell and the source to about a tenth
+            CloudLightMath.CellLight k = new CloudLightSettings().CellLight();
+            double iso, isoUnder, isoTotal;
+            double up = 0.026 * 10.0, own = up / 0.71;
+            double lit = CloudLightMath.CellDiffusion(own, up, 0.026, 1000.0, 20000.0, 0.71, k, out iso);
+            double under = CloudLightMath.CellDiffusion(own, up, 0.026, 1000.0, 20000.0, 0.71, k, out isoUnder) * CloudLightMath.OtherLayersTransmission(2.0, 0.11);
+            double total = CloudLightMath.CellDiffusion(own + 2.0, up, 0.026, 1000.0, 20000.0, 0.71, k, out isoTotal);
+            Assert.AreEqual(1.0 / 1.22, under / lit, 1e-9);
+            Assert.AreEqual(iso, isoUnder, 1e-12);
+            Assert.IsTrue(total < 0.15 * lit && isoTotal < 0.5 * iso, "total " + total + " lit " + lit + " iso " + isoTotal + " / " + iso);
+        }
+
+        [TestMethod]
         public void TheDefaultLightHasTwoExtraLightsFourBoltsAndNoCache()
         {
             var s = new CloudLightSettings();

@@ -720,7 +720,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float t = s0[k] + dtStart * jitter;
                 float tLast = t - dtStart;
                 float leap = 1.0, arrived = 1.0;
-                float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
+                float sunTau = 0.0, sunTauOther = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
                 float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
@@ -857,7 +857,7 @@ Shader "ReDefinition/AtmospheresLayers"
                             reuse = sunTau;
                             sinceLight += 1.0;
                         }
-                        float taps, tauUsed, upUsed;
+                        float taps, tauUsed, otherUsed, upUsed;
                         // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower
                         // by h holds the density integral over h more, which along the ray is the optical depth since times the ray's vertical share.
                         float upReuse = -1.0;
@@ -866,8 +866,8 @@ Shader "ReDefinition/AtmospheresLayers"
                             upReuse = upTau;
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
-                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
-                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
+                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, noLight ? 0.0 : sunTauOther, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, otherUsed, upUsed);
+                        if (reuse < 0.0) { sunTau = tauUsed; sunTauOther = otherUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
                     else
                     {
@@ -1176,7 +1176,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
                 if (!read) return float4(0, 0, 0, 0);
-                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0, _Sun.w, _CacheH.y), 0, 0, 0);
+                float tauOther;
+                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0, _Sun.w, _CacheH.y, tauOther), 0, 0, 0);
             }
             ENDCG
         }
