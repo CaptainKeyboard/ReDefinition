@@ -137,7 +137,10 @@ namespace ReDefinition.Atmospheres
         // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
         // and the wavelength are _UndulatusP (LayerFrame.Undulatus, LayerFrame.UndulatusWavelengthShare).
         private readonly Vector4[] typeUndulatus = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
-        private static readonly int IdTypeUndulatus = Shader.PropertyToID("_TypeUndulatus"), IdUndulatusP = Shader.PropertyToID("_UndulatusP");
+        // Master plan 43: each type's short-wave swing of its top (CloudTypeDef.TopRoughness), the same slots (_TypeTopRough); its wavelength is _UndulatusP.z.
+        private readonly Vector4[] typeTopRough = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
+        private static readonly int IdTypeUndulatus = Shader.PropertyToID("_TypeUndulatus"), IdUndulatusP = Shader.PropertyToID("_UndulatusP"),
+                                    IdTypeTopRough = Shader.PropertyToID("_TypeTopRough");
         // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
         // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
         private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
@@ -353,11 +356,13 @@ namespace ReDefinition.Atmospheres
                     info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(cumuliform, table.EdgeOfType(t), table.CavityOfType(t), table.FormOfType(t));
                     int slot = l * CloudLayerDef.MaxTypes + t;
                     typeUndulatus[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].UndulatusAmount : 0f;
+                    typeTopRough[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].TopRoughness : 0f;
                 }
                 for (int t = table.Count; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
                     typeUndulatus[slot >> 2][slot & 3] = 0f;
+                    typeTopRough[slot >> 2][slot & 3] = 0f;
                 }
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
@@ -368,9 +373,11 @@ namespace ReDefinition.Atmospheres
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
                     typeUndulatus[slot >> 2][slot & 3] = 0f;
+                    typeTopRough[slot >> 2][slot & 3] = 0f;
                 }
             }
             material.SetVectorArray(IdTypeUndulatus, typeUndulatus);
+            material.SetVectorArray(IdTypeTopRough, typeTopRough);
             if (SpreadHeights) Heights.Queue(source.Heights, layerCount);
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
@@ -441,7 +448,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(IdSpacingP, new Vector4(0f, 0f, Mathf.Max(0f, f.LeapScales), Mathf.Max(0f, f.SpanGrowthFromM)));
             m.SetVector(IdReuseP, new Vector4(0f,Mathf.Max(0f, f.CostCutM), 0f, Mathf.Max(0f, f.SpanGrowthPerM)));
             m.SetVector(IdCostP,new Vector4(f.CoverageBound ? 1f : 0f, f.CostDebug, Mathf.Max(1, f.LightStride), Mathf.Max(0f, f.TransmittanceGrowth)));
-            m.SetVector(IdUndulatusP, new Vector4(Mathf.Clamp01(f.Undulatus), Mathf.Max(f.UndulatusWavelengthShare, 0.05f), 0f, 0f));
+            m.SetVector(IdUndulatusP, new Vector4(Mathf.Clamp01(f.Undulatus), Mathf.Max(f.UndulatusWavelengthShare, 0.05f), CloudTypeDef.TopRoughnessWavelengthShare, 0f));
             // The phase of the frame (the golden-ratio sequence) in double precision (a float product loses the fraction at the frame counts of a long session); the per-pixel
             // pattern stands still (z: the step offset's; y and w unused since the cone rotation and the pre-F2 grid went).
             double phase = StepPhase.Of(f.FrameNumber);

@@ -118,6 +118,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.AreEqual(s.TopClose, f.TopClose, 1e-6f, t + " top closure");
                 Assert.AreEqual(s.Outflow, f.Outflow, 1e-6f, t + " outflow");
                 Assert.AreEqual(s.UndulatusAmount, f.UndulatusAmount, 1e-6f, t + " undulatus amount");
+                Assert.AreEqual(s.TopRoughness, f.TopRoughness, 1e-6f, t + " top roughness");
                 Assert.AreEqual(s.Lift == null, f.Lift == null, t + " has a lift curve");
                 if (s.Lift != null)
                 {

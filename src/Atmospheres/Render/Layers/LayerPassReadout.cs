@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly string[] Arrays =
         {
-            "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_TypeUndulatus", "_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
+            "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_TypeUndulatus", "_TypeTopRough","_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
             "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_LvO", "_FieldC", "_CellE", "_CellS"
         };
 

@@ -352,6 +352,7 @@ namespace ReDefinition.Atmospheres
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
                 UndulatusAmount = r.Float("undulatusAmount", 0f, 0f, 1f),
+                TopRoughness = r.Float("topRoughness", 0f, 0f, 0.5f),
                 Climate = Climate(r.Child("CLIMATE"))
             };
         }

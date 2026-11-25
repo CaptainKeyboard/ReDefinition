@@ -187,12 +187,27 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // ---- M2c: the undulations of the stratiform types (variety undulatus) ----
         float4 _TypeUndulatus[8];   // each type's undulatus depth (CloudTypeDef.UndulatusAmount): layer li's type t at slot li * MAXT + t, four to a vector
-        float4 _UndulatusP;         // x the frame's switch (cloud.undulatus, 0: off), y the wavelength as a share of the layer's depth
+        float4 _UndulatusP;         // x the frame's switch (cloud.undulatus, 0: off), y the wavelength as a share of the layer's depth, z the top roughness' wavelength share
+        float4 _TypeTopRough[8];    // master plan 43: each type's short-wave swing of its top (CloudTypeDef.TopRoughness), the same slots
 
         float TypeUndulatusOf(int li, int type)
         {
             int slot = li * MAXT + type;
             return _TypeUndulatus[slot >> 2][slot & 3];
+        }
+
+        float TypeTopRoughOf(int li, int type)
+        {
+            int slot = li * MAXT + type;
+            return _TypeTopRough[slot >> 2][slot & 3];
+        }
+
+        // Master plan 43, the form from above: the thickness factor of the top's short waves (WMO, stratus from an aircraft: "undulations (usually of short wavelengths)"), a
+        // two-octave value noise (HeightRagged, -1 to 1) with features of _UndulatusP.z of the layer's depth, moving with the layer's offset; amount the share the thickness swings by.
+        float TopRoughFactor(int li, float3 pc, float amount, float depthM)
+        {
+            float len = max(_UndulatusP.z * depthM, 1.0);
+            return max(1.0 + amount * HeightRagged((pc + _NoiseOffset[li].xyz) / len, (uint)_NoiseOffset[li].w + 9173u), 0.0);
         }
 
         // The thickness factor of the undulations at a point: long waves across the level's wind (_NoiseAxis, the layer's wind; the waves move with the layer's offset like
@@ -214,7 +229,7 @@ Shader "ReDefinition/AtmospheresLayers"
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0)).r;
         }
 
-        // The whole texel of the profile (master plan 43, one form description per type): r the density, g the noise scale factor (0: none), b the extra noise amount (0: none),
+        // The whole texel of the profile (master plan 43, one form description per type): r the density, g the erosion gain (0: none), b the extra noise amount (0: none),
         // a the lift of the coverage threshold, of the type at the height h.
         float4 TypeProfile4(int li, int type, float h)
         {
@@ -378,6 +393,9 @@ Shader "ReDefinition/AtmospheresLayers"
             // path see the same shape (off while _UndulatusP.x is 0 or the type has no undulatus depth: the layer of before, bit for bit).
             float undulatusAmount = _UndulatusP.x * lerp(TypeUndulatusOf(li, ta), TypeUndulatusOf(li, tb), f);
             [branch] if (undulatusAmount > 0.0) tp = b + (tp - b) * UndulatusFactor(li, pc, undulatusAmount, outer - inner);
+            // Master plan 43: the top's short waves (0 for a type without topRoughness: the layer of before, bit for bit).
+            float topRough = lerp(TypeTopRoughOf(li, ta), TypeTopRoughOf(li, tb), f);
+            [branch] if (topRough > 0.0) tp = b + (tp - b) * TopRoughFactor(li, pc, topRough, outer - inner);
             gSlabM = max(tp - b, 0.0) * (outer - inner);
             if (share < b || share > tp || tp <= b)
             {
