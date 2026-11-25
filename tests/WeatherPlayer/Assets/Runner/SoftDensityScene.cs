@@ -207,10 +207,6 @@ namespace ReDefinition.WeatherPlayer
             public int LvCascades = -1, LvGridZ = -1, LvVoxel = -1, LvFillTaps = -1, LvFillRatio = -1, LvBand = -1;
             // lvs<N>: the far cascade's voxel over the near one's.
             public int LvFarScale = -1;
-            // LV3: lvsp<N> the spread's source, lvsr<N> its radius in m, lvsd<N> its depth in tenths of an optical depth, lvsm<N> its largest weight in percent.
-            public int LvSpread = -1, LvSpreadRadius = -1, LvSpreadDepth = -1, LvSpreadMax = -1;
-            // LV2: lvm<N> the fill (0 direct, 1 propagation), lvk<N> / lvx<N> the propagation's least / most samples, lvl<N> its limit in voxels.
-            public int LvFill = -1, LvPropSteps = -1, LvPropCap = -1, LvPropLimit = -1;
             // lvh<N> k of the stored transmittance, lvo<N> the time warp's rate (LightVolume.TimeWarpRate), lvu<N> the warp limit.
             public int LvStoreK = -1, LvWarpRate = -1, LvWarpLimit = -1;
         }
@@ -293,18 +289,10 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("lvt")) c.LvTaps = Number(t, 3);
                 else if (t.StartsWith("lvw")) c.LvWarp = Number(t, 3);
                 else if (t.StartsWith("lvc")) c.LvCascades = Number(t, 3);
-                else if (t.StartsWith("lvsp")) c.LvSpread = Number(t, 4);
-                else if (t.StartsWith("lvsr")) c.LvSpreadRadius = Number(t, 4);
-                else if (t.StartsWith("lvsd")) c.LvSpreadDepth = Number(t, 4);
-                else if (t.StartsWith("lvsm")) c.LvSpreadMax = Number(t, 4);
                 else if (t.StartsWith("lvs")) c.LvFarScale = Number(t, 3);
-                else if (t.StartsWith("lvm")) c.LvFill = Number(t, 3);
                 else if (t.StartsWith("lvh")) c.LvStoreK = Number(t, 3);
                 else if (t.StartsWith("lvo")) c.LvWarpRate = Number(t, 3);
                 else if (t.StartsWith("lvu")) c.LvWarpLimit = Number(t, 3);
-                else if (t.StartsWith("lvk")) c.LvPropSteps = Number(t, 3);
-                else if (t.StartsWith("lvx")) c.LvPropCap = Number(t, 3);
-                else if (t.StartsWith("lvl")) c.LvPropLimit = Number(t, 3);
                 else if (t.StartsWith("lvz")) c.LvGridZ = Number(t, 3);
                 else if (t.StartsWith("lvv")) c.LvVoxel = Number(t, 3);
                 else if (t.StartsWith("lvf")) c.LvFillTaps = Number(t, 3);
@@ -349,14 +337,6 @@ namespace ReDefinition.WeatherPlayer
             if (c.LvWarp >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvWarp, c.LvWarp); else Tuning.ClearOverride(CloudLookTuning.TuneLvWarp);
             Lever(CloudLookTuning.TuneLvCascades, c.LvCascades, 1f);
             Lever(CloudLookTuning.TuneLvFarScale, c.LvFarScale, 1f);
-            Lever(CloudLookTuning.TuneLvSpread, c.LvSpread, 1f);
-            Lever(CloudLookTuning.TuneLvSpreadRadius, c.LvSpreadRadius, 1f);
-            Lever(CloudLookTuning.TuneLvSpreadDepth, c.LvSpreadDepth, 0.1f);
-            Lever(CloudLookTuning.TuneLvSpreadMax, c.LvSpreadMax, 0.01f);
-            Lever(CloudLookTuning.TuneLvFill, c.LvFill, 1f);
-            Lever(CloudLookTuning.TuneLvPropSteps, c.LvPropSteps, 1f);
-            Lever(CloudLookTuning.TuneLvPropCap, c.LvPropCap, 1f);
-            Lever(CloudLookTuning.TuneLvPropLimit, c.LvPropLimit, 1f);
             Lever(CloudLookTuning.TuneLvStoreK, c.LvStoreK, 1f);
             Lever(CloudLookTuning.TuneLvWarpLimit, c.LvWarpLimit, 1f);
             LightVolume.TimeWarpRate = c.LvWarpRate > 0 ? c.LvWarpRate : 1f;

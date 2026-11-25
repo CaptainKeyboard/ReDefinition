@@ -1169,92 +1169,17 @@ Shader "ReDefinition/AtmospheresLayers"
                     float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
-                // LV2: _LvP.x the fill (0 a direct march per voxel, 1 propagation from the slice above). Propagation needs every voxel of the chain, so it skips nothing.
-                float mode = _LvP.x;
-                // The spread's blur reads every voxel's neighbours, so with it nothing is skipped either.
-                if (!read && mode < 0.5 && _LvS.x < 0.5) return float4(0, 0, 0, 0);
+                if (!read) return float4(0, 0, 0, 0);
                 float3 s = _Sun.xyz;
-                int taps;
-                float range, ratio = 1.0, above = 0.0;
-                // LV3: with the lateral spread on (_LvS.x) the volume is also read at the sample itself, so a voxel holds the whole sun march from its centre (the far path's
-                // read at the end of its near taps then counts the march's last few hundred metres once more, far from the sample).
-                int keepFill = _LvS.x > 0.5 ? 0 : keep;
-                float nearFill = _LvS.x > 0.5 ? 0.0 : near;
-                if (mode < 0.5)
-                {
-                    // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length), so that the far light is the
-                    // full march's estimate of the same path; above 0: that many taps growing by _LvF.y over the whole length.
-                    bool own = _LvF.x < 0.5;
-                    taps = own ? max(1, steps - keepFill) : (int)_LvF.x;
-                    range = own ? max(_Sun.w - nearFill, 1.0) : _Sun.w;
-                    ratio = own ? _LightR.y : _LvF.y;
-                }
-                else
-                {
-                    // The segment from the voxel centre along the sun up to the next slice's altitude; the slice above is read where the sun ray crosses it. The top slice
-                    // marches directly (layers that are not lit by the march, a cirrus layer above the lit ones, can reach above the volume's altitude range and still shade).
-                    bool top = _LvSlice.x > _LvZ.z - 1.5;
-                    float r0 = _PlanetR + alt, rUp = r0 + sliceH;
-                    float b = dot(p, s);
-                    float seg = -b + sqrt(max(b * b + rUp * rUp - r0 * r0, 0.0));
-                    float flat = sqrt(max(seg * seg - sliceH * sliceH, 0.0));
-                    bool fallback = top || dot(p, s) <= 0.0 || flat > _LvP.w * vox;
-                    if (!fallback)
-                    {
-                        bool ok;
-                        above = LightVolumeSlice(p + s * seg, (int)_LvSlice.x + 1, far ? 1 : 0, ok);
-                        fallback = !ok;
-                    }
-                    if (fallback)
-                    {
-                        // The top slice, a ray that leaves both windows between two slices, a low sun or the sun below the horizon: a direct march through whole spans.
-                        above = 0.0;
-                        taps = 24;
-                        range = 1e30;
-                        ratio = 1.15;
-                    }
-                    else
-                    {
-                        taps = (int)clamp(ceil(seg / vox), _LvP.y, _LvP.z);
-                        range = -seg;
-                    }
-                }
+                // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length); above 0: that many taps growing by
+                // _LvF.y over the whole length.
+                bool own = _LvF.x < 0.5;
+                int taps = own ? max(1, steps - keep) : (int)_LvF.x;
+                float range = own ? max(_Sun.w - near, 1.0) : _Sun.w;
+                float ratio = own ? _LightR.y : _LvF.y;
                 // The density as the march reads it at this voxel's distance from the camera (a layer's distance fade).
                 float camDist = length(p - (_CamPos.xyz - _PlanetCenter.xyz));
-                return float4(LightVolumeEncode(above + LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
-            }
-            ENDCG
-        }
-
-        // Pass 9 (LV3): one direction of the separable blur of a light volume slice (the lateral spread's copy): a Gaussian of _LvBlurSigma.x voxels' standard deviation over the stored
-        // values (transmittance where it is stored), read from the volume's slice _LvBlur.y (_LvBlur.x 0) or the 2D target _LvBlurSrc (1), along _LvBlur.zw texels. The wrap-around
-        // addressing makes the window's last voxels read the far side's first ones; the window's edge fade hides them.
-        Pass
-        {
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma target 3.5
-            #pragma multi_compile_local CLOUD_LIGHTVOL
-            sampler2D _LvBlurSrc;
-            float4 _LvBlurSigma;   // x the Gaussian's standard deviation in this cascade's voxels (a global, never on the material)
-            float4 frag(v2f i) : SV_Target
-            {
-                float gridN = _LvC.z;
-                float sigma = max(_LvBlurSigma.x, 0.25);
-                int reach = min((int)ceil(2.0 * sigma), 8);
-                float sum = 0.0, wsum = 0.0;
-                [loop] for (int k = -8; k <= 8; k++)
-                {
-                    if (abs(k) > reach) continue;
-                    float w = exp(-0.5 * k * k / (sigma * sigma));
-                    float2 uv = i.uv + _LvBlur.zw * (k / gridN);
-                    float v = _LvBlur.x > 0.5 ? tex2Dlod(_LvBlurSrc, float4(frac(uv), 0, 0)).r
-                                              : UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, _LvBlur.y), 0).r;
-                    sum += w * v;
-                    wsum += w;
-                }
-                return float4(sum / max(wsum, 1e-6), 0, 0, 0);
+                return float4(LightVolumeEncode(LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
             }
             ENDCG
         }
