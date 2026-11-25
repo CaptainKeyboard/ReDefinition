@@ -66,20 +66,8 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Key(CloudLookTuning.TuneLvHandOver, 8f, KeySection.Light, "light volume: hand-over distance in km (below 0: infinity, the full sun march everywhere)",
                 KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 100f, () => CloudLookTuning.LvHandOverDefaultKm);
             r.Key(CloudLookTuning.TuneLvBand, 0.15f, KeySection.Light, "light volume: blend band beyond the hand-over distance, as a share of it", KeyLiveness.FrameHistory, KeyMarker.Live, 0.01f, 10f);
-            r.Key(CloudLookTuning.TuneLvFill, 0f, KeySection.Light, "light volume: the fill (0 direct march per voxel, 1 propagation from the slice above)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
-            r.Key(CloudLookTuning.TuneLvPropSteps, 2f, KeySection.Light, "light volume: least samples of a propagation segment", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
-            r.Key(CloudLookTuning.TuneLvPropCap, 16f, KeySection.Light, "light volume: most samples of a propagation segment", KeyLiveness.FrameHistory, KeyMarker.Live, 1f, 64f);
-            r.Key(CloudLookTuning.TuneLvPropLimit, 8f, KeySection.Light, "light volume: longest horizontal run of a segment in voxels (beyond: direct march)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0.5f, 1000f);
             r.Key(CloudLookTuning.TuneLvStoreK, 4f, KeySection.Light, "light volume: k of the stored transmittance exp(-tau / k) (0: the optical depth is stored)",
                 KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 64f);
-            r.Key(CloudLookTuning.TuneLvSpread, 0f, KeySection.Light, "light volume: lateral spread of the direct light (0 off, 1 blurred volume, 2 far cascade, 3 volume as filled)",
-                KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 3f);
-            r.Key(CloudLookTuning.TuneLvSpreadRadius, 400f, KeySection.Light, "light volume: the spread blur's standard deviation in m", KeyLiveness.FrameHistory, KeyMarker.Live, 10f, 5000f);
-            r.Key(CloudLookTuning.TuneLvSpreadDepth, 4f, KeySection.Light, "light volume: optical depth over which the spread's weight grows", KeyLiveness.FrameHistory, KeyMarker.Live,
-                0.01f, 100f);
-            r.Key(CloudLookTuning.TuneLvSpreadMax, 1f, KeySection.Light, "light volume: largest weight of the spread", KeyLiveness.FrameHistory, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneLvWarpLimit, 1000f, KeySection.Light, "light volume: time warp rate above which the full sun march lights everything", KeyLiveness.FrameHistory,
                 KeyMarker.Live, 1f, 1e7f);
             r.Key(CloudLookTuning.TuneLvFarTaps, 3f, KeySection.Light, "light volume: near taps of the far path (fewer where shorter than the pixel's footprint)",

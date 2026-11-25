@@ -26,8 +26,6 @@ namespace ReDefinition.Atmospheres
             set { SetNumber(Keys.YearLengthFactor, value); }
         }
 
-        internal static SeasonMode SeasonMode => E<SeasonMode>(Keys.SeasonMode);
-
         internal static QualityTier QualityTier => E<QualityTier>(Keys.QualityTier);
 
         // --- Clouds and frequency ---
@@ -159,11 +157,5 @@ namespace ReDefinition.Atmospheres
         // --- Diagnostics, for screenshots and probes ---
         // A level from 0 to 1 at the camera whatever the field says, or a negative number for the field's own.
         internal static float ForceLevel => F(Keys.ForceLevel);
-        // A season phase from 0 to 1 that replaces the clock, or a negative number for the clock.
-        internal static float ForcePhase
-        {
-            get { return F(Keys.ForcePhase); }
-            set { SetNumber(Keys.ForcePhase, value); }
-        }
     }
 }

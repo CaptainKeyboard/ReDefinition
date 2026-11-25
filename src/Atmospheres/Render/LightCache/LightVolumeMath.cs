@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The CPU twin of the light volume's addressing (ReDefinitionAtmospheresCloudLight.cginc LightVolumeFetch / LightVolumeSlice, the layer shader's pass 8): the gnomonic coordinates
+    // The CPU twin of the light volume's addressing (ReDefinitionAtmospheresCloudLight.cginc LightVolumeFetchFrom, the layer shader's pass 8): the gnomonic coordinates
     // of a direction in the anchored frame and back, a cascade's window around a point, the voxel a texel holds under wrap-around addressing, and whether a window holds a point's
     // bilinear footprint. LightVolume places its windows with it; LightVolumeMathTests checks the shader's formulas against it.
     internal static class LightVolumeMath

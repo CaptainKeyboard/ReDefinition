@@ -30,8 +30,6 @@ namespace ReDefinition.Atmospheres
         internal float Near, Far;
         // True where the depth texture is bound (the copy or the host's depth); false: the beam is not clipped.
         internal bool UseDepth;
-        // The depth lookup is flipped in y (Tuning lamp.depthFlipY).
-        internal bool DepthFlipY;
         // Reversed z (SystemInfo.usesReversedZBuffer).
         internal bool ReversedZ;
         // The temporal jitter offset (0: the pattern is the same every frame), the drift of the hydrometeors since the start, in metres.
@@ -215,7 +213,7 @@ namespace ReDefinition.Atmospheres
                 block.SetVector(IdDrift, frame.Drift);
                 block.SetVector(IdCamPos, frame.CameraPosition);
                 block.SetVector(IdCamFwd, frame.CameraForward);
-                block.SetVector(IdDepthMode, new Vector4(frame.DepthFlipY ? 1f : 0f, frame.ReversedZ ? 1f : 0f, 0f, 0f));
+                block.SetVector(IdDepthMode, new Vector4(0f, frame.ReversedZ ? 1f : 0f, 0f, 0f));
                 block.SetVector(IdZ, new Vector4(zx, zy, zz, zw));
                 if (useDepth) block.SetTexture(IdDepth, depth);
                 // The proxy: the cone around a spot's reach (widened by 5 % so that the edge is inside), else the sphere of the range.

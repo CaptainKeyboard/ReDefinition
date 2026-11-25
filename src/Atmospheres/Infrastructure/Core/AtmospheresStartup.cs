@@ -73,7 +73,6 @@ namespace ReDefinition.Atmospheres
                    + ", cloud source " + AtmospheresSettings.CloudSource
                    + ", year length factor " + AtmospheresSettings.YearLengthFactor.ToString(culture)
                    + ", cover strength " + AtmospheresSettings.CoverStrength.ToString(culture)
-                   + (AtmospheresSettings.ForcePhase >= 0f ? ", FORCED PHASE " + AtmospheresSettings.ForcePhase.ToString(culture) : "")
                    + (AtmospheresSettings.ForceLevel >= 0f ? ", FORCED LEVEL " + AtmospheresSettings.ForceLevel.ToString(culture) : "")
                    + ", heavy share " + AtmospheresSettings.HeavyShare.ToString(culture)
                    + ", orbit overlay " + (AtmospheresSettings.OrbitOverlay ? "on, map width up to " + AtmospheresSettings.OrbitMapWidth : "off")

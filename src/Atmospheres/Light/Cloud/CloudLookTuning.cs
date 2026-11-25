@@ -378,32 +378,11 @@ namespace ReDefinition.Atmospheres
         internal static int LvFillTaps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFillTaps, 0f), 0f, 0f, 64f)); } }
         internal static float LvFillRatio { get { return Clean(Tuning.Get(TuneLvFillRatio, 1.15f), 1.15f, 1f, 4f); } }
 
-        // LV2 (wolken-m2a-technik.md 11.5):
-        //   cloud.lightVolume.fill         0 (default) a direct march per voxel with the march's own far taps, 1 propagation: a slice takes the slice above where the sun ray crosses it and adds the segment
-        //                                  between them, refreshed from the top down
-        //   cloud.lightVolume.propSteps, .propCap   the least and most samples of a segment (scaled between them so that they stay about a voxel apart at a low sun)
-        //   cloud.lightVolume.propLimit    the longest horizontal run of a segment in voxels; beyond it (a low sun) the voxel takes the direct march
-        internal const string TuneLvFill = "cloud.lightVolume.fill", TuneLvPropSteps = "cloud.lightVolume.propSteps", TuneLvPropCap = "cloud.lightVolume.propCap",
-            TuneLvPropLimit = "cloud.lightVolume.propLimit";
-        internal static int LvFill { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvFill, 0f), 0f, 0f, 1f)); } }
-        internal static int LvPropSteps { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropSteps, 2f), 2f, 1f, 64f)); } }
-        internal static int LvPropCap { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvPropCap, 16f), 16f, 1f, 64f)); } }
-        internal static float LvPropLimit { get { return Clean(Tuning.Get(TuneLvPropLimit, 8f), 8f, 0.5f, 1000f); } }
-        //   cloud.lightVolume.storeK       0: the volume stores the optical depth; above 0 (default 4): exp(-tau / k), so that the trilinear read interpolates transmittance (read back as -k log)
+        // The propagation fill (LV2, cloud.lightVolume.fill 1) and the lateral spread (LV3, cloud.lightVolume.spread 1-3) were removed on 2026-11-25 (owner's yes, master plan 44
+        // step 2): never the default; the blotches the propagation lessened came from the direct fill's one-point first tap (PRUEFPROTOKOLL 252).
+        //   cloud.lightVolume.storeK      0: the volume stores the optical depth; above 0 (default 4): exp(-tau / k), so that the trilinear read interpolates transmittance (read back as -k log)
         //   cloud.lightVolume.warpLimit    the time warp's rate above which the far path is off and the full sun march lights everything (LightVolume.TimeWarpRate, which the host sets)
         internal const string TuneLvStoreK = "cloud.lightVolume.storeK", TuneLvWarpLimit = "cloud.lightVolume.warpLimit";
-        // LV3, the lateral spread of the direct light (works at every distance; with it on the volume is filled even at a hand-over distance of infinity):
-        //   cloud.lightVolume.spread        0 off; the source of the spread optical depth: 1 the volume blurred over cloud.lightVolume.spreadRadiusM, 2 the far cascade,
-        //                                   3 the volume as filled (with the propagation fill its bilinear upstream reads already spread)
-        //   cloud.lightVolume.spreadRadiusM the blur's standard deviation in m
-        //   cloud.lightVolume.spreadDepth   the optical depth over which the spread's weight grows (1 - exp(-tau / depth)): none at the sunlit surface
-        //   cloud.lightVolume.spreadMax     the largest weight
-        internal const string TuneLvSpread = "cloud.lightVolume.spread", TuneLvSpreadRadius = "cloud.lightVolume.spreadRadiusM", TuneLvSpreadDepth = "cloud.lightVolume.spreadDepth",
-            TuneLvSpreadMax = "cloud.lightVolume.spreadMax";
-        internal static int LvSpread { get { return (int)Math.Round(Clean(Tuning.Get(TuneLvSpread, 0f), 0f, 0f, 3f)); } }
-        internal static float LvSpreadRadiusM { get { return Clean(Tuning.Get(TuneLvSpreadRadius, 400f), 400f, 10f, 5000f); } }
-        internal static float LvSpreadDepth { get { return Clean(Tuning.Get(TuneLvSpreadDepth, 4f), 4f, 0.01f, 100f); } }
-        internal static float LvSpreadMax { get { return Clean(Tuning.Get(TuneLvSpreadMax, 1f), 1f, 0f, 1f); } }
         internal static float LvStoreK { get { return Clean(Tuning.Get(TuneLvStoreK, 4f), 4f, 0f, 64f); } }
         internal static float LvWarpLimit { get { return Clean(Tuning.Get(TuneLvWarpLimit, 1000f), 1000f, 1f, 1e7f); } }
 

@@ -62,10 +62,6 @@ namespace ReDefinition.Tests
         [DataRow("volumeSteps", "NaN", "28")]
         [DataRow("orbitMapWidth", "NaN", "2048")]
         [DataRow("forceLevel", "NaN", "-1")]
-        [DataRow("forcePhase", "-5", "-1")]
-        [DataRow("forcePhase", "1.25", "0.25")]
-        [DataRow("forcePhase", "NaN", "-1")]
-        [DataRow("forcePhase", "abc", "-1")]
         [DataRow("enabled", "maybe", "True")]
         [DataRow("weatherEffects", "0", "False")]
         [DataRow("weatherEffects", "True", "True")]
@@ -90,8 +86,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void EveryNumberSettingIsBroughtIntoItsRangeFromBothSides()
         {
-            // forcePhase wraps a number into 0 to 1 instead of clamping it; it has its own rows above.
-            foreach (SettingDef def in AtmospheresSettings.Definitions.Where(d => (d.Kind == SettingKind.Float || d.Kind == SettingKind.Int) && d.Key != "forcePhase"))
+            foreach (SettingDef def in AtmospheresSettings.Definitions.Where(d => d.Kind == SettingKind.Float || d.Kind == SettingKind.Int))
             {
                 string low = def.Format(def.Min);
                 string high = def.Format(def.Max);
@@ -118,7 +113,7 @@ namespace ReDefinition.Tests
         {
             string[] named =
             {
-                "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
+                "weatherEffects", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "windShear", "layerWindSteering", "verticalMotion", "anvilTilt", "solarDimming", "solarDimmingStrength",
                 "visibilityExport", "genEnabled", "simGrid", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
                 "visibilityExtinctionBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
@@ -126,7 +121,7 @@ namespace ReDefinition.Tests
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "vehicleCoverMethod", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
                 "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",
                 "alertSites", "forecastHorizonHours", "forecastUncertainty", "launchMaxLevel", "launchMaxWindMs", "launchMinVisibilityM", "launchLeadHours",
-                "orbitBodies", "forceLevel", "forceType", "forcePhase"
+                "orbitBodies", "forceLevel", "forceType"
             };
             foreach (string key in named) Assert.IsNotNull(AtmospheresSettings.Definition(key), key);
         }
@@ -147,6 +142,18 @@ namespace ReDefinition.Tests
             foreach (string key in removed) Assert.IsNull(AtmospheresSettings.Definition(key), key);
             Dictionary<string, string> written = ReadBack("qualityGovernor = True\nsimLevels = 12\nsimSliceMs = 2\nstormCullDistance = True\niceCollision = True\n"
                                                           + "forceBody = Duna\natmoDebug = Contrib\ncoverStrength = 0.25");
+            foreach (string key in removed) Assert.IsFalse(written.ContainsKey(key), key + " is not written back");
+            Assert.AreEqual("0.25", written["coverStrength"], "the setting beside them is read");
+        }
+
+        // seasonMode and forcePhase, removed on 2026-11-25 (owner: only SeasonState read them, and nothing called SeasonState): a player's file
+        // that still holds them loads, the keys are dropped when the file is written again, and the setting beside them is read.
+        [TestMethod]
+        public void AFileWithTheRemovedSeasonSettingsStillLoads()
+        {
+            string[] removed = { "seasonMode", "forcePhase" };
+            foreach (string key in removed) Assert.IsNull(AtmospheresSettings.Definition(key), key);
+            Dictionary<string, string> written = ReadBack("seasonMode = GlobalWinter\nforcePhase = 0.3\ncoverStrength = 0.25");
             foreach (string key in removed) Assert.IsFalse(written.ContainsKey(key), key + " is not written back");
             Assert.AreEqual("0.25", written["coverStrength"], "the setting beside them is read");
         }
@@ -215,7 +222,6 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(ReDefinition.Core.QualityTier.Auto, AtmospheresSettings.QualityTier);
                 Assert.AreEqual(VehicleCoverMode.Landed, AtmospheresSettings.VehicleCover);
                 Assert.AreEqual(-1f, AtmospheresSettings.ForceLevel);
-                Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
                 Assert.AreEqual(ReDefinition.Core.PrecipBand.Heavy, AtmospheresSettings.BandOf(LevelChoice.Heavy));
                 Assert.AreEqual(ReDefinition.Core.PrecipBand.Flurries, AtmospheresSettings.BandOf(LevelChoice.Flurries));
                 Assert.IsTrue(AtmospheresSettings.PrecipTypeDrawn(ReDefinition.Core.PrecipType.FreezingRain));
@@ -232,7 +238,7 @@ namespace ReDefinition.Tests
         {
             var pairs = new Dictionary<string, Type>
             {
-                { "seasonMode", typeof(SeasonMode) }, { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
+                { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
                 { "windInjection", typeof(WindInjection) }, { "volumeCompose", typeof(VolumeCompose) }, { "aurora", typeof(AuroraMode) },
                 { "audioMuffling", typeof(AudioMuffling) }, { "eveSound", typeof(EveSoundPolicy) }, { "audioBedSource", typeof(AudioBedSource) },
                 { "vehicleCover", typeof(VehicleCoverMode) }, { "vehicleCoverMethod", typeof(VehicleCoverMethod) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },
@@ -322,7 +328,7 @@ namespace ReDefinition.Tests
                 AtmospheresSettings.ResetToDefaults();
                 Assert.IsTrue(AtmospheresSettings.Enabled);
                 Assert.AreEqual(2048, AtmospheresSettings.OrbitMapWidth);
-                Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
+                Assert.AreEqual(-1f, AtmospheresSettings.ForceLevel);
 
                 AtmospheresSettings.SetNumber("genSeed", 99);
                 AtmospheresSettings.SetNumber("orbitMapWidth", 1024);

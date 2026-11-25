@@ -250,20 +250,33 @@ Shader "ReDefinition/AtmospheresLayers"
 
         // The density of layer li at a point (pc relative to the planet's centre, alt its altitude), distance t along the ray from the camera.
         // share: the height share of the layer; erosionOut: the interpolated type's erosion.
-        // The altitude of the top of the cloud type at the last point LayerDensity was asked for (the layer's outer altitude where no type was reached, and for the
-        // parity cell). The march copies it right after its own density read; the ambient's analytic occlusion measures the cloud above a sample to this top.
-        static float gTopAlt = 0;
-        // The altitude of the base of the cloud type at the last point LayerDensity reached the type table (E40 LM2: the type's height for the light's far depth); copied with gTopAlt.
-        static float gBaseAlt = 0;
-        // E40 C1: the length along the ray (m) around the last point LayerDensity was asked for within which the layer's map is certainly empty (0: no statement); the march leaps by it.
-        static float gEmptyM = 0;
-        // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the type's
-        // slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march ends a leap
-        // there (with layers.spanGrowthPerM).
-        static float gSlabGap = 0;
-        // The thickness in m of the cloud slab at the last sample that reached the slab test (the type's base to top after the height variation and the undulations); 0 where
-        // the sample was made empty before (the map, the layer's reach): the march then takes the layer's thinnest slab (_CullL[li].x).
-        static float gSlabM = 0;
+        // What one density read hands the march besides the density (master plan 44 step 3: until 2026-11-25 these were static globals the march read right after the call).
+        struct DensityRead
+        {
+            // The altitude of the top of the cloud type at the point (the layer's outer altitude where no type was reached, and for the parity cell): the ambient's analytic
+            // occlusion measures the cloud above a sample to this top, the far path of the light volume reads above it.
+            float topAlt;
+            // The altitude of the base of the cloud type at the point (the layer's inner where no type was reached; E40 LM2: the type's height for the light's far depth).
+            float baseAlt;
+            // E40 C1: the length along the ray (m) around the point within which the layer's map is certainly empty (0: no statement); the march leaps by it.
+            float emptyM;
+            // The vertical distance in m from an empty sample to the altitudes where cloud of the layer can begin there: the layer's reach, the height variation's band, the
+            // type's slab, whichever test made the sample empty. Positive: the sample lies above them; negative: below; 0: the sample is not empty for that reason. The march
+            // ends a leap there (with layers.spanGrowthPerM).
+            float slabGap;
+            // The thickness in m of the cloud slab at the point when it reached the slab test (the type's base to top after the height variation and the undulations); 0 where
+            // the sample was made empty before (the map, the layer's reach): the march then takes the layer's thinnest slab (_CullL[li].x).
+            float slabM;
+            // What the noise and cell helpers left at the point (their own scratch globals, copied once in LayerDensityEx): the erosion detail's value (PUFF's bulge light),
+            // the cumuliform volume's cavity channel and its type strength (CLOUDR1 P3), whether a single cloud's body was read, the least horizontal distance to another
+            // body (CellProfile), and the depth the march may leap inside a body's shell without meeting its surface (CellShellGap; 0 where no body was read).
+            float noiseD;
+            float cavity;
+            float cavityK;
+            bool bodyRead;
+            float cellOther;
+            float shellGap;
+        };
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
         // and 2 pi / width times the cosine of the latitude along a parallel), as the chord at the planet's radius (a straight line keeps at least that far from the centre), on a body with a surface.
@@ -276,12 +289,19 @@ Shader "ReDefinition/AtmospheresLayers"
         }
 
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
-        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share)
+        float LayerDensityCore(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
         {
             share = 0;
-            gEmptyM = 0;
-            gSlabGap = 0;
-            gSlabM = 0;
+            dr.emptyM = 0;
+            dr.slabGap = 0;
+            dr.slabM = 0;
+            // The helpers' values: LayerDensityEx copies them after this returns.
+            dr.noiseD = 0;
+            dr.cavity = 1;
+            dr.cavityK = 0;
+            dr.bodyRead = false;
+            dr.cellOther = 1e9;
+            dr.shellGap = 0;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -290,8 +310,8 @@ Shader "ReDefinition/AtmospheresLayers"
             gCumuliformCav = 1;
             gCumuliformCavK = 0;
             float inner = _LayerA[li].x, outer = _LayerA[li].y;
-            gTopAlt = outer;
-            gBaseAlt = inner;
+            dr.topAlt = outer;
+            dr.baseAlt = inner;
             share = (alt - inner) / (outer - inner);
             // The height variation (T13) lets a base reach below the inner altitude and a top above the outer one, by the layer's reach.
             bool heightOn = _LayerH2[li].y > 0;
@@ -299,7 +319,7 @@ Shader "ReDefinition/AtmospheresLayers"
             float reachUp = heightOn ? HeightReachUp(li) / (outer - inner) : 0.0;
             if (share < -reachDown || share > 1 + reachUp)
             {
-                gSlabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
+                dr.slabGap = (share > 0.0 ? share - 1.0 - reachUp : share + reachDown) * (outer - inner);
                 return 0;
             }
             if (DEV(_CellA.w, 0.0) > 0) return li == 0 ? CellDensity(pc) : 0;   // the parity test cell (T03)
@@ -329,7 +349,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 // lowers the map value, so a map that fails here fails there too: the result is the same, the reads of an empty sample are fewer.
                 if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * max(_LayerB[li].z, 1e-4) <= 0.0)
                 {
-                    gEmptyM = EmptyReach(li, uv);
+                    dr.emptyM = EmptyReach(li, uv);
                     return 0;
                 }
                 // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
@@ -349,7 +369,7 @@ Shader "ReDefinition/AtmospheresLayers"
                                     (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
                     if (DEV(_CostP.x, 1.0) > 0.5 && cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
                     {
-                        gEmptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
+                        dr.emptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
                         return 0;
                     }
                 }
@@ -383,7 +403,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float localBase, localTop;
                 if (!HeightLocalBaseTop(li, pc, uvRaw, b, tp, erosionType, outer - inner, share, localBase, localTop))
                 {
-                    if (localTop > localBase) gSlabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
+                    if (localTop > localBase) dr.slabGap = (share > localTop ? share - localTop : share - localBase) * (outer - inner);
                     return 0;
                 }
                 b = localBase;
@@ -396,14 +416,14 @@ Shader "ReDefinition/AtmospheresLayers"
             // Master plan 43: the top's short waves (0 for a type without topRoughness: the layer of before, bit for bit).
             float topRough = lerp(TypeTopRoughOf(li, ta), TypeTopRoughOf(li, tb), f);
             [branch] if (topRough > 0.0) tp = b + (tp - b) * TopRoughFactor(li, pc, topRough, outer - inner);
-            gSlabM = max(tp - b, 0.0) * (outer - inner);
+            dr.slabM = max(tp - b, 0.0) * (outer - inner);
             if (share < b || share > tp || tp <= b)
             {
-                if (tp > b) gSlabGap = (share > tp ? share - tp : share - b) * (outer - inner);
+                if (tp > b) dr.slabGap = (share > tp ? share - tp : share - b) * (outer - inner);
                 return 0;
             }
-            gTopAlt = inner + tp * (outer - inner);
-            gBaseAlt = inner + b * (outer - inner);
+            dr.topAlt = inner + tp * (outer - inner);
+            dr.baseAlt = inner + b * (outer - inner);
             erosion = erosionType * _LayerD[li].z;
             float coverage = _LayerB[li].y;
             float edge = max(_LayerB[li].z, 1e-4);
@@ -463,9 +483,22 @@ Shader "ReDefinition/AtmospheresLayers"
             return _LayerB[li].x * s * pf.x * fade;
         }
 
-        float LayerDensity(int li, float3 pc, float alt, float t, out float share)
+        // The density read with everything the march takes from it in dr (the helpers' scratch globals copied at this one place).
+        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
         {
-            return LayerDensityEx(li, pc, alt, t, 0, share);
+            float density = LayerDensityCore(li, pc, alt, t, light, share, dr);
+            dr.noiseD = gNoiseD;
+            dr.cavity = gCumuliformCav;
+            dr.cavityK = gCumuliformCavK;
+            dr.bodyRead = gBodyRead;
+            dr.cellOther = gCellOther;
+            dr.shellGap = CellShellGap(li);
+            return density;
+        }
+
+        float LayerDensity(int li, float3 pc, float alt, float t, out float share, out DensityRead dr)
+        {
+            return LayerDensityEx(li, pc, alt, t, 0, share, dr);
         }
 
         // ---- light (package T03: the phase, the light march, the octaves, the ambient, the lights, the light cache) ----
@@ -628,32 +661,33 @@ Shader "ReDefinition/AtmospheresLayers"
                     // With the points by distance the footprint of the shape is the pixel's size at the sample, not the step along the ray: the step is long far away, and a footprint
                     // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
                     if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
-                    float dens = LayerDensity(li, pc, alt, t, share) * spanF;
+                    DensityRead dr;
+                    float dens = LayerDensity(li, pc, alt, t, share, dr) * spanF;
                     // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
-                    // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
+                    // depth (dr.shellGap) nor within the reach of a neighbour's body (dr.cellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
                     // bulges' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
                     float traceGap = -1.0;
-                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && gBodyRead && !(dens > 0))
+                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && dr.bodyRead && !(dens > 0))
                     {
                         float band = CellBand(li);
-                        float gap = min(CellShellGap(li), gCellOther - 4.0 * band);
+                        float gap = min(dr.shellGap, dr.cellOther - 4.0 * band);
                         // Only where it leaps further than the empty reach of the coverage (the grid's own skip below) would.
-                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(gEmptyM / dtv)) traceGap = dtv * floor(gap / dtv);
+                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(dr.emptyM / dtv)) traceGap = dtv * floor(gap / dtv);
                     }
-                    float2 topAlt = float2(gTopAlt, gBaseAlt);   // the type's top and base, before the light march asks LayerDensity for other points
-                    float slabM = gSlabM > 0.0 ? gSlabM : _CullL[li].x;
-                    float bulgeD = gNoiseD;
+                    float2 topAlt = float2(dr.topAlt, dr.baseAlt);   // the type's top and base at the sample
+                    float slabM = dr.slabM > 0.0 ? dr.slabM : _CullL[li].x;
+                    float bulgeD = dr.noiseD;
                     // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
-                    [branch] if (gCumuliformCavK > 0.0) cavity = pow(max(gCumuliformCav, 0.02), 4.0 * gCumuliformCavK);
+                    [branch] if (dr.cavityK > 0.0) cavity = pow(max(dr.cavity, 0.02), 4.0 * dr.cavityK);
                     r.steps += 1;
                     // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
                     // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
                     float shellStep = -1.0;
-                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && gBodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && CellShellGap(li) <= 0.0)
+                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && dr.bodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && dr.shellGap <= 0.0)
                     {
                         float fine = clamp(_CullD.y * t, CELL_SHELL_STEP_MIN, dtv);
                         if (fine < dtv)
@@ -681,8 +715,8 @@ Shader "ReDefinition/AtmospheresLayers"
                     }
                     if (!(dens > 0))
                     {
-                        // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (gEmptyM is 0 where no reach was read).
-                        float reachSkip = dtv * floor(gEmptyM / dtv);
+                        // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (dr.emptyM is 0 where no reach was read).
+                        float reachSkip = dtv * floor(dr.emptyM / dtv);
                         tLast = t + reachSkip;
                         arrived = leap;
                         float jump = dtv * leap + reachSkip;
@@ -692,9 +726,9 @@ Shader "ReDefinition/AtmospheresLayers"
                         // phase and draws the clouds behind it in horizontal streaks (ground view, FAR7). 128: such a leap starts again from one grid step (cloud can begin right
                         // there; the altitude is the type's at the leap's start, another type along the leap may reach higher, so a landing on cloud is still walked back).
                         bool capped = false;
-                        [branch] if (lbGap && gSlabGap * dot(d, pc) < 0.0)
+                        [branch] if (lbGap && dr.slabGap * dot(d, pc) < 0.0)
                         {
-                            float toGap = dtv * max(1.0, floor(abs(gSlabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
+                            float toGap = dtv * max(1.0, floor(abs(dr.slabGap) * length(pc) / max(abs(dot(d, pc)), 1e-3 * length(pc)) / dtv));
                             capped = toGap < jump;
                             jump = min(jump, toGap);
                         }
@@ -1169,92 +1203,17 @@ Shader "ReDefinition/AtmospheresLayers"
                     float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
-                // LV2: _LvP.x the fill (0 a direct march per voxel, 1 propagation from the slice above). Propagation needs every voxel of the chain, so it skips nothing.
-                float mode = _LvP.x;
-                // The spread's blur reads every voxel's neighbours, so with it nothing is skipped either.
-                if (!read && mode < 0.5 && _LvS.x < 0.5) return float4(0, 0, 0, 0);
+                if (!read) return float4(0, 0, 0, 0);
                 float3 s = _Sun.xyz;
-                int taps;
-                float range, ratio = 1.0, above = 0.0;
-                // LV3: with the lateral spread on (_LvS.x) the volume is also read at the sample itself, so a voxel holds the whole sun march from its centre (the far path's
-                // read at the end of its near taps then counts the march's last few hundred metres once more, far from the sample).
-                int keepFill = _LvS.x > 0.5 ? 0 : keep;
-                float nearFill = _LvS.x > 0.5 ? 0.0 : near;
-                if (mode < 0.5)
-                {
-                    // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length), so that the far light is the
-                    // full march's estimate of the same path; above 0: that many taps growing by _LvF.y over the whole length.
-                    bool own = _LvF.x < 0.5;
-                    taps = own ? max(1, steps - keepFill) : (int)_LvF.x;
-                    range = own ? max(_Sun.w - nearFill, 1.0) : _Sun.w;
-                    ratio = own ? _LightR.y : _LvF.y;
-                }
-                else
-                {
-                    // The segment from the voxel centre along the sun up to the next slice's altitude; the slice above is read where the sun ray crosses it. The top slice
-                    // marches directly (layers that are not lit by the march, a cirrus layer above the lit ones, can reach above the volume's altitude range and still shade).
-                    bool top = _LvSlice.x > _LvZ.z - 1.5;
-                    float r0 = _PlanetR + alt, rUp = r0 + sliceH;
-                    float b = dot(p, s);
-                    float seg = -b + sqrt(max(b * b + rUp * rUp - r0 * r0, 0.0));
-                    float flat = sqrt(max(seg * seg - sliceH * sliceH, 0.0));
-                    bool fallback = top || dot(p, s) <= 0.0 || flat > _LvP.w * vox;
-                    if (!fallback)
-                    {
-                        bool ok;
-                        above = LightVolumeSlice(p + s * seg, (int)_LvSlice.x + 1, far ? 1 : 0, ok);
-                        fallback = !ok;
-                    }
-                    if (fallback)
-                    {
-                        // The top slice, a ray that leaves both windows between two slices, a low sun or the sun below the horizon: a direct march through whole spans.
-                        above = 0.0;
-                        taps = 24;
-                        range = 1e30;
-                        ratio = 1.15;
-                    }
-                    else
-                    {
-                        taps = (int)clamp(ceil(seg / vox), _LvP.y, _LvP.z);
-                        range = -seg;
-                    }
-                }
+                // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length); above 0: that many taps growing by
+                // _LvF.y over the whole length.
+                bool own = _LvF.x < 0.5;
+                int taps = own ? max(1, steps - keep) : (int)_LvF.x;
+                float range = own ? max(_Sun.w - near, 1.0) : _Sun.w;
+                float ratio = own ? _LightR.y : _LvF.y;
                 // The density as the march reads it at this voxel's distance from the camera (a layer's distance fade).
                 float camDist = length(p - (_CamPos.xyz - _PlanetCenter.xyz));
-                return float4(LightVolumeEncode(above + LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
-            }
-            ENDCG
-        }
-
-        // Pass 9 (LV3): one direction of the separable blur of a light volume slice (the lateral spread's copy): a Gaussian of _LvBlurSigma.x voxels' standard deviation over the stored
-        // values (transmittance where it is stored), read from the volume's slice _LvBlur.y (_LvBlur.x 0) or the 2D target _LvBlurSrc (1), along _LvBlur.zw texels. The wrap-around
-        // addressing makes the window's last voxels read the far side's first ones; the window's edge fade hides them.
-        Pass
-        {
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma target 3.5
-            #pragma multi_compile_local CLOUD_LIGHTVOL
-            sampler2D _LvBlurSrc;
-            float4 _LvBlurSigma;   // x the Gaussian's standard deviation in this cascade's voxels (a global, never on the material)
-            float4 frag(v2f i) : SV_Target
-            {
-                float gridN = _LvC.z;
-                float sigma = max(_LvBlurSigma.x, 0.25);
-                int reach = min((int)ceil(2.0 * sigma), 8);
-                float sum = 0.0, wsum = 0.0;
-                [loop] for (int k = -8; k <= 8; k++)
-                {
-                    if (abs(k) > reach) continue;
-                    float w = exp(-0.5 * k * k / (sigma * sigma));
-                    float2 uv = i.uv + _LvBlur.zw * (k / gridN);
-                    float v = _LvBlur.x > 0.5 ? tex2Dlod(_LvBlurSrc, float4(frac(uv), 0, 0)).r
-                                              : UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, _LvBlur.y), 0).r;
-                    sum += w * v;
-                    wsum += w;
-                }
-                return float4(sum / max(wsum, 1e-6), 0, 0, 0);
+                return float4(LightVolumeEncode(LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
             }
             ENDCG
         }

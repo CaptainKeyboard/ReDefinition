@@ -43,23 +43,20 @@ namespace ReDefinition.Atmospheres
     }
 
     // The cloud shadow's drawing (package T04): the material, the type table and map textures it reads, and the command buffers that build the
-    // half-size shadow and multiply it into the sun's shadow mask (deferred), into the colour (forward), onto the planet's disc (scaled
-    // space) or into the ocean's shadow texture.
+    // half-size shadow and multiply it into the sun's shadow mask (deferred), into the colour (forward) or onto the planet's disc (scaled
+    // space).
     //
     // Credit: the structure of the buffers (the depth downscaled to half size, a half-size R8 shadow target, the multiply into the sun's
-    // mask at LightEvent.AfterScreenspaceMask, the camera buffer at CameraEvent.AfterForwardOpaque for forward rendering, and the ocean
-    // variant that Scatterer asks for) is adapted from EnvironmentalVisualEnhancements (EVE Redux, MIT):
+    // mask at LightEvent.AfterScreenspaceMask, the camera buffer at CameraEvent.AfterForwardOpaque for forward rendering) is adapted from EnvironmentalVisualEnhancements (EVE Redux, MIT):
     // Atmosphere/RaymarchedClouds/LightVolume/ScreenSpaceShadowsManager.cs, classes ScreenSpaceShadowsManager and ScreenSpaceShadowsRenderer.
     internal sealed class CloudShadowRenderer
     {
         internal const string ShaderName = "ReDefinition/AtmospheresCloudShadow";
-        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4, PassDownscaleSource = 5;
+        // The shader's pass 5 (the depth of a given texture to half size) was the ocean path's; nothing records it now.
+        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4;
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
-        // The names Scatterer's ocean reads (render-contract-scatterer.md); the ocean path sets them.
-        internal static readonly string OceanShadowsName = "ScattererOceanShadowsTexture";
-        internal static readonly string OceanDepthName = "ScattererDownscaledOceanDepthTexture";
 
         // The shader's local keyword of the test lattice (passes 1 and 4), on while cloud.field is off.
         internal const string LatticeKeyword = "CLOUD_LATTICE";
@@ -70,7 +67,7 @@ namespace ReDefinition.Atmospheres
             IdTypeProfile = Shader.PropertyToID("_CsTypeProfile"), IdTypeInfo = Shader.PropertyToID("_CsTypeInfo"),
             IdCovMaps = Shader.PropertyToID("_CsCovMaps"), IdTypeMaps = Shader.PropertyToID("_CsTypeMaps"), IdMapDim = Shader.PropertyToID("_CsMapDim"),
             IdReachCov = Shader.PropertyToID("_CsReachCov"), IdReachType = Shader.PropertyToID("_CsReachType"),
-            IdDepthSource = Shader.PropertyToID("_CsDepthSource"), IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
+            IdDepthHalf = Shader.PropertyToID("_CsDepthHalf"),
             IdShadowHalf = Shader.PropertyToID("_CsShadowHalf"), IdNoiseD = Shader.PropertyToID("_CsNoiseD"), IdPlanetR = Shader.PropertyToID("_CsPlanetR"),
             IdCovReach = Shader.PropertyToID("_CsCovReach"), IdFormP = Shader.PropertyToID("_CsFormP");
 
@@ -89,7 +86,7 @@ namespace ReDefinition.Atmospheres
 
         // The half-size shadow target: 16 bits where the platform has them (the factor under a thick cloud, exp(-6) and less, is below the
         // 8-bit step of 1/255), else 8 bits as EVE's. The sun's mask it is multiplied into is 8 bits anyway; the colour multiply of the forward
-        // path and the ocean texture keep the finer steps.
+        // path keeps the finer steps.
         internal static RenderTextureFormat ShadowFormat
         {
             get { return SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R16) ? RenderTextureFormat.R16 : RenderTextureFormat.R8; }
@@ -301,25 +298,6 @@ namespace ReDefinition.Atmospheres
         {
             cb.Clear();
             cb.Blit(BuiltinRenderTextureType.None, BuiltinRenderTextureType.CurrentActive, material, PassDisc);
-        }
-
-        // The ocean's shadow texture, the way EVE's AddOceanShadowCommands builds it for Scatterer: the ocean's depth to half size, the shadow at
-        // half size into ScattererOceanShadowsTexture, ScattererDownscaledOceanDepthTexture for the ocean shader to upsample with. The textures
-        // stay allocated for the frame (Scatterer reads them later in its own buffer). oceanDepth is the ocean's depth texture. [VERIFY] which
-        // global holds the ocean depth and in which event Scatterer reads the texture (K-T1).
-        internal void RecordOceanShadows(CommandBuffer cb, int width, int height, RenderTargetIdentifier oceanDepth)
-        {
-            int w = Mathf.Max(1, width / 2), h = Mathf.Max(1, height / 2);
-            int depthId = Shader.PropertyToID(OceanDepthName), shadowId = Shader.PropertyToID(OceanShadowsName);
-            cb.GetTemporaryRT(depthId, w, h, 0, FilterMode.Point, RenderTextureFormat.RFloat);
-            cb.GetTemporaryRT(shadowId, w, h, 0, FilterMode.Bilinear, RenderTextureFormat.R8);
-            cb.SetGlobalVector("_CsDepthSource_TexelSize", new Vector4(1f / width, 1f / height, width, height));
-            cb.SetGlobalVector("_CsDepthHalf_TexelSize", new Vector4(1f / w, 1f / h, w, h));
-            cb.SetGlobalTexture(IdDepthSource, oceanDepth);
-            cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscaleSource);
-            cb.SetGlobalTexture(IdDepthHalf, depthId);
-            cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
-            cb.SetGlobalTexture(OceanShadowsName, shadowId);
         }
 
         // The shadow at half size from the camera's depth texture (a global texture of Unity's, read by name in the shader: it is not a

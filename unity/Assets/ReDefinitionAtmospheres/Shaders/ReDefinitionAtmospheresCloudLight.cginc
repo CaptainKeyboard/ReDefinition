@@ -57,15 +57,8 @@ float4 _LvC;      // x, y the voxel size of cascade 0 and 1 in m, z the voxels a
 float4 _LvF;      // x the fill's taps over the whole sun march (0: the march's own taps beyond the far near taps), y the growth of each fill tap over the one before
 float4 _LvO[64];  // LV_MAX_SLICES; per slice: the window origin (voxel index) of cascade 0 (xy) and 1 (zw) when the slice was last filled (LightVolumeMath.NotFilled: not since the lay)
 float4 _LvSlice;  // the fill (a global, never on the material): x the slice, y the cascade, z, w the window origin
-float4 _LvP;      // LV2 fill: x the mode (0 direct march, 1 propagation), y, z the propagation's least and most samples
-                  // per segment, w the longest horizontal run of a segment in voxels (beyond it the direct march)
-float4 _LvD;      // unused (kept so that the uniform layout stays)
-float4 _LvR;      // LV2 read: x k of the stored value (0: the optical depth; above 0: exp(-tau / k), interpolated as such and read back as -k log); yzw unused
-float4 _LvS;      // LV3 lateral spread of the direct light: x the source (0 off, 1 the blurred volume, 2 the far cascade, 3 the volume as filled), y the blur's radius in m,
-                  // z the optical depth over which the spread's weight grows (1 - exp(-tau / z)), w the largest weight
-float4 _LvBlur;   // the blur pass (a global, never on the material): x the source (0 the volume's slice y, 1 the 2D target _LvBlurSrc), y the array slice, z, w the direction in texels
+float4 _LvR;      // the read: x k of the stored value (0: the optical depth; above 0: exp(-tau / k), interpolated as such and read back as -k log); yzw unused
 UNITY_DECLARE_TEX2DARRAY(_LightVolume);
-UNITY_DECLARE_TEX2DARRAY_NOSAMPLER(_LightVolumeSpread);   // read with _LightVolume's sampler (the march has no sampler register left)
 #endif
 
 // The cell's bounding sphere along a ray: false where the ray misses it.
@@ -200,7 +193,8 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 float mid = 0.5 * (prev + edge);
                 float3 q = pc + dir * mid;
                 float qs;
-                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
+                DensityRead qr;   // the tap needs only the density
+                acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs, qr) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
                 gain *= r;
             }
@@ -253,37 +247,11 @@ float LightVolumeNear(int keep, int steps, float3 p, float3 sunDir)
     return _Sun.w * NearShare(keep, steps, max(_LightR.y, 1.0));
 }
 
-// LV2, the propagation fill: the optical depth stored in slice z (the slice's centre altitude, no vertical blend) at q, from cascade `pref` where the window that slice was filled for
-// holds q's bilinear footprint, else from the other cascade; ok false where neither does.
-float LightVolumeSlice(float3 q, int z, int pref, out bool ok)
-{
-    ok = false;
-    float3 n = normalize(q);
-    float c = dot(n, _LvU.xyz);
-    if (c <= LV_MIN_COS) return 0.0;
-    float2 xy = _PlanetR * float2(dot(n, _LvE.xyz), dot(n, _LvN.xyz)) / c;
-    float4 o = _LvO[z];
-    float gridN = _LvC.z;
-    [loop] for (int k = 0; k < 2; k++)
-    {
-        int ci = k == 0 ? pref : 1 - pref;
-        if (ci >= (int)_LvC.w) continue;
-        float vox = ci == 0 ? _LvC.x : _LvC.y;
-        float2 g = xy / vox - 0.5;
-        float2 oc = ci == 0 ? o.xy : o.zw;
-        float2 d = min(g - oc, oc + gridN - 1.0 - g);
-        if (min(d.x, d.y) < 0.0) continue;
-        ok = true;
-        return LightVolumeDecode(UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(xy / (vox * gridN), ci * _LvZ.z + z), 0).r);
-    }
-    return 0.0;
-}
-
-// The fetch from the volume (spread false) or its blurred copy (spread true), from cascade `first` on.
+// The fetch from the volume: the finest cascade whose window holds q, faded into the next over the window's edge.
 // floorAlt: the top of the cloud type the read belongs to (m above the radius; far below: none). A point at or above it reads no slice whose centre lies below it: a slice is
 // about 290 m high, the optical depth under a dense top grows by one in tens of metres, and the vertical blend with a slice inside the cloud gave the point a share of the
 // cloud's own interior (PRUEFPROTOKOLL 226, 227: a closed tau 26 stratus top at 0.45 W against 0.83-0.90 W with the full march).
-float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out float w)
+float LightVolumeFetchFrom(float3 q, float floorAlt, out float w)
 {
     w = 0.0;
     float r = length(q);
@@ -303,7 +271,6 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
     [loop] for (int ci = 0; ci < 2; ci++)
     {
         if (ci >= (int)_LvC.w || w >= 1.0) break;
-        if (ci < first) continue;
         float vox = ci == 0 ? _LvC.x : _LvC.y;
         float2 g = xy / vox - 0.5;
         float2 o0 = ci == 0 ? oa.xy : oa.zw, o1 = ci == 0 ? ob.xy : ob.zw;
@@ -313,17 +280,8 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
         if (wc <= 0.0) continue;
         float2 uv = xy / (vox * gridN);
         float base = ci * slices;
-        float a, b;
-        [branch] if (spread)
-        {
-            a = UNITY_SAMPLE_TEX2DARRAY_SAMPLER_LOD(_LightVolumeSpread, _LightVolume, float3(uv, base + z0), 0).r;
-            b = UNITY_SAMPLE_TEX2DARRAY_SAMPLER_LOD(_LightVolumeSpread, _LightVolume, float3(uv, base + z1), 0).r;
-        }
-        else
-        {
-            a = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, base + z0), 0).r;
-            b = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, base + z1), 0).r;
-        }
+        float a = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, base + z0), 0).r;
+        float b = UNITY_SAMPLE_TEX2DARRAY_LOD(_LightVolume, float3(uv, base + z1), 0).r;
         float take = (1.0 - w) * wc;
         sum += take * LightVolumeDecode(lerp(a, b, fz));
         w += take;
@@ -333,20 +291,7 @@ float LightVolumeFetchFrom(float3 q, bool spread, int first, float floorAlt, out
 
 float LightVolumeFetch(float3 q, out float w)
 {
-    return LightVolumeFetchFrom(q, false, 0, -1e9, w);
-}
-
-// LV3, the lateral spread of the direct light: the sun's optical depth the direct term reads, blended in transmittance between the exact one (the march's, tau) and a spread
-// one from the volume at the sample (spreadTau, with the volume's weight wv there; _LvS.x: 1 the blurred copy, 2 the far cascade, 3 the volume as filled), by a weight that grows
-// with the depth into the cloud (tau): nothing at the sunlit surface, so its rim and the bulges' own shadow stay; up to _LvS.w deep inside and on the faces in another lobe's
-// shadow. Where the volume holds nothing: tau. A diffusion stand-in: light that scattered several times reaches the sample from the side. It does not conserve energy (the
-// transmittance is averaged over a neighbourhood that includes clear air) and it cannot tell a gap the light passes through from one it does not.
-float LightVolumeSpread(float tau, float spreadTau, float wv)
-{
-    float k = wv * _LvS.w * (1.0 - exp(-tau / max(_LvS.z, 1e-3)));
-    if (k <= 0.0) return tau;
-    float t = lerp(exp(-tau), exp(-spreadTau), k);
-    return -log(max(t, 1e-30));
+    return LightVolumeFetchFrom(q, -1e9, w);
 }
 
 // The split of a lit sample's sun march by its distance from the camera (LV1). share: the weight of the far path (near taps and one volume read) against the full march, 0 nearer
@@ -440,7 +385,7 @@ float3 BoltLight(float3 pc)
 // tauReuse >= 0: the optical depth towards the sun of an earlier sample of the span (the cost package's reuse); tauSunOut returns the one used.
 // tauUpReuse >= 0: the optical depth straight up of an earlier sample (the cost package T05's up-tap reuse, UpMode 1); tauUpOut returns the one used.
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
-// topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's copy of gTopAlt, gBaseAlt): the end of the analytic occlusion's column and the type's
+// topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's DensityRead.topAlt, .baseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
 
 float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
@@ -476,23 +421,10 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
             lvSteps = max(lvSteps, 1);
         }
     }
-    // The volume's reads, at ONE call site (each call is inlined; copies overflowed the shader compiler's stack): 0 the far path's read point, 1 the spread's read at the sample.
-    float3 lvPt[2];
-    bool lvNeed[2], lvSp[2];
-    int lvFirst[2];
-    float lvVal[2], lvW[2], lvFloor[2];
-    // The far path's read point lies on or above the sample's own type top: it reads only the slices above that top (LightVolumeFetchFrom).
-    lvPt[0] = pc + sunDir * lvNear; lvNeed[0] = lvShare > 0.0; lvSp[0] = false; lvFirst[0] = 0; lvFloor[0] = topAlt.x;
-    lvPt[1] = pc; lvNeed[1] = _LvS.x > 0.5 && lvLit; lvSp[1] = _LvS.x < 1.5; lvFirst[1] = (_LvS.x > 1.5 && _LvS.x < 2.5) ? 1 : 0; lvFloor[1] = -1e9;
-    [loop] for (int lr = 0; lr < 2; lr++)
-    {
-        lvVal[lr] = 0.0;
-        lvW[lr] = 0.0;
-        if (!lvNeed[lr]) continue;
-        lvVal[lr] = LightVolumeFetchFrom(lvPt[lr], lvSp[lr], lvFirst[lr], lvFloor[lr], lvW[lr]);
-    }
-    lvTau = lvVal[0];
-    lvShare *= lvW[0];
+    // The volume's one read: the far path's read point lies on or above the sample's own type top, so it reads only the slices above that top (LightVolumeFetchFrom).
+    float lvW = 0.0;
+    [branch] if (lvShare > 0.0) lvTau = LightVolumeFetchFrom(pc + sunDir * lvNear, topAlt.x, lvW);
+    lvShare *= lvW;
 #else
     [branch] if (_LightS.w > 0.5 && tauReuse < 0 && (int)_CacheH.x < steps)
     {
@@ -550,10 +482,6 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     #undef LIGHT_SLOTS
     #undef LIGHT_ERODED
     tauSunOut = max(tauSun, 0.0);
-#ifdef CLOUD_LIGHTVOL
-    // LV3: the direct term reads the spread optical depth; the reuse along the span keeps the exact one.
-    [branch] if (lvNeed[1] && tauSun > 0.0) tauSun = LightVolumeSpread(tauSun, lvVal[1], lvW[1]);
-#endif
     float2 cell = float2(1.0, -1.0);
     [branch] if (_LightM[li].w > 0) cell = CellLight(pc, dens, max(tauSun, 0.0), topAlt, _LightM[li].w);
     float3 direct = DirectOfLight(sunCol, sunDir, d, li, max(tauSun, 0.0), cell);

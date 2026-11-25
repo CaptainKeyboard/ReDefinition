@@ -18,7 +18,7 @@ namespace ReDefinition.Atmospheres
     // sample carries none [VERIFY against the field's humidity map], and the sun's share is the present one for the whole replay.
     //
     // Conflicts: with cloudSource = Eve (TVC or EVE as the renderer) EVE's own wet surfaces are driven by EveGroundEffects and run in
-    // the same G-buffer; this overlay then stays off unless wet.overEve is set. Deferred: the pass needs the camera on the deferred
+    // the same G-buffer; this overlay then stays off. Deferred: the pass needs the camera on the deferred
     // path; the forward path gets no overlay (the forward fallback is a later step, tvc-parity Q10). Parallax terrain and other opaque
     // shaders are not edited: the overlay works on the G-buffer by depth, so it sees whatever they wrote.
     // Surfaces: terrain, scenery and craft hold water differently (WetClass); the G-buffer carries no class, so the overlay uses the
@@ -57,7 +57,6 @@ namespace ReDefinition.Atmospheres
         private float[] bandRates;
         private WetnessTuning tuning = WetnessTuning.Defaults();
         private WetDraw draw;
-        private bool abOff;
 
         // The readings of the series and the player.
         internal static WetnessModelReading Last { get; private set; }
@@ -170,7 +169,7 @@ namespace ReDefinition.Atmospheres
             }
             // EVE draws its own wet surfaces from the cloud types it renders: with it as the renderer (Eve, or Both) this overlay is off.
             CloudSourceKind cloudSource = AtmospheresSettings.CloudSource;
-            bool eveRuns = (cloudSource == CloudSourceKind.Eve || cloudSource == CloudSourceKind.Both) && !Tuning.Flag("wet.overEve", false);
+            bool eveRuns = cloudSource == CloudSourceKind.Eve || cloudSource == CloudSourceKind.Both;
             if (eveRuns || flight.actualRenderingPath != RenderingPath.DeferredShading)
             {
                 ActiveMode = eveRuns ? "off: EVE draws its own wet surfaces" : "off: the camera is not on the deferred path";
@@ -238,7 +237,6 @@ namespace ReDefinition.Atmospheres
                 return;
             }
 
-            abOff = Tuning.Flag("wet.abOff", false);
             clock += Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f;
             if (clock > 3600f) clock -= 3600f;
             BodyFrame basis = default(BodyFrame);
@@ -253,13 +251,13 @@ namespace ReDefinition.Atmospheres
                 EastM = Wrap(lon * Math.PI / 180.0 * body.Radius * Math.Cos(lat * Math.PI / 180.0)),
                 NorthM = Wrap(lat * Math.PI / 180.0 * body.Radius),
                 ClockS = clock,
-                Strength = abOff ? 0f : 1f,
+                Strength = 1f,
                 NoiseScale = 0f
             };
             if (!WetSurfacesPass.NeedsDraw(ref draw))
             {
                 Detach();
-                ActiveMode = abOff ? "off: wet.abOff" : "idle: dry";
+                ActiveMode = "idle: dry";
                 return;
             }
             if (attachedTo != flight)
