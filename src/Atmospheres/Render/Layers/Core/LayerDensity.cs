@@ -187,38 +187,35 @@ namespace ReDefinition.Atmospheres
 
         // The profile samples of every type: the type's curve times its density scale and, where the layer's density is the soft water content, the rise by height (E40 soft
         // density: the shader reads the rise and the scale through this texture, so it needs no code for them).
-        // The lift (E40 L2 D1: the height-shaped threshold with the top's closure, in headroom units: the shader's profile texture channel a) is baked with it: the pannus
-        // (cloud.pannus, CloudTypeDef.PannusProfile) changes both.
+        // The lift (E40 L2 D1: the height-shaped threshold with the top's closure, in headroom units: the shader's profile texture channel a) is baked with it: a type's pannus
+        // (CloudTypeDef.PannusProfile) changes both.
         private void Bake()
         {
-            bool soft = layer.Soft, pannus = CloudLookTuning.Pannus;
+            bool soft = layer.Soft;
             maxAmount = 0f;
             for (int t = 0; t < Count; t++)
             {
                 CloudTypeDef type = layer.Types[t];
-                Curve drawn = type.DrawnProfile(pannus);
+                Curve drawn = type.DrawnProfile();
                 for (int i = 0; i < ProfileSamples; i++)
                 {
                     double h = i / (double)(ProfileSamples - 1);
                     profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
-                    lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
-                    erosionGain[t * ProfileSamples + i] = (float)type.ErosionGainAt(h, pannus);
+                    lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h);
+                    erosionGain[t * ProfileSamples + i] = (float)type.ErosionGainAt(h);
                     float extra = (float)type.NoiseAmountAt(h);
                     noiseAmount[t * ProfileSamples + i] = extra;
                     if (extra > maxAmount) maxAmount = extra;
                 }
             }
             bakedSoft = soft;
-            bakedPannus = pannus;
             bakedStamp = CloudCoverShift.Stamp;
         }
 
-        private bool bakedPannus;
-
-        // Bakes the profile again where the soft density's state or the pannus changed since (a setting, a tuning key, a layer's noise amount).
+        // Bakes the profile again where the soft density's state changed since (a setting, a tuning key, a layer's noise amount).
         private void Sync()
         {
-            if (bakedStamp == CloudCoverShift.Stamp && bakedSoft == layer.Soft && bakedPannus == CloudLookTuning.Pannus) return;
+            if (bakedStamp == CloudCoverShift.Stamp && bakedSoft == layer.Soft) return;
             Bake();
         }
 

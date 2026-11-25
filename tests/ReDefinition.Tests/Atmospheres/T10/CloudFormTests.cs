@@ -37,7 +37,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void OnlyTheTypesWithAFormCarryOne()
         {
-            // Step 4 gives the types their forms one by one: a type without a FORM node keeps the sky of before (channels g and b 0), a type with one has it baked.
+            // Step 4 gives the types their forms one by one: a type without a FORM node keeps the sky of before (channels g and b 0), a type with one has it baked; a type with a
+            // pannus bakes the pannus' EROSION and AMOUNT instead (CloudPannusTests).
             foreach (CloudLayerSpec spec in CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers)
             {
                 CloudLayerDef layer = spec.Build(1);
@@ -47,8 +48,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
                     CloudTypeDef type = layer.Types[t];
                     bool erosion = Enumerable.Range(0, LayerTypeTable.ProfileSamples).Any(i => table.ErosionGainData[t * LayerTypeTable.ProfileSamples + i] != 0f);
                     bool amount = Enumerable.Range(0, LayerTypeTable.ProfileSamples).Any(i => table.NoiseAmountData[t * LayerTypeTable.ProfileSamples + i] != 0f);
-                    Assert.AreEqual(type.FormErosion != null, erosion, spec.Name + " " + type.Name + " erosion (without the pannus)");
-                    Assert.AreEqual(type.FormAmount != null, amount, spec.Name + " " + type.Name + " amount");
+                    bool pannus = type.PannusProfile != null;
+                    Assert.AreEqual((pannus ? type.PannusErosion : type.FormErosion) != null, erosion, spec.Name + " " + type.Name + " erosion");
+                    Assert.AreEqual((pannus ? type.PannusAmount : type.FormAmount) != null, amount, spec.Name + " " + type.Name + " amount");
                 }
             }
         }

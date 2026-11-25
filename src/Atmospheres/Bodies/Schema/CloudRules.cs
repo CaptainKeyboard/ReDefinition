@@ -98,13 +98,13 @@ namespace ReDefinition.Atmospheres
 
         // M2c 4a(1), the pannus (WMO International Cloud Atlas, accessory cloud pannus: "ragged shreds, sometimes constituting a continuous layer, situated below another cloud";
         // under nimbostratus "often partially or totally hidden by pannus"; owner M1 D5 / D6b; cfg node PANNUS { PROFILE { ... } LIFT { ... } }, null: none): an alternative density
-        // profile and coverage lift of the type over the same heights, drawn while the tuning key cloud.pannus is on (CloudLookTuning.Pannus, default off: the type of before). The
-        // profile puts a band of shreds below the deck's base with a gap above it; the lift raises the coverage threshold in that band so only the noise's highs stay (separate,
+        // profile and coverage lift of the type over the same heights, drawn wherever the type has one (the switch cloud.pannus went on 2026-11-25 with the light volume, whose
+        // blocks had kept it off: PRUEFPROTOKOLL 249, 252, 265). The profile puts a band of shreds below the deck's base with a gap above it; the lift raises the coverage threshold in that band so only the noise's highs stay (separate,
         // ragged shreds). LayerTypeTable bakes the chosen pair, so every reader of the table (the layer pass, the cloud shadow, the CPU readers) draws the same.
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
         // The pannus' erosion gain by height (cfg node PANNUS { EROSION { key0 = height gain } }, null: none): the type's erosion times 1 + g there, so the shreds are torn by the
-        // fine detail (the profile texture's channel g; drawn only while the pannus is).
+        // fine detail (the profile texture's channel g).
         internal Curve PannusErosion { get; set; }
 
         // Master plan 43, one form description per type (cfg node FORM { EROSION { key0 = height gain } AMOUNT { key0 = height extra } }, null: none): over the type's height, the
@@ -121,45 +121,42 @@ namespace ReDefinition.Atmospheres
             return c == null ? 0.0 : c.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
         }
 
-        // The erosion gain g at h: the pannus' EROSION where the pannus is drawn (cloud.pannus on and the type has one), else the FORM's EROSION (0: none).
-        internal double ErosionGainAt(double h, bool pannus)
+        // The erosion gain g at h: the pannus' EROSION where the type has a pannus, else the FORM's EROSION (0: none).
+        internal double ErosionGainAt(double h)
         {
-            if (pannus && PannusProfile != null && PannusErosion != null) return At(PannusErosion, h);
+            if (PannusProfile != null && PannusErosion != null) return At(PannusErosion, h);
             return At(FormErosion, h);
         }
 
-        // The extra noise amount b at h (the FORM's AMOUNT; 0: none).
+        // The pannus' noise amount by height (cfg node PANNUS { AMOUNT { key0 = height extra } }, -0.95 to 8; null: none): below 0 the layer's coarse noise is weakened in the shreds'
+        // band, so the band stands evenly near the threshold and the fine erosion detail (PANNUS EROSION) cuts the shreds; the 10 km noise alone drew one smooth slab of several km there
+        // (TypeFormSliceTool, 11-25 08:4x).
+        internal Curve PannusAmount { get; set; }
+
+        // The extra noise amount b at h: the pannus' AMOUNT where the type has a pannus, else the FORM's AMOUNT (0: none).
         internal double NoiseAmountAt(double h)
         {
+            if (PannusProfile != null && PannusAmount != null) return At(PannusAmount, h);
             return At(FormAmount, h);
         }
 
-        // The profile drawn: the pannus profile where pannus is on and the type has one, else the type's own.
-        internal Curve DrawnProfile(bool pannus)
+        // The profile drawn: the pannus profile where the type has one, else the type's own.
+        internal Curve DrawnProfile()
         {
-            return pannus && PannusProfile != null ? PannusProfile : Profile;
+            return PannusProfile ?? Profile;
         }
 
+        // The lift drawn: the pannus' LIFT where the type has a pannus, else the type's own.
         internal double LiftAt(double h)
         {
-            return LiftAt(h, false);
-        }
-
-        internal double LiftAt(double h, bool pannus)
-        {
-            Curve lift = pannus && PannusProfile != null ? PannusLift : Lift;
+            Curve lift = PannusProfile != null ? PannusLift : Lift;
             return lift == null ? 0.0 : lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
         }
 
-        // The lift the shader reads (headroom units): the LIFT curve, at least the top's closure ramp (TopClose).
+        // The lift the shader reads (headroom units): the drawn LIFT curve, at least the top's closure ramp (TopClose).
         internal double BakedLiftAt(double h)
         {
-            return BakedLiftAt(h, false);
-        }
-
-        internal double BakedLiftAt(double h, bool pannus)
-        {
-            double lift = LiftAt(h, pannus);
+            double lift = LiftAt(h);
             if (!(TopClose > 0f)) return lift;
             double x = (h - (1.0 - TopClose)) / TopClose;
             x = x <= 0.0 ? 0.0 : x >= 1.0 ? 1.0 : x;

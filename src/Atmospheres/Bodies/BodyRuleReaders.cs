@@ -337,6 +337,7 @@ namespace ReDefinition.Atmospheres
                 PannusProfile = pannusProfile,
                 PannusLift = pannusProfile == null ? null : ProfileCurve(pannusNode.Child("LIFT"), "lift"),
                 PannusErosion = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("EROSION")),
+                PannusAmount = pannusProfile == null ? null : ScaleCurve(pannusNode.Child("AMOUNT"), -0.95),
                 // FORM { EROSION { key = height gain } AMOUNT { key = height extra } } (master plan 43; CloudTypeDef.FormErosion): both 0 to 8.
                 FormErosion = ScaleCurve(r.Child("FORM").Child("EROSION")),
                 FormAmount = ScaleCurve(r.Child("FORM").Child("AMOUNT")),
@@ -398,8 +399,9 @@ namespace ReDefinition.Atmospheres
             };
         }
 
-        // A gain curve { key0 = height gain, ... } (FORM's and the pannus' EROSION and AMOUNT): heights 0 to 1 ascending, gains 0 to 8. Null where there is no valid curve.
-        private static Curve ScaleCurve(BodyNodeReader r)
+        // A gain curve { key0 = height gain, ... } (FORM's and the pannus' EROSION and AMOUNT): heights 0 to 1 ascending, gains min (0; the pannus' AMOUNT -0.95) to 8. Null where
+        // there is no valid curve.
+        private static Curve ScaleCurve(BodyNodeReader r, double min = 0.0)
         {
             if (!r.Present) return null;
             var xs = new List<float>();
@@ -411,9 +413,9 @@ namespace ReDefinition.Atmospheres
                 string[] parts = text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 double x, y;
                 if (parts.Length != 2 || !BodyNodeReader.TryNumber(parts[0], out x) || !BodyNodeReader.TryNumber(parts[1], out y)
-                    || x < 0.0 || x > 1.0 || y < 0.0 || y > 8.0 || (xs.Count > 0 && !(x > xs[xs.Count - 1])))
+                    || x < 0.0 || x > 1.0 || y < min || y > 8.0 || (xs.Count > 0 && !(x > xs[xs.Count - 1])))
                 {
-                    r.Warn("key" + i, "'" + text + "' is not 'height factor' with the height in 0 to 1 (ascending) and the factor in 0 to 8; the curve is ignored");
+                    r.Warn("key" + i, "'" + text + "' is not 'height factor' with the height in 0 to 1 (ascending) and the factor in " + min + " to 8; the curve is ignored");
                     return null;
                 }
                 xs.Add((float)x);

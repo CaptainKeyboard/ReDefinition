@@ -54,7 +54,7 @@ namespace ReDefinition.Atmospheres
             const int n = 256;
             int held = 0;
             for (int i = 0; i < n; i++)
-                if (type.Profile.Evaluate((i + 0.5f) / n) > 0.01f && type.BakedLiftAt((i + 0.5) / n) < 0.999) held++;
+                if (type.DrawnProfile().Evaluate((i + 0.5f) / n) > 0.01f && type.BakedLiftAt((i + 0.5) / n) < 0.999) held++;
             return held / (double)n * Math.Max(0.0, type.TopShare - type.BaseShare) * layer.ThicknessM;
         }
 
