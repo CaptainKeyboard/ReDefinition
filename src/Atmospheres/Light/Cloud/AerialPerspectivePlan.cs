@@ -82,7 +82,7 @@ namespace ReDefinition.Atmospheres
             return AerialMix(premultiplied, alpha, airTransmittance, near, far, 1f);
         }
 
-        // The same with the share of the sun's flux the air gets (PRUEFPROTOKOLL 272): the mean of the camera's and the cloud's LitShare; it scales the in-scatter.
+        // The same with the share of the sun's flux the air gets (PRUEFPROTOKOLL 272): the camera's LitShare (_FarC.w); it scales the in-scatter.
         internal static Color AerialMix(Color premultiplied, float alpha, Vector3 airTransmittance, Color near, Color far, float litAir)
         {
             float w = 1f - airTransmittance.z;

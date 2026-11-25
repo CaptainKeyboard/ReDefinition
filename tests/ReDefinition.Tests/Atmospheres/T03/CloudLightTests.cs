@@ -284,6 +284,13 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1.0 / 1.22, under / lit, 1e-9);
             Assert.AreEqual(iso, isoUnder, 1e-12);
             Assert.IsTrue(total < 0.15 * lit && isoTotal < 0.5 * iso, "total " + total + " lit " + lit + " iso " + isoTotal + " / " + iso);
+            // the split at the sample: a deck (cells of 20 km, type 1.7 km tall) is plane-parallel, its own share the column over the sine, the rest the other layer's
+            Assert.AreEqual(1.0, CloudLightMath.PlaneShare(20000.0, 1700.0), 1e-12);
+            Assert.AreEqual(0.0, CloudLightMath.PlaneShare(2000.0, 1000.0), 1e-12);
+            Assert.AreEqual(0.0, CloudLightMath.PlaneShare(12000.0, 9000.0), 1e-12);
+            Assert.AreEqual(2.0, CloudLightMath.OtherOpticalDepth(own + 2.0, up, 0.71, 1.0), 1e-9);
+            Assert.AreEqual(0.0, CloudLightMath.OtherOpticalDepth(own + 2.0, up, 0.71, 0.0), 1e-12);
+            Assert.AreEqual(0.0, CloudLightMath.OtherOpticalDepth(own * 0.5, up, 0.71, 1.0), 1e-12);
         }
 
         [TestMethod]

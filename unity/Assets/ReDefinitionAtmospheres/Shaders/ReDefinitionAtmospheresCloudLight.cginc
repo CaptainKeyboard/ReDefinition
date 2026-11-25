@@ -133,11 +133,9 @@ float3 SunAir(float3 pc, float3 sunDir)
 // perfNpic2560dlssqshadowtaps, PRUEFPROTOKOLL 202). Even taps of the layer's noise scale (a cumulus layer's 250 m, up to the cap) resolve the clouds the way the layer
 // draws them; a map-empty tap ends at the coverage bound.
 // CLOUDR2 P3: the first `eroded` taps of each span read the density with its erosion detail (the lobes that shade each other are the detail's, not the shape's); the others the shape only.
-// tauOther returns the other layers' share of the result (own >= 0; 0 otherwise): the cell diffusion reads the own layer's part, the other layers pass their light on diffused (PRUEFPROTOKOLL 271).
-float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, float range, float ratioIn, out float tauOther)
+float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, float range, float ratioIn)
 {
     float tau = 0;
-    tauOther = 0;
     float ratio = max(ratioIn, 1.0);
     // Measurement only (layers.costDebug bit 32): the other layers with the former half of the taps, each `ratio` times the one before.
     bool formerOther = fmod(floor(DEV(_CostP.y, 0.0) / 32.0), 2.0) > 0.5;
@@ -182,7 +180,6 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 gain *= r;
             }
             tau += acc;
-            if (other) tauOther += acc;
         }
     }
     return tau;
@@ -270,10 +267,9 @@ float3 BoltLight(float3 pc)
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's DensityRead.topAlt, .baseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
-// tauOtherReuse goes with tauReuse: the other layers' share of it; tauOtherOut returns the share used (PRUEFPROTOKOLL 271).
 
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauOtherReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
-                   out float3 ambPart, out float taps, out float tauSunOut, out float tauOtherOut, out float tauUpOut)
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
+                   out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
     float3 sunDir = _Sun.xyz;
     int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
@@ -290,8 +286,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
         float c = CacheFetch(pc + sunDir * near, inside);
         if (inside) { sunRange = -near; sunSteps = max(1, (int)_CacheH.x); farTau = c; }
     }
-    float tauOther = 0.0;
-    if (tauReuse >= 0) { tauSun = tauReuse; tauOther = tauOtherReuse; }
+    if (tauReuse >= 0) tauSun = tauReuse;
     taps = tauSun >= 0 ? 0.5 : sunSteps;
     float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
     // CLOUDR2 P4: the sun's, both moons' and the up tap's optical depths come from ONE call site of LightTau in a loop (the compiler inlines every call: five copies of the light march, each
@@ -309,29 +304,30 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     tdir[2] = _MoonDir[1].xyz; tsteps[2] = moonSteps; need[2] = Luma(_MoonCol[1].rgb) > 0;
     tdir[3] = normalize(pc); tsteps[3] = max(1, (int)_LightS.y);
     need[3] = _LightQ.w > 0 && tauUp < 0 && !(_LightT.w > 1.5 && tauUpReuse >= 0) && _LightT.w > 0.5;
-    float sunOther = 0.0;
     [loop] for (int k = 0; k < LIGHT_SLOTS; k++)
     {
         ttau[k] = 0.0;
         if (!need[k]) continue;
-        float o;
-        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, LIGHT_ERODED, trange[k], _LightR.y, o);
-        if (k == 0) sunOther = o;
+        ttau[k] = LightTau(pc, tdir[k], li, tsteps[k], t, LIGHT_ERODED, trange[k], _LightR.y);
     }
-    // The light cache's far part counts as the other layers' (it lies beyond the near taps, mostly in the layers above).
-    if (need[0]) { tauSun = ttau[0] + farTau; tauOther = sunOther + farTau; }
+    if (need[0]) tauSun = ttau[0] + farTau;
     #undef LIGHT_SLOTS
     #undef LIGHT_ERODED
     tauSunOut = max(tauSun, 0.0);
-    tauOtherOut = clamp(tauOther, 0.0, tauSunOut);
-    // The cell diffusion (PRUEFPROTOKOLL 271): the incidence and the depth in the own layer from the own layer's optical depth; a cloud of another layer above passes
-    // the two-stream share 1 / (1 + decay tau) of the sun's flux on, diffused (CloudLightMath.OtherLayersTransmission). With the total, a deck under a thin cloud read a
-    // grazing incidence and lost its diffusion: the shadow of a cloud of tau 2 took 55 % of the deck's light, the physics' 18 %.
     float2 cell = float2(1.0, -1.0);
     [branch] if (_LightM[li].w > 0)
     {
-        cell = CellLight(pc, dens, tauSunOut - tauOtherOut, topAlt, _LightM[li].w);
-        cell.y /= 1.0 + _LightM[li].y * tauOtherOut;
+        // PRUEFPROTOKOLL 271: in a plane-parallel layer (cells at least 8 times as wide as the type is tall: a deck) the own optical depth towards the sun is the column above over the
+        // sun's sine; what tauSun holds beyond it lies in other layers' clouds, which pass the two-stream share 1 / (1 + decay tau) of the sun's flux on, diffused
+        // (CloudLightMath.OtherLayersTransmission). With the whole tauSun a deck under a thin cloud read a grazing incidence and lost its diffusion: a cloud of tau 2 took 55 % of
+        // the deck's light, the physics' 18 %. A cell (a cumulus) keeps the whole tauSun: its own optical depth along the sun is not its column over the sine.
+        float typeH = max(topAlt.x - topAlt.y, 1.0);
+        float plane = saturate((_LightM[li].w - 4.0 * typeH) / (4.0 * typeH));
+        float r = length(pc);
+        float own = dens * max(topAlt.x - (r - _PlanetR), 0.0) / clamp(dot(pc, sunDir) / r, 0.05, 1.0);
+        float other = plane * max(tauSunOut - own, 0.0);
+        cell = CellLight(pc, dens, tauSunOut - other, topAlt, _LightM[li].w);
+        cell.y /= 1.0 + _LightM[li].y * other;
     }
     float3 direct = DirectOfLight(sunCol, sunDir, d, li, max(tauSun, 0.0), cell);
     direct += DirectOfLight(_MoonCol[0].rgb, _MoonDir[0].xyz, d, li, ttau[1], float2(1.0, -1.0));

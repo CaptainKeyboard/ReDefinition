@@ -593,7 +593,6 @@ Shader "ReDefinition/AtmospheresLayers"
             float3 ambient;
             float distSum;    // sum over the steps of (weight in the ray's colour) x distance, for the mean distance of the cloud (T06)
             float weightSum;
-            float litSum;     // the same weights times the sun's flux share at the step (1 / (1 + decay tau), the two-stream transmission of the clouds towards the sun): the air at the cloud is lit as much (PRUEFPROTOKOLL 272)
         };
 
         float Ign(float2 p, float frame)
@@ -625,7 +624,7 @@ Shader "ReDefinition/AtmospheresLayers"
             r.rgb = 0; r.alpha = 0; r.tau = 0; r.steps = 0; r.first = -1;
             r.tauLayer = 0;
             r.direct = 0; r.ambient = 0;
-            r.distSum = 0; r.weightSum = 0; r.litSum = 0;
+            r.distSum = 0; r.weightSum = 0;
             if (_StepP.w > 0.5)
             {
                 float g0, g1;
@@ -721,7 +720,7 @@ Shader "ReDefinition/AtmospheresLayers"
                 float t = s0[k] + dtStart * jitter;
                 float tLast = t - dtStart;
                 float leap = 1.0, arrived = 1.0;
-                float sunTau = 0.0, sunTauOther = 0.0, upTau = 0.0, tauSince = 0.0;
+                float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
                 float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
@@ -843,7 +842,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     float dtau = dens * dts;
                     float ext = 1.0 - exp(-dtau);
                     float3 src, dirPart = 0, ambPart = 0;
-                    float litShare = 1.0;
                     if (kind > 2.5)
                     {
                         src = _LayerE[li].rgb;
@@ -859,7 +857,7 @@ Shader "ReDefinition/AtmospheresLayers"
                             reuse = sunTau;
                             sinceLight += 1.0;
                         }
-                        float taps, tauUsed, otherUsed, upUsed;
+                        float taps, tauUsed, upUsed;
                         // Up mode 3 moves the reused optical depth straight up by what the ray has crossed since: the column above a point that is lower
                         // by h holds the density integral over h more, which along the ray is the optical depth since times the ray's vertical share.
                         float upReuse = -1.0;
@@ -868,9 +866,8 @@ Shader "ReDefinition/AtmospheresLayers"
                             upReuse = upTau;
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
-                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, noLight ? 0.0 : sunTauOther, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, otherUsed, upUsed);
-                        if (reuse < 0.0) { sunTau = tauUsed; sunTauOther = otherUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
-                        litShare = 1.0 / (1.0 + _LightM[li].y * tauUsed);
+                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
+                        if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
                     else
                     {
@@ -900,7 +897,6 @@ Shader "ReDefinition/AtmospheresLayers"
                     r.rgb += T * src * ext;
                     r.distSum += T * ext * (t - 0.5 * dts);
                     r.weightSum += T * ext;
-                    r.litSum += T * ext * litShare;
                     T *= 1.0 - ext;
                     r.tau += dtau;
                     tauSince += dtau;
@@ -916,9 +912,8 @@ Shader "ReDefinition/AtmospheresLayers"
             {
                 float3 airT = exp(-FarAirTau(o, d, r.distSum / r.weightSum));
                 // PRUEFPROTOKOLL 272: the air's in-scatter is the clear air's where the sun reaches it; under a deck the air lies in the deck's shadow and gets only the share of the
-                // sun's flux the clouds pass on (two-stream). The path's two ends: the camera (_FarC.w, the CPU's cloud field along the sun) and the cloud (litSum, its visible steps).
-                float litAir = 0.5 * (_FarC.w + r.litSum / r.weightSum);
-                r.rgb = r.rgb * airT + r.alpha * litAir * lerp(_FarE.rgb, _FarC.rgb, 1.0 - airT.z) * (1.0 - airT);   // E40 T1: the in-scatter of a short path is the sun's own colour, of a long one the horizon's
+                // sun's flux the clouds pass on (two-stream), read at the camera (_FarC.w, the CPU's cloud field along the sun; 1 under a clear sky).
+                r.rgb = r.rgb * airT + r.alpha * _FarC.w * lerp(_FarE.rgb, _FarC.rgb, 1.0 - airT.z) * (1.0 - airT);   // E40 T1: the in-scatter of a short path is the sun's own colour, of a long one the horizon's
             }
             return r;
         }
@@ -1183,8 +1178,7 @@ Shader "ReDefinition/AtmospheresLayers"
                     if (alt <= outer + reach && alt >= lowest) read = true;
                 }
                 if (!read) return float4(0, 0, 0, 0);
-                float tauOther;
-                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0, _Sun.w, _CacheH.y, tauOther), 0, 0, 0);
+                return float4(LightTau(p, _Sun.xyz, -1, max(1, (int)_LightT.z), 0.0, 0, _Sun.w, _CacheH.y), 0, 0, 0);
             }
             ENDCG
         }
