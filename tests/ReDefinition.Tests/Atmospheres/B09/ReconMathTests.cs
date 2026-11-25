@@ -7,7 +7,8 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.B09
 {
     // The arithmetic of the reconnaissance probe: pixel statistics, Unity's fog formulas, the parachute drift model and the grid sums.
-    [TestClass]
+    // Harness: tests the recon maths of the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class ReconMathTests
     {
         [TestMethod]

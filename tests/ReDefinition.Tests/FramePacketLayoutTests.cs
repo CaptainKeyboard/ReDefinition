@@ -10,16 +10,21 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FramePacketLayoutTests
     {
-        // FramePacket's size and the offsets of its four matrices match FramePacket in FrameGeneration.h.
+        // FramePacket's size and the offsets of its four matrices match FramePacket in FrameGeneration.h: the size and the first and last matrix as the
+        // header's static_asserts give them, the two between as the header declares them, four consecutive inline matrices of 16 floats.
         [TestMethod]
         public void ThePacketIsLaidOutAsTheProxyReadsIt()
         {
+            var header = NativeLayoutAsserts.Read("src", "DxgiProxy", "FrameGeneration", "FrameGeneration.h");
             System.Type packet = typeof(FrameGenerationBridge.FramePacket);
-            Assert.AreEqual(360, Marshal.SizeOf(packet));
-            Assert.AreEqual(104, Marshal.OffsetOf(packet, "ViewToClip").ToInt32());
-            Assert.AreEqual(168, Marshal.OffsetOf(packet, "ClipToView").ToInt32());
-            Assert.AreEqual(232, Marshal.OffsetOf(packet, "ClipToPrevClip").ToInt32());
-            Assert.AreEqual(296, Marshal.OffsetOf(packet, "PrevClipToClip").ToInt32());
+            const int matrix = 16 * sizeof(float);
+            int viewToClip = Marshal.OffsetOf(packet, "ViewToClip").ToInt32();
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "FramePacket"), Marshal.SizeOf(packet));
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "FramePacket.viewToClip"), viewToClip);
+            Assert.AreEqual(viewToClip + matrix, Marshal.OffsetOf(packet, "ClipToView").ToInt32());
+            Assert.AreEqual(viewToClip + 2 * matrix, Marshal.OffsetOf(packet, "ClipToPrevClip").ToInt32());
+            Assert.AreEqual(NativeLayoutAsserts.Of(header, "FramePacket.prevClipToClip"), Marshal.OffsetOf(packet, "PrevClipToClip").ToInt32());
+            Assert.AreEqual(viewToClip + 3 * matrix, Marshal.OffsetOf(packet, "PrevClipToClip").ToInt32());
         }
 
         // The matrix arrays are marshalled inline: written to memory, a matrix's sixteen floats stand at its

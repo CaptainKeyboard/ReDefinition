@@ -28,14 +28,8 @@ namespace ReDefinition.Atmospheres
         internal static bool WetSurfaces => B(Keys.WetSurfaces);
         internal static bool WindowDroplets => B(Keys.WindowDroplets);
 
+        // The lightning's other keys are read by key, through LightningSwitches.
         internal static bool Lightning => B(Keys.Lightning);
-        internal static int LightningMaxPerSecond => I(Keys.LightningMaxPerSecond);
-        internal static float LightningBrightness => F(Keys.LightningBrightness);
-        internal static bool LightningBolts => B(Keys.LightningBolts);
-        internal static bool LightningTerrainLight => B(Keys.LightningTerrainLight);
-        internal static bool LightningCloudFlash => B(Keys.LightningCloudFlash);
-        internal static bool LightningThunder => B(Keys.LightningThunder);
-        internal static bool LightningRealisticDelay => B(Keys.LightningRealisticDelay);
     }
 
     // The rows of the effects in the key table. The wet surfaces stand with the cover, the droplets and the lightning with the light. None is in a

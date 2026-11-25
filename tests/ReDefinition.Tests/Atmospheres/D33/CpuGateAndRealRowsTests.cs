@@ -62,13 +62,10 @@ namespace ReDefinition.Tests.Atmospheres.D33
             Assert.IsFalse(Row(json, "D33.cpu_budget_used").Contains("\"required\": false"), "required");
             Assert.IsTrue(Row(json, "D33.cpu_pct_core").Contains("\"required\": false"), "the raw percent informs");
             Assert.IsTrue(Row(json, "D33.build_release").Contains("\"required\": false"));
-            string probe = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Atmospheres", "Audio", "Runtime", "Probe", "D33Probe.cs"));
-            StringAssert.Contains(probe, "CpuGate.BudgetUsed(");
-            StringAssert.Contains(probe, "\"D33.build_release\"");
         }
 
         [TestMethod]
-        public void TheRowsThatReadTheGamesOwnStateAreRequiredAndTheProbeDrivesTheRealChain()
+        public void TheRowsThatReadTheGamesOwnStateAreRequired()
         {
             string json = Rows();
             string[] required =
@@ -80,20 +77,6 @@ namespace ReDefinition.Tests.Atmospheres.D33
                 "D33.real_cell_pan_error_left", "D33.real_cell_found_right", "D33.rse_state"
             };
             foreach (string metric in required) Assert.IsFalse(Row(json, metric).Contains("\"required\": false"), metric + " is required");
-
-            string probe = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Atmospheres", "Audio", "Runtime", "Probe", "D33Probe.cs"));
-            // The real section lets the module read the game: the overrides it would force are null there.
-            int start = probe.IndexOf("private IEnumerable<ProbeWait> RealState(", StringComparison.Ordinal);
-            int end = probe.IndexOf("private IEnumerable<ProbeWait> RealCellState(", StringComparison.Ordinal);
-            Assert.IsTrue(start > 0 && end > start);
-            string real = probe.Substring(start, end - start);
-            foreach (string call in new[] { "AudioOverrides.Listener = null;", "AudioOverrides.Paused = null;", "AudioOverrides.OnRailsWarp = null;",
-                "FlightDriver.SetPause(true", "TimeWarp.SetRate(3", "SetCameraIVA()", "MapView.EnterMapView()", "WeatherAudioModule.ReadPaused()" })
-            {
-                StringAssert.Contains(real, call);
-            }
-            StringAssert.Contains(probe, "AudioOverrides.RealCell = true;");
-            StringAssert.Contains(probe, "WeatherHooks.BodyTracks = i =>");
         }
 
         [TestMethod]

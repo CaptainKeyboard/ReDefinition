@@ -57,7 +57,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void DumpTheWeatherMapSky()
         {
             string folder = Environment.GetEnvironmentVariable("WMSKY_OUT");
-            if (string.IsNullOrEmpty(folder)) return;
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A measurement run: it runs only when WMSKY_OUT is set.");
             Directory.CreateDirectory(folder);
             string utText = Environment.GetEnvironmentVariable("WMSKY_UTS") ?? "1486800";
             string seedText = Environment.GetEnvironmentVariable("WMSKY_SEED");

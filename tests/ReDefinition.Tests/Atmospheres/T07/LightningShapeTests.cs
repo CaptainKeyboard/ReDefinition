@@ -303,7 +303,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(tail(far) > tail(near) + 3.0, "near " + tail(near) + " far " + tail(far));
         }
 
-        [TestMethod]
+        // A wall-clock bound: category Bench, run under the exclusive timing lock.
+        [TestMethod, TestCategory("Bench")]
         public void RenderingAClipIsFastEnoughForAWorkerThread()
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();

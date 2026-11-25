@@ -8,9 +8,7 @@ namespace ReDefinition.Atmospheres
     // Volumetric the shadow is TVC's own and ours stays off.
     internal static class CloudShadowSwitches
     {
-        // The default of cloudShadows: on whenever the own clouds are.
-        internal const bool ShadowsDefault = true;
-        // The default share of the direct light that always remains under a cloud (0: the pure Beer-Lambert shadow; the diffuse light under
+        // The default of cloudShadows is its SettingDef row (on whenever the own clouds are). The default share of the direct light that always remains under a cloud (0: the pure Beer-Lambert shadow; the diffuse light under
         // a cloud is the ambient's and the light-in-medium package's business).
         internal const float FloorDefault = 0f;
 

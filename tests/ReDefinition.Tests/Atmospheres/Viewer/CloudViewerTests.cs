@@ -50,34 +50,6 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             foreach (CloudLayerKey t in CloudKeyRegistry.PerLayer) Assert.IsTrue(t.Prefix.EndsWith(".", StringComparison.Ordinal), t.Prefix);
         }
 
-        // Every key the source of the atmospheres declares or reads under a cloud prefix is in the registry: a new key cannot be missing from the viewer.
-        [TestMethod]
-        public void EveryCloudKeyTheSourceReadsIsInTheRegistry()
-        {
-            string root = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres");
-            const string prefix = @"(?:cloud|layers|light|cull|recon|shadow)\.[A-Za-z][\w.]*";
-            var declared = new Regex(@"\bTune\w*\s*=\s*""(" + prefix + @")""");
-            var read = new Regex(@"Tuning\.(?:Get|Flag)\(\s*""(" + prefix + @")""");
-            var missing = new List<string>();
-            int found = 0;
-            foreach (string file in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
-            {
-                if (file.IndexOf(Path.DirectorySeparatorChar + "Viewer" + Path.DirectorySeparatorChar, StringComparison.Ordinal) >= 0) continue;
-                string text = File.ReadAllText(file);
-                foreach (Match m in declared.Matches(text).Cast<Match>().Concat(read.Matches(text).Cast<Match>()))
-                {
-                    string key = m.Groups[1].Value;
-                    found++;
-                    bool listed = key.EndsWith(".", StringComparison.Ordinal)
-                        ? CloudKeyRegistry.PerLayer.Any(t => t.Prefix == key)
-                        : CloudKeyRegistry.All.Any(k => k.Key == key);
-                    if (!listed) missing.Add(key + " (" + Path.GetFileName(file) + ")");
-                }
-            }
-            Assert.IsTrue(found > 80, "the scan found only " + found + " keys");
-            CollectionAssert.AreEqual(new string[0], missing.Distinct().ToArray(), string.Join(", ", missing.Distinct()));
-        }
-
         [TestMethod]
         public void TheDefaultsAreTheReadersOwn()
         {

@@ -40,16 +40,13 @@ namespace ReDefinition.Tests.Atmospheres.Integration
             }
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsForecast, AtmospheresSettings.Definition("forecastOverlay").GreyReason);
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsAlerts, AtmospheresSettings.Definition("alertScreenMessage").GreyReason);
-            string contract = Read("src", "Atmospheres", "CONTRACT.md");
-            Assert.IsTrue(contract.Contains("| `forecastOverlay` | on | on / off | Forecast Map Overlay | needs-forecast | - |"));
-            Assert.IsTrue(contract.Contains("| `alertScreenMessage` | on | on / off | Alert Screen Messages | needs-alerts | - |"));
         }
 
+        // The rows of CONTRACT.md (default and choices) are checked for every setting by ContractFileTests.
         [TestMethod]
-        public void TheSeaIceDefaultIsTheOrbitPictureAndTheContractSaysSo()
+        public void TheSeaIceDefaultIsTheOrbitPicture()
         {
             Assert.AreEqual((double)(int)SeaIceMode.Orbit, AtmospheresSettings.Definition("seaIce").Default);
-            Assert.IsTrue(Read("src", "Atmospheres", "CONTRACT.md").Contains("| `seaIce` | Orbit | Off / Orbit / OrbitAndGround / Physical |"));
         }
 
         [TestMethod]
@@ -58,14 +55,6 @@ namespace ReDefinition.Tests.Atmospheres.Integration
             Assert.AreEqual(0.3f, BodyTestSupport.Run(BodyTestSupport.Planet("X", BodyTestSupport.HomeYear)).Climate.Ice.PassThicknessM, 1e-6f);
             BodyParseResult r = BodyTestSupport.Run(BodyTestSupport.Planet("X", BodyTestSupport.HomeYear), "REDEFINITION_BODY { name = X ; ICE { icePassThicknessM = 0.8 } }");
             Assert.AreEqual(0.8f, r.Climate.Ice.PassThicknessM, 1e-6f);
-        }
-
-        [TestMethod]
-        public void TheIceDoesNotHangOnTheGroundCoverSwitchInTheOrbitTick()
-        {
-            string tick = Read("src", "Atmospheres", "Cover", "OrbitSnow.cs");
-            Assert.IsFalse(Regex.IsMatch(tick, @"OrbitOverlay\s*\|\|\s*!AtmospheresSettings\.GroundCover"), "the host runs without the cover switch");
-            Assert.IsTrue(tick.Contains("OrbitOverlayHost.DrawRound"));
         }
 
         [TestMethod]
@@ -90,37 +79,11 @@ namespace ReDefinition.Tests.Atmospheres.Integration
         }
 
         [TestMethod]
-        public void TheTelemetryRegistersTheWeatherKeysBehindTheSwitch()
-        {
-            string telemetry = Read("src", "Dashboard", "Telemetry.cs");
-            Assert.IsTrue(telemetry.Contains("sceneReaders[\"w.forecast\"]") && telemetry.Contains("WeatherTelemetry.Shared.Forecast(a)"));
-            Assert.IsTrue(telemetry.Contains("sceneReaders[\"w.alerts\"]") && telemetry.Contains("WeatherTelemetry.Shared.Alerts(a)"));
-            Assert.IsTrue(Regex.IsMatch(telemetry, @"w\.forecast""\] = a => DashboardSettings\.WeatherPushOn"), "the forecast key answers only while the switch is on");
-            Assert.IsTrue(Regex.IsMatch(telemetry, @"w\.alerts""\] = a => DashboardSettings\.WeatherPushOn"), "the alerts key answers only while the switch is on");
-        }
-
-        [TestMethod]
-        public void ThePlannerShowsTheStormLinesThroughTheSeam()
-        {
-            string plan = Read("src", "Planner", "Ui", "PlannerView.FlightPlan.cs");
-            Assert.IsTrue(plan.Contains("StormOnPlan.LinesOf(plan)"));
-            Assert.IsTrue(Read("src", "Planner", "Planning", "StormOnPlan.cs").Contains("StormOnRoute.FindWithSeam(legs, RadiusOf)"));
-        }
-
-        [TestMethod]
-        public void TheSeriesK_W3bHasTheIceStartAndTheD35Section()
-        {
-            string series = Read("tests", "series", "K-W3b.json");
-            Assert.IsTrue(Regex.IsMatch(series, @"""id"": ""ice"".*""-redefinitionProbeSea"".*""-atmoProbe"", ""IceProbe"""), "the ice start flies the sea capsule and runs IceProbe");
-            Assert.IsTrue(Regex.IsMatch(series, @"""id"": ""D35"", ""package"": ""D35"""));
-            Assert.IsTrue(Regex.IsMatch(series, @"""plannedStarts"": 6"));
-        }
-
-        [TestMethod]
         public void TheBenchmarkMatrixHasTheIceAndForecastRows()
         {
             string matrix = Read("tools", "benchmark_matrix.json");
-            foreach (string id in new[] { "weather-forecastOverlay", "weather-alertScreenMessage", "weather-seaIceOrbitAndGround", "weather-iceGroundOverlay", "weather-iceFarKm" })
+            // The bool settings' own rows are checked by AtmospheresSwitchesTests; these are a choice's variant and two tuning keys.
+            foreach (string id in new[] { "weather-seaIceOrbitAndGround", "weather-iceGroundOverlay", "weather-iceFarKm" })
                 Assert.IsTrue(matrix.Contains("\"id\": \"" + id + "\""), id);
             Assert.IsTrue(matrix.Contains("\"atmo.ice.groundOverlay\": \"0\"") && matrix.Contains("\"atmo.ice.farKm\": \"20\""));
         }

@@ -54,8 +54,6 @@ namespace ReDefinition.Atmospheres
             map = new byte[nxz * nxz * 2];
         }
 
-        internal int CellsAcross { get { return nxz; } }
-        internal int CellsUp { get { return ny; } }
         // The voxels, in the layout of a Texture3D of width nxz, height ny, depth nxz (RGBA32).
         internal byte[] Data { get { return data; } }
         // The layer slab map: per column of the window (east fastest, then north) coverage and type, two bytes each.

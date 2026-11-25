@@ -25,7 +25,6 @@ namespace ReDefinition.Atmospheres.Viewer
         // The effect of the last watched change: frame and GPU milliseconds after minus before; NaN where one of them is missing.
         internal double DeltaFrameMs { get; private set; } = double.NaN;
         internal double DeltaGpuMs { get; private set; } = double.NaN;
-        internal string LastChange { get { return changed; } }
         internal bool Watching { get { return settle >= 0; } }
 
         // One frame: its time and the pass's GPU time in it (NaN where the profiler gives none).

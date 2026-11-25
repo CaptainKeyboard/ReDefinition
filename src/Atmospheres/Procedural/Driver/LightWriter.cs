@@ -56,7 +56,6 @@ namespace ReDefinition.Atmospheres
         // The factors the last Update asked for.
         internal float AmbientFactor { get { return ambientFactor; } }
         internal float SunFactor { get { return sunFactor; } }
-        internal float ShadowFactor { get { return shadowFactor; } }
 
         // The sun factor for a look: the curve's direct dimming, counted with the EVE weight where an EVE layer carries the weather.
         internal static float SunFactorOf(float curveSunDirect, bool eveLayerPresent)

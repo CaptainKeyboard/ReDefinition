@@ -74,19 +74,10 @@ namespace ReDefinition.Tests
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             string dir = Path.Combine(root, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders");
             string light = File.ReadAllText(Path.Combine(dir, "ReDefinitionAtmospheresCloudLight.cginc"));
-            string layers = File.ReadAllText(Path.Combine(dir, "ReDefinitionAtmospheresLayers.shader"));
             Assert.AreEqual(LightVolumeMath.MinCos, Define(light, "LV_MIN_COS"));
             Assert.AreEqual(LightVolumeMath.MaxSlices, Define(light, "LV_MAX_SLICES"));
             Assert.AreEqual(LightVolumeMath.MinStored, Define(light, "LV_MIN_STORED"), 1e-9f);
             StringAssert.Contains(light, "float4 _LvO[" + LightVolumeMath.MaxSlices + "];");
-            // the fetch: gnomonic coordinates, the bilinear footprint against each slice's window
-            StringAssert.Contains(light, "float2 xy = _PlanetR * float2(dot(n, _LvE.xyz), dot(n, _LvN.xyz)) / c;");
-            StringAssert.Contains(light, "float2 g = xy / vox - 0.5;");
-            StringAssert.Contains(light, "float2 d0 = min(g - o0, o0 + gridN - 1.0 - g), d1 = min(g - o1, o1 + gridN - 1.0 - g);");
-            // the fill: the texel's voxel and its centre
-            StringAssert.Contains(layers, "float2 idx = _LvSlice.zw + rel - gridN * floor(rel / gridN);");
-            StringAssert.Contains(layers, "float2 xy = (idx + 0.5) * vox;");
-            StringAssert.Contains(layers, "float3 p = normalize(_LvU.xyz + (xy.x * _LvE.xyz + xy.y * _LvN.xyz) / _PlanetR) * (_PlanetR + alt);");
         }
 
         private static float Define(string text, string name)

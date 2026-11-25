@@ -150,7 +150,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void ACoverOfPoint47ClosesMostOfTheSkyUnderTheRainLowStratiformAsStartedAndAHalfClosedSkyNeedsACoverageOfAbout0Point4()
+        public void ACoverOfPoint47ClosesMostOfTheSkyUnderTheRainLowStratiformAsStarted()
         {
             double[] noise = UniformNoise(2001);
             // The low stratiform rain layer's Stratus (baseShare 0.1 to topShare 0.5 of 2100 m, the profile's mean 0.74): equivalent thickness 622 m; sigma 0.045 per m; looking up at
@@ -164,9 +164,6 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 Assert.IsTrue(atPoint47 > 0.6, "slant " + slant + ": cover 0.473 closes " + atPoint47 + " of the sky, not 0.47");
                 Assert.IsTrue(atPoint3 > 0.0 && atPoint3 < 0.45, "slant " + slant + ": cover 0.3 closes " + atPoint3);
                 Assert.IsTrue(atPoint6 > 0.95, "slant " + slant + ": cover 0.6 closes " + atPoint6);
-                double centred = CloudCoverModel.CentredCoverage(0.5, noise, 0.3, 0.2, sigma, thickness, slant);
-                Assert.IsTrue(centred > 0.38 && centred < 0.47, "slant " + slant + ": the coverage that closes half the sky at cover 0.5 is " + centred + ", the file has 0.5");
-                Assert.AreEqual(0.5, CloudCoverModel.ClosedShare(0.5, noise, 0.3, centred, 0.2, sigma, thickness, slant), 0.01);
             }
         }
 

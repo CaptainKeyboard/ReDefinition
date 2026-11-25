@@ -8,22 +8,11 @@ namespace ReDefinition.Atmospheres
     // surface-temperature maps at the maps' size, and the updraft of the cells sampled on a coarse grid at a height of the layer and
     // spread over the full size bilinearly. The updraft is the vertical component of the sample's wind WindWorld.z [VERIFY: the field
     // fills it with the cell's vertical wind at that altitude; a field that does not leaves the top term at zero].
-    internal static class HeightFieldInputs
-    {
-        // All of it at once, for one altitude (the tests and the weather player; the game reads with HeightGather in slices or on a worker).
-        internal static HeightInputs Read(IWeatherField field, int bodyIndex, double ut, int width, int height, double sampleAltitudeM,
-                                          int updraftWidth = 64, int updraftHeight = 32)
-        {
-            var gather = new HeightGather(field, bodyIndex, ut, width, height, new[] { true }, new[] { sampleAltitudeM }, updraftWidth, updraftHeight);
-            gather.Step(0.0);
-            return gather.InputsOf(0);
-        }
-    }
-
+    //
     // The reading of the field for the layers of one build, in units small enough to spread over frames: the three maps once (they do not
     // depend on the altitude), then for each wanted layer the 64 x 32 updraft samples at its altitude, row by row, and their bilinear spread to
     // the map size. A field that says ThreadSafe can be read on the worker in one Step(0); any other is read on the main thread with a
-    // budget. The values are those the one-shot reading would give.
+    // budget. Step(0) reads everything at once.
     internal sealed class HeightGather
     {
         private readonly IWeatherField field;

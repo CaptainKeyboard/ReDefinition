@@ -193,13 +193,18 @@ namespace ReDefinition.Tests
             Assert.IsTrue(reset.QualityAuto);
         }
 
-        // The General tab's own rows stand in their order, by title.
+        // The General tab opens with the upscaler's rows, and each row that depends on another stands after it. The whole list of titles is not
+        // pinned: it grew with every new row.
         [TestMethod]
         public void TheUpscalingRowsStandInTheirOrder()
         {
-            CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness", "One antialiasing per camera", "Frame generation", "Multiplier",
-                                            "Low latency", "Raytracing", "Ray Reconstruction", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night clouds", "Night light" },
-                OurModules.Rows(SettingCategory.General).Select(setting => setting.Title).ToArray());
+            List<string> titles = OurModules.Rows(SettingCategory.General).Select(setting => setting.Title).ToList();
+            CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness" }, titles.Take(3).ToArray());
+            foreach (string[] pair in new[] { new[] { "Frame generation", "Multiplier" }, new[] { "Multiplier", "Low latency" }, new[] { "Raytracing", "Ray Reconstruction" } })
+            {
+                int first = titles.IndexOf(pair[0]), second = titles.IndexOf(pair[1]);
+                Assert.IsTrue(first >= 0 && second > first, pair[1] + " stands after " + pair[0]);
+            }
         }
 
         // The mode's list runs Auto first, then from Ultra Performance, the smallest render size, to AA only.
@@ -208,7 +213,7 @@ namespace ReDefinition.Tests
         {
             string[] modes = OurModules.Upscaler.Setting("quality").Choices;
 
-            Assert.AreEqual(7, modes.Length);
+            Assert.AreEqual(System.Enum.GetValues(typeof(Fsr3Upscaler.QualityMode)).Length + 1, modes.Length, "Auto and every quality mode");
             Assert.AreEqual("Auto", modes[0]);
             Assert.AreEqual("UltraPerformance", modes[1]);
             Assert.AreEqual("NativeAA", modes[modes.Length - 1]);

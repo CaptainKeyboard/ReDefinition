@@ -35,7 +35,8 @@ namespace ReDefinition.Tests.Atmospheres.B12
 
         // The budget holds when one of three measurements meets it: other test processes run beside this one, and a median of 200 runs
         // can still be caught by a busy moment; the numbers of every measurement are printed.
-        [TestMethod]
+        // Wall-clock budgets: category Bench, run under the exclusive timing lock.
+        [TestMethod, TestCategory("Bench")]
         public void TheCostOfAForecastOnTheTestFieldIsWithinTheBudget()
         {
             double[] last = null;
@@ -98,7 +99,7 @@ namespace ReDefinition.Tests.Atmospheres.B12
             return new[] { mSteps, mFull, mCached, mTracks, mHidden };
         }
 
-        [TestMethod]
+        [TestMethod, TestCategory("Bench")]
         public void TwentySitesOnOneWorkerAreDoneWellInsideTheLatencyBudgetAndTheMainThreadPaysAlmostNothing()
         {
             var field = new MovingCellsField(62, 12);

@@ -6,7 +6,8 @@ namespace ReDefinition.Tests.Atmospheres.D32
 {
     // The camera placement of the lamp probe (K-W3 finding: no camera showed the beam, 0 of 8 points, and the probe still printed
     // PASSED): the choice among the placements tried, and the lamp axis it is aimed from.
-    [TestClass]
+    // Harness: tests the lamp probe's tooling (not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class LampPlacementTests
     {
         [TestMethod]

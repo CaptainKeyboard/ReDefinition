@@ -230,7 +230,6 @@ release package takes `seasons.shaders` from there.
 | How a storm looks in numbers | `StormLook` |
 | The fog, the whiteout, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
 | The praecipitatio of the cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
-| The terrain left out in a storm | `StormCull` (setting `stormCullDistance`) |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
 | The cell inside EVE's existing layers | `EveLayerStorm`, `EveStormMath` |
 | The cells' own cloud layer, swirl and the snow layer | `EveCellLayer`, `EveCoverageMath`, `EveSwirlMath`, `SeasonsStormLayer.cfg` |

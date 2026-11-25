@@ -201,18 +201,6 @@ namespace ReDefinition.Atmospheres.Forecast
         internal bool Available { get { return available; } }
         internal Exception LastFailure { get { return lastFailure; } }
 
-        // The number of requests not yet finished.
-        internal int PendingCount
-        {
-            get
-            {
-                lock (gate)
-                {
-                    return workerQueue.Count + mainQueue.Count + (mainRun != null ? 1 : 0) + (Volatile.Read(ref workerActive) != 0 ? 1 : 0);
-                }
-            }
-        }
-
         // --- the seam ---
 
         // WeatherHooks.Forecast: the last complete report of the site; a placeholder (Available false) while the first one is computed.

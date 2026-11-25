@@ -29,7 +29,6 @@ namespace ReDefinition.Atmospheres
         internal static SeasonMode SeasonMode => E<SeasonMode>(Keys.SeasonMode);
 
         internal static QualityTier QualityTier => E<QualityTier>(Keys.QualityTier);
-        internal static bool QualityGovernor => B(Keys.QualityGovernor);
 
         // --- Clouds and frequency ---
         internal static CloudSourceKind CloudSource => E<CloudSourceKind>(Keys.CloudSource);
@@ -56,17 +55,13 @@ namespace ReDefinition.Atmospheres
         internal static bool VisibilityExport => B(Keys.VisibilityExport);
 
         // --- Simulation ---
-        internal static bool GenEnabled => B(Keys.GenEnabled);
         internal static SimGridChoice SimGrid => E<SimGridChoice>(Keys.SimGrid);
-        internal static int SimLevels => I(Keys.SimLevels);
-        internal static float SimSliceMs => F(Keys.SimSliceMs);
         internal static int GenSeed => I(Keys.GenSeed);
 
         // --- Volume ---
         internal static bool VolumePass => B(Keys.VolumePass);
         internal static float VolumeResolution => F(Keys.VolumeResolution);
         internal static int VolumeSteps => I(Keys.VolumeSteps);
-        internal static VolumeCompose VolumeCompose => E<VolumeCompose>(Keys.VolumeCompose);
 
         // --- Precipitation and look ---
         internal static float PrecipDensity => F(Keys.PrecipDensity);
@@ -77,7 +72,6 @@ namespace ReDefinition.Atmospheres
         internal static bool PrecipSand => B(Keys.PrecipSand);
         internal static bool PrecipAsh => B(Keys.PrecipAsh);
         internal static bool PrecipMethane => B(Keys.PrecipMethane);
-        internal static bool StormCullDistance => B(Keys.StormCullDistance);
         internal static float VisibilityExtinctionBrightness => F(Keys.VisibilityExtinctionBrightness);
         internal static float PrecipExtinctionStrength => F(Keys.PrecipExtinctionStrength);
         internal static float BlizzardVisibilityM => F(Keys.BlizzardVisibilityM);
@@ -131,7 +125,6 @@ namespace ReDefinition.Atmospheres
         internal static float CoverDrift => F(Keys.CoverDrift);
         internal static SeaIceMode SeaIce => E<SeaIceMode>(Keys.SeaIce);
         internal static float IceDrawDistanceKm => F(Keys.IceDrawDistanceKm);
-        internal static bool IceCollision => B(Keys.IceCollision);
 
         // --- Forecast, alerts and launch limits ---
         internal static bool ForecastEnabled => B(Keys.ForecastEnabled);
@@ -166,15 +159,11 @@ namespace ReDefinition.Atmospheres
         // --- Diagnostics, for screenshots and probes ---
         // A level from 0 to 1 at the camera whatever the field says, or a negative number for the field's own.
         internal static float ForceLevel => F(Keys.ForceLevel);
-        internal static ForceType ForceType => E<ForceType>(Keys.ForceType);
-        internal static string ForceBody => Text(Keys.ForceBody);
         // A season phase from 0 to 1 that replaces the clock, or a negative number for the clock.
         internal static float ForcePhase
         {
             get { return F(Keys.ForcePhase); }
             set { SetNumber(Keys.ForcePhase, value); }
         }
-
-        internal static AtmoDebugMode AtmoDebug => E<AtmoDebugMode>(Keys.AtmoDebug);
     }
 }

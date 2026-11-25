@@ -304,9 +304,10 @@ namespace ReDefinition.Tests.Atmospheres.D36
             QualityProfile.HostTier = () => QualityTier.Ultra;
             QualityProfile.VramSource = () => 8192;
             Assert.AreEqual(QualityTier.Low, QualityProfile.Reset());
-            Assert.AreEqual(16, AtmospheresSettings.VolumeSteps);
-            Assert.AreEqual(2, AtmospheresSettings.LightCount);
-            Assert.AreEqual(1024, AtmospheresSettings.OrbitMapWidth);
+            TierRow low = TierRows.For(QualityTier.Low);
+            Assert.AreEqual(low.VolumeSteps, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual(low.LightCount, AtmospheresSettings.LightCount);
+            Assert.AreEqual(low.OrbitMapWidth, AtmospheresSettings.OrbitMapWidth);
         }
 
         [TestMethod]

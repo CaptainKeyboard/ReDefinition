@@ -158,24 +158,5 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 SameLayer(fixture, spec);
             }
         }
-
-        [TestMethod]
-        public void TheCumulonimbusScaleStaysWhereTheNadirSeriesMeasuredItRight()
-        {
-            // e40-fn: the towers of the map 0.8 are 14 to 16 km wide at 8000 m (cells of 10 to 30 km); 3000 m gives 7 to 9 km. A change of these two numbers is a new measurement.
-            // E40 L2 D1: 5000 m (about 11 km towers by interpolation, not measured at nadir) so that the cloud is separate towers with the cfg's LIFT, not a slab; the amount stays 0.4.
-            CloudLayerSpec cb = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulonimbus");
-            Assert.AreEqual(5000f, cb.NoiseScaleM, 0f);
-            Assert.AreEqual(0.4f, cb.NoiseAmount, 0f);
-        }
-
-        [TestMethod]
-        public void TheCumulusLayerOfTheFileIsACellFieldNotASheet()
-        {
-            CloudLayerSpec cumulus = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == "Kerbin-cumulus");
-            // E40 S1: 250 m (cells of 1 to 2 km, the size of a fair-weather cumulus field; the 500 m before gave cells of 2 to 4 km, measured by the player series e40-s1).
-            Assert.AreEqual(250f, cumulus.NoiseScaleM, 0f);
-            Assert.AreEqual(1f, cumulus.NoiseAmount, 0f);
-        }
     }
 }

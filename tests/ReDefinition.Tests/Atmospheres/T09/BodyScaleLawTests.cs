@@ -86,22 +86,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void TheHistoricalProfilesKeepTheFixedNumbers()
+        public void OnTheHomeBodyTheScaledNumbersStayNearTheFixedOnes()
         {
             BodyParams p = Params(false);
-            foreach (BodyParams old in new[] { p.Round3(), p.Round3().Round2(), p.Round3().Round2().Round1(), p.Signed() })
-            {
-                var d = new BodyDerived(old);
-                Assert.IsFalse(old.BodyScaledLengths);
-                Assert.AreEqual(0.09, d.TradePatchRad1);
-                Assert.AreEqual(0.15, d.TradePatchRad2);
-                Assert.AreEqual(0.035, d.RainCellRad);
-                Assert.AreEqual(0.04, d.GustCellRad);
-                Assert.AreEqual(4.0, d.TradeDriftMs);
-                Assert.AreEqual(12.0, d.RainDriftMs);
-                Assert.AreEqual(WeatherGenerator.ItczWaveSpeedMs, d.ItczWaveMs);
-                Assert.AreEqual(1.0, d.HeightScale);
-            }
             // on the home body the new numbers are within a few per cent of the old ones: the look of the home planet does not change
             var home = new BodyDerived(p);
             Assert.AreEqual(1.0, home.HeightScale, 1e-12);

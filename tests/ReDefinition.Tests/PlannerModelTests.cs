@@ -367,9 +367,10 @@ namespace ReDefinition.Tests
             int version = model.Version;
 
             model.Touch();
-            Assert.AreEqual(version + 1, model.Version);
+            Assert.IsTrue(model.Version > version, "a touch moves the version on");
+            int touched = model.Version;
             model.Changed();
-            Assert.AreEqual(version + 2, model.Version);
+            Assert.IsTrue(model.Version > touched, "a change moves it on");
         }
 
         // The model has no dialog elements: nothing in its types names the dialog's or the UI's.

@@ -71,17 +71,21 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         [TestMethod]
         public void EveryTuningKeyOfThePassIsInTheRegistryAlsoWhenItIsNamedKeyOrBuiltFromAPrefix()
         {
-            // The scan of CloudViewerTests finds Tune* constants and literal reads; this one adds constants named Key* and prefix constants that end in a dot, in every file of the atmospheres
-            // outside the viewer, so that a package's declaration style cannot slip past.
+            // Constants named Tune*, Key* and Prefix* (prefix constants end in a dot) and literal reads Tuning.Get/Flag("..."), in every file of the atmospheres outside the viewer,
+            // so that neither a package's declaration style nor a literal read can slip past.
             string root = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Atmospheres");
             const string prefix = @"(?:cloud|layers|light|cull|recon|shadow)\.[A-Za-z][\w.]*";
             var declared = new Regex(@"\b(?:Tune|Key|Prefix)\w*\s*=\s*""(" + prefix + @")""");
+            var read = new Regex(@"Tuning\.(?:Get|Flag)\(\s*""(" + prefix + @")""");
             var missing = new List<string>();
+            int found = 0;
             foreach (string file in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
             {
                 if (file.IndexOf(Path.DirectorySeparatorChar + "Viewer" + Path.DirectorySeparatorChar, StringComparison.Ordinal) >= 0) continue;
-                foreach (Match m in declared.Matches(File.ReadAllText(file)))
+                string text = File.ReadAllText(file);
+                foreach (Match m in declared.Matches(text).Cast<Match>().Concat(read.Matches(text).Cast<Match>()))
                 {
+                    found++;
                     string key = m.Groups[1].Value;
                     bool listed = key.EndsWith(".", StringComparison.Ordinal)
                         ? CloudKeyRegistry.PerLayer.Any(t => t.Prefix == key)
@@ -89,6 +93,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
                     if (!listed) missing.Add(key + " (" + Path.GetFileName(file) + ")");
                 }
             }
+            Assert.IsTrue(found > 80, "the scan found only " + found + " keys");
             CollectionAssert.AreEqual(new string[0], missing.Distinct().ToArray(), string.Join(", ", missing.Distinct()));
         }
 

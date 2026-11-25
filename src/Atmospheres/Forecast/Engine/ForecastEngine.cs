@@ -46,20 +46,12 @@ namespace ReDefinition.Atmospheres.Forecast
             job.Advance(int.MaxValue);
             return job.Tracks;
         }
-
-        // The first time in [fromUt, toUt] at which level(ut) is at or above the threshold, and the first time after that at which it is
-        // below, each to one second: stepping by EtaCoarseSeconds, then bisection inside the bracket. A crossing shorter than the coarse
-        // step can be missed. NaN where there is none.
-        internal static EtaResult FindEvent(Func<double, float> level, double fromUt, double toUt, float threshold)
-        {
-            var search = new EtaSearch(level, fromUt, toUt, threshold);
-            search.Advance(int.MaxValue);
-            return search.Result;
-        }
     }
 
-    // The search of ForecastEngine.FindEvent as a state machine that takes one sample per unit, so that the main thread can run it in
-    // pieces: the arrival is found by stepping EtaCoarseSeconds and bisecting the bracket to one second, then the clearing the same way.
+    // The first time in [fromUt, toUt] at which level(ut) is at or above the threshold, and the first time after that at which it is below,
+    // each to one second (NaN where there is none; a crossing shorter than the coarse step can be missed), as a state machine that takes one
+    // sample per unit, so that the main thread can run it in pieces: the arrival is found by stepping EtaCoarseSeconds and bisecting the
+    // bracket to one second, then the clearing the same way.
     internal sealed class EtaSearch
     {
         private enum State

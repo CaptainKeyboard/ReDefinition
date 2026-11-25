@@ -9,7 +9,8 @@ namespace ReDefinition.Tests.Atmospheres.B09
 {
     // The writer of the dumps, the row file of the series, and the schema of the dumps the K-pre run produced (grid sizes, finite
     // values, the body list).
-    [TestClass]
+    // Harness: tests the recon dumps of the game-run test harness (src/Atmospheres/Testing, not shipped), not the product.
+    [TestClass, TestCategory("Harness")]
     public class ReconDumpTests
     {
         private static readonly string[] RequiredBodies = { "Kerbin", "Duna", "Laythe", "Eve" };

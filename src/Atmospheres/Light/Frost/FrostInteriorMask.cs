@@ -46,12 +46,6 @@ namespace ReDefinition.Atmospheres
             get { return mask; }
         }
 
-        // The frame the buffer was last rebuilt for (diagnostics).
-        internal int BuiltFrame
-        {
-            get { return builtFrame; }
-        }
-
         // The way in use (an index into FrostMaskJudge.Ways) and whether all of them failed.
         internal int Way
         {
@@ -86,23 +80,6 @@ namespace ReDefinition.Atmospheres
                 if (pinned) return FrostMaskJudge.Plausible(pinnedCoverage);
                 return judge.Valid;
             }
-        }
-
-        // The share of the mask that is covered (1: geometry drawn), read back from the GPU with a wait; -1 where there is no mask. It
-        // waits for the GPU and allocates: the series probe's diagnostic only.
-        internal float ReadCoverage()
-        {
-            if (mask == null) return -1f;
-            RenderTexture previous = RenderTexture.active;
-            RenderTexture.active = mask;
-            var copy = new Texture2D(mask.width, mask.height, TextureFormat.RGBA32, false, true);
-            copy.ReadPixels(new Rect(0, 0, mask.width, mask.height), 0, 0);
-            RenderTexture.active = previous;
-            Color32[] pixels = copy.GetPixels32();
-            UnityEngine.Object.Destroy(copy);
-            int covered = 0;
-            for (int i = 0; i < pixels.Length; i++) if (pixels[i].r > 127) covered++;
-            return pixels.Length == 0 ? -1f : covered / (float)pixels.Length;
         }
 
         // The mask as 0 / 1 values, row 0 at the bottom (a render texture read back), read with a wait; null where there is no mask.

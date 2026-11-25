@@ -301,12 +301,6 @@ namespace ReDefinition.Atmospheres
             get { return lastFreezing; }
         }
 
-        // The direction in degrees the hydrometeors are blown to (limited in turning speed), for the hydrometeor renderer.
-        internal float HydrometeorDirectionDeg
-        {
-            get { return hydrometeorDirection; }
-        }
-
         // The visibility extinction density (Unity's exp2 fog density) of the last frame.
         internal float VisibilityExtinctionDensity
         {

@@ -35,7 +35,6 @@ namespace ReDefinition.Atmospheres
     internal sealed class MapPainter : IDisposable
     {
         internal const int DefaultWidth = 2048, DefaultHeight = 1024;
-        internal const int BaseWidth = 4096, BaseHeight = 2048;
 
         private const int PassCoverage = 0, PassType = 1, PassOrbit = 2;
 
@@ -67,7 +66,6 @@ namespace ReDefinition.Atmospheres
 
         internal int Width { get { return width; } }
         internal int Height { get { return height; } }
-        internal int SetCount { get { return sets.Count; } }
 
         // The paint sets (one per layout of the layers).
         internal System.Collections.Generic.IList<PaintSet> Sets { get { return sets; } }

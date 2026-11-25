@@ -55,3 +55,6 @@ __pycache__/
 
 # The iCUE widget packager (tools/icuewidget): npm install puts its modules here.
 node_modules/
+
+# The test results tools/dotnet_test.py leaves on every run (--logger trx), with their durations.
+TestResults/

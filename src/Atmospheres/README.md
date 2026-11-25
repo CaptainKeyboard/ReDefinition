@@ -30,7 +30,6 @@ The atmospheres (the season clock, the snow and the storm cells) as a mod of its
 | `src/Atmospheres/FogController.cs` | The fog bookkeeping of a storm: saved, written and the decision to put it back. |
 | `src/Atmospheres/StormLog.cs` | The log lines of a storm, built from plain values. |
 | `src/Atmospheres/StormVeil.cs`, `StormFlakes.cs`, `StormAmbient.cs`, `AmbientTracker.cs` | The whiteout, the falling snow, the lowered ambient light and its tracker. |
-| `src/Atmospheres/StormCull.cs` | The terrain layer left out beyond what the storm's fog shows (`stormCullDistance`). |
 | `src/Atmospheres/StormVolume.cs`, `StormVolumeMath.cs`, `StormNoise.cs`, `StormShaders.cs` | The snow praecipitatio of the cells in the world, raymarched: the pool, the numbers it is fed, the noise, the shaders. |
 | `src/Atmospheres/OrbitMask.cs` | The snow mask as pixels of an equirectangular map, in the PQS texture convention; pure, runs on a worker thread. |
 | `src/Atmospheres/OrbitSnow.cs` | Kerbin's scaled-space planet: the polling, the worker, the generation counter, the restore. |

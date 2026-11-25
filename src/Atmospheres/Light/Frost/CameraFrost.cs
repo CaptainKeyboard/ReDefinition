@@ -87,9 +87,6 @@ namespace ReDefinition.Atmospheres
         // The temperature of the glass in kelvin, NaN before the first step with a known temperature.
         internal float GlassK { get { return glassK; } }
 
-        // Seconds spent in weather that freezes, falling to 0 when it is over.
-        internal float WeatherSeconds { get { return weatherS; } }
-
         // The most recent growth (reach of the rim frost), share of the half-diagonal.
         internal float Growth { get; private set; }
 

@@ -12,6 +12,7 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
     public class LayerMapStoreSlewTests
     {
         private const int W = 64, H = 32, N = W * H;
+        private const double FrameWallMs = 2.0;
 
         private static byte[] Map(int seed)
         {
@@ -36,17 +37,37 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
                 });
             }
 
-            // Steps the clock in small frames until nothing is pending; fails after a timeout.
-            internal void Settle(float dt, float maxSeconds = 5f)
+            // One frame: steps the store's clock by dt, then gives the worker FrameWallMs of wall time. The worker reads the clock when it takes a goal, so a clock that
+            // runs far ahead of the worker (frames without a pause) moves the reach of a fresh goal; Thread.Sleep(1) instead lasts a whole timer tick (about 15.6 ms on
+            // Windows) and made the waits of this class about 9 s.
+            internal int Frame(float dt)
+            {
+                int pending = Store.Step(dt, MapSlew.DefaultRate, false);
+                var pause = Stopwatch.StartNew();
+                while (pause.Elapsed.TotalMilliseconds < FrameWallMs) Thread.Yield();
+                return pending;
+            }
+
+            // Steps the clock in small frames until nothing is pending; fails after a wall-clock timeout.
+            internal void Settle(float dt)
             {
                 var watch = Stopwatch.StartNew();
                 float simulated = 0f;
-                while (Store.Step(dt, MapSlew.DefaultRate, false) > 0 || simulated < LayerMapStore.SlewLeadS + 2f * dt)
+                while (Frame(dt) > 0 || simulated < LayerMapStore.SlewLeadS + 2f * dt)
                 {
                     simulated += dt;
                     Assert.IsTrue(watch.Elapsed.TotalSeconds < 10.0, "the store did not settle");
-                    Thread.Sleep(1);
-                    if (simulated > maxSeconds) break;
+                }
+            }
+
+            // Steps the clock until `uploads` uploads have been made; fails after a wall-clock timeout.
+            internal void StepUntilUploads(int uploads, float dt)
+            {
+                var watch = Stopwatch.StartNew();
+                while (Uploads < uploads)
+                {
+                    Frame(dt);
+                    Assert.IsTrue(watch.Elapsed.TotalSeconds < 10.0, "the store made " + Uploads + " of " + uploads + " uploads");
                 }
             }
 
@@ -85,19 +106,28 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
                 byte[] previous = rig.Store.CoverageBytes(1);
                 double allowed = MapSlew.DefaultRate * dt * 255.0 * 2.0 + 1.5;
                 double worst = 0.0;
+                int settled = rig.Uploads;
+                Action frameStep = () =>
+                {
+                    rig.Frame(dt);
+                    byte[] now = rig.Store.CoverageBytes(1);
+                    for (int i = 0; i < N; i++) worst = Math.Max(worst, Math.Abs(now[i] - previous[i]));
+                    previous = now;
+                };
                 // A new goal every second (the game's rhythm) for six goals, the frames of 10 ms between.
                 for (int goal = 0; goal < 6; goal++)
                 {
                     rig.Store.SetTargetBytes(1, Map(10 + goal), Map(20 + goal));
-                    for (int frame = 0; frame < 100; frame++)
-                    {
-                        rig.Store.Step(dt, MapSlew.DefaultRate, false);
-                        Thread.Sleep(1);
-                        byte[] now = rig.Store.CoverageBytes(1);
-                        for (int i = 0; i < N; i++) worst = Math.Max(worst, Math.Abs(now[i] - previous[i]));
-                        previous = now;
-                    }
+                    for (int frame = 0; frame < 100; frame++) frameStep();
                 }
+                // Frames go on until every goal is live, so that each hand-over (two uploads a goal: coverage and type) happened between two checked frames.
+                var watch = Stopwatch.StartNew();
+                while (rig.Store.SlewPending > 0)
+                {
+                    frameStep();
+                    Assert.IsTrue(watch.Elapsed.TotalSeconds < 10.0, "the goals did not go live");
+                }
+                Assert.AreEqual(settled + 12, rig.Uploads, "every goal was uploaded once");
                 Assert.IsTrue(worst <= allowed, "a texel moved " + worst + " levels in one frame, allowed " + allowed);
             }
         }
@@ -110,13 +140,11 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
                 byte[] first = Map(3), second = Map(4);
                 rig.Store.SetTargetBytes(2, first, first);
                 rig.Settle(0.02f);
+                int settled = rig.Uploads;
                 rig.Store.SetTargetBytes(2, second, second);
-                // Halfway: the analytic value at a place lies between the bilinear reads of the two maps and moves at most rate * age from the first.
-                for (int f = 0; f < 60; f++)
-                {
-                    rig.Store.Step(0.02f, MapSlew.DefaultRate, false);
-                    Thread.Sleep(2);
-                }
+                // Halfway, about 1 s after the second goal went live: the analytic value at a place lies between the bilinear reads of the two maps.
+                rig.StepUntilUploads(settled + 2, 0.02f);
+                for (int f = 0; f < 50; f++) rig.Store.Step(0.02f, MapSlew.DefaultRate, false);
                 float cov, type, goalCov, goalType;
                 Assert.IsTrue(rig.Store.SampleBytes(2, 10.0, 20.0, false, out cov, out type));
                 Assert.IsTrue(rig.Store.SampleBytes(2, 10.0, 20.0, true, out goalCov, out goalType));
@@ -154,7 +182,7 @@ namespace ReDefinition.Tests.Atmospheres.OPT1
             using (var rig = new Rig())
             {
                 for (int g = 0; g < 12; g++) rig.Store.SetTargetBytes(3, Map(30 + g), Map(50 + g));
-                rig.Settle(0.05f, 60f);
+                rig.Settle(0.05f);
                 for (int f = 0; f < 800; f++) rig.Store.Step(0.05f, MapSlew.DefaultRate, false);
                 CollectionAssertEqual(rig.Store.CoverageGoalBytes(3), Map(41));
                 CollectionAssertEqual(rig.Store.TypeGoalBytes(3), Map(61));

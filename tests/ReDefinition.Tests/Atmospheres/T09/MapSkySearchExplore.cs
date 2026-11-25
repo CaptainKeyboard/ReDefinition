@@ -22,7 +22,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void SearchALowStratiformAndAStormOverKsc()
         {
             string outFile = Environment.GetEnvironmentVariable("MAPSKY_SEARCH_OUT");
-            if (string.IsNullOrEmpty(outFile)) return;
+            if (string.IsNullOrEmpty(outFile)) Assert.Inconclusive("A measurement run: it runs only when MAPSKY_SEARCH_OUT is set.");
             BodyClimate climate;
             GeneratorField field = SkyMapsExplore.KerbinField(664216370, out climate);
             int body = FieldFixture.BodyIndex;

@@ -79,13 +79,6 @@ namespace ReDefinition.Atmospheres
         // The running module, for the series probe (Probe/C23Probe.cs); null while the module is not running.
         internal static EveCloudModule Current { get; private set; }
 
-        // True while this module drives EVE's rain and snow entries (it holds layers of the body): the old storm effect writes the same
-        // static entries (EveRainLink, EveSnowLink) and must leave them alone then. The old path goes with C25.
-        internal static bool DrivesEveGroundEffects
-        {
-            get { return Current != null && Current.layers.Count > 0 && Current.preCullSubscribed; }
-        }
-
         public void Init()
         {
             Services.EveFieldSuppressor = ground;
@@ -155,11 +148,6 @@ namespace ReDefinition.Atmospheres
             debugCoverage = value;
             debugSnapPending = value.HasValue;
             nextPaint = 0f;
-        }
-
-        internal bool CoverageForced
-        {
-            get { return debugCoverage.HasValue; }
         }
 
         // The paint set a layer is bound to (null while its layout is unknown or there is no painter).

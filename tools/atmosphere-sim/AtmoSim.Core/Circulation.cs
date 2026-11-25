@@ -2,14 +2,6 @@ using System;
 
 namespace AtmoSim.Core
 {
-    public enum CirculationRegime
-    {
-        // Zonal bands: one to three overturning cells per hemisphere, a jet, a storm track.
-        Zonal = 0,
-        // Sub-solar to anti-solar flow instead of bands (slow or tidally locked rotators).
-        SubSolar = 1
-    }
-
     // The closed-form general circulation of a body: everything derived once from the BodyParams by Rossby-number and Rhines-scale
     // rules. No time stepping; the generator reads these numbers and the season only.
     public sealed class BodyDerived

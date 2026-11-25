@@ -157,14 +157,6 @@ namespace ReDefinition.Atmospheres
             return Vector3.Cross(d, helper).normalized;
         }
 
-        // The number of segments of all strands.
-        internal static int SegmentCount(List<BoltStrand> strands)
-        {
-            int n = 0;
-            for (int i = 0; i < strands.Count; i++) n += Math.Max(0, strands[i].Points.Count - 1);
-            return n;
-        }
-
         // The length of the main channel in m (the sum of its segments).
         internal static float ChannelLengthM(BoltStrand strand)
         {

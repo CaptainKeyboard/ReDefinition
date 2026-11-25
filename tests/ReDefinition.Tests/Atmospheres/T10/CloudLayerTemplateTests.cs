@@ -155,14 +155,19 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(0, r.Warnings.Count, string.Join("; ", r.Warnings));
             Assert.AreEqual(5, r.Climate.Clouds.Layers.Count);
             CloudLayerSpec cumulus = r.Climate.Clouds.Layers.Single(l => l.Name == "cumulus");
-            Assert.AreEqual(0.1619 * 9000.0, cumulus.InnerAltitudeM, 0.01);
-            Assert.AreEqual(0.7048 * 9000.0, cumulus.OuterAltitudeM, 0.01);
-            Assert.AreEqual(0.02381 * 9000.0, cumulus.NoiseScaleM, 0.01);
-            Assert.AreEqual(0.1905 * 9000.0, cumulus.LightCellWidth, 0.01);
             StringAssert.Contains(r.Climate.Clouds.LayerSet, "troposphere 9 km");
-            // GENERATOR tropopauseM sets the depth, as it does for the generator.
+            // GENERATOR tropopauseM sets the depth, as it does for the generator. The template's lengths are in troposphere depths, so every length of the 15 km body is
+            // 15 / 9 of the 9 km body's (the fractions themselves are the template file's numbers and are not repeated here).
             BodyParseResult deep = Run(BodyTestSupport.Planet("Deep", BodyTestSupport.HomeYear), "REDEFINITION_BODY{name = Deep;GENERATOR{tropopauseM = 15000}}");
-            Assert.AreEqual(0.2 * 15000.0, deep.Climate.Clouds.Layers.Single(l => l.Name == "weather-rain").OuterAltitudeM, 0.01);
+            CloudLayerSpec deepCumulus = deep.Climate.Clouds.Layers.Single(l => l.Name == "cumulus");
+            const double ratio = 15000.0 / 9000.0;
+            Assert.IsTrue(cumulus.InnerAltitudeM > 0f && cumulus.OuterAltitudeM > cumulus.InnerAltitudeM && cumulus.NoiseScaleM > 0f && cumulus.LightCellWidth > 0f);
+            Assert.AreEqual(ratio * cumulus.InnerAltitudeM, deepCumulus.InnerAltitudeM, 0.01);
+            Assert.AreEqual(ratio * cumulus.OuterAltitudeM, deepCumulus.OuterAltitudeM, 0.01);
+            Assert.AreEqual(ratio * cumulus.NoiseScaleM, deepCumulus.NoiseScaleM, 0.01);
+            Assert.AreEqual(ratio * cumulus.LightCellWidth, deepCumulus.LightCellWidth, 0.01);
+            Assert.AreEqual(ratio * r.Climate.Clouds.Layers.Single(l => l.Name == "weather-rain").OuterAltitudeM,
+                            deep.Climate.Clouds.Layers.Single(l => l.Name == "weather-rain").OuterAltitudeM, 0.01);
         }
 
         [TestMethod]
@@ -261,7 +266,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             CloudLayerSpec cumulus = r.Climate.Clouds.Layers.Single(l => l.Name == "cumulus");
             Assert.AreEqual(0.03f, cumulus.SigmaPerM, 1e-6f);
             Assert.AreEqual(0.6 * 9000.0, cumulus.OuterAltitudeM, 0.01);
-            Assert.AreEqual(0.1619 * 9000.0, cumulus.InnerAltitudeM, 0.01, "the keys the body does not name stay the template's");
+            Assert.AreEqual(Run(f).Climate.Clouds.Layers.Single(l => l.Name == "cumulus").InnerAltitudeM, cumulus.InnerAltitudeM, 0.01, "the keys the body does not name stay the template's");
             // The replaced type keeps its place on the type axis; the dropped one is gone.
             CollectionAssert.AreEqual(new[] { "Stratocumulus", "Cumulus humilis", "Cumulus mediocris", "Cumulus congestus" }, cumulus.Types.Select(t => t.Name).ToArray());
             Assert.AreEqual(0.9f, cumulus.Types[0].Erosion, 1e-6f);

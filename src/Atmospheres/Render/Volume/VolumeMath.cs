@@ -141,15 +141,6 @@ namespace ReDefinition.Atmospheres
             return (float)(length / sum);
         }
 
-        // The window's lookup coordinates for a local position: u and w across (0 to 1 over the full width), v up (0 to 1 over the height).
-        internal static void WindowUv(float lx, float lz, float h, float halfWidth, float height, out float u, out float v, out float w)
-        {
-            float inv = 0.5f / halfWidth;
-            u = lx * inv + 0.5f;
-            w = lz * inv + 0.5f;
-            v = h / height;
-        }
-
         // The temporal frame offset of the dither keyed to the jitter index: the same index gives the same offset, consecutive indices
         // of an eight-phase jitter spread over the pattern (the golden-ratio step of the interleaved gradient noise).
         internal static float JitterKeyedOffset(int jitterIndex)

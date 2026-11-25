@@ -14,10 +14,10 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AnOlderCommonThanTheOneBuiltAgainstIsNamedAtTheStart()
         {
-            Assert.IsNull(HostLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 4, 0)));
-            Assert.IsNull(HostLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 5, 0)));
-            Assert.IsNull(HostLink.CommonProblem(null, new Version(0, 1, 3, 0)));
-            StringAssert.Contains(HostLink.CommonProblem(new Version(0, 1, 5, 0), new Version(0, 1, 4, 0)), "0.1.4");
+            Assert.IsNull(CommonVersionCheck.Problem("ReDefinition", new Version(0, 1, 4, 0), new Version(0, 1, 4, 0)));
+            Assert.IsNull(CommonVersionCheck.Problem("ReDefinition", new Version(0, 1, 4, 0), new Version(0, 1, 5, 0)));
+            Assert.IsNull(CommonVersionCheck.Problem("ReDefinition", null, new Version(0, 1, 3, 0)));
+            StringAssert.Contains(CommonVersionCheck.Problem("ReDefinition", new Version(0, 1, 5, 0), new Version(0, 1, 4, 0)), "0.1.4");
         }
 
         [TestMethod]

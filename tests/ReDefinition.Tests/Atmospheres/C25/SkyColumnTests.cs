@@ -180,30 +180,6 @@ namespace ReDefinition.Tests.Atmospheres.C25
             Assert.IsTrue(shallow > 10 && storm > 0, "shallow and deep convection");
         }
 
-        // The game's Kerbin parameter set (from the dumps): what the columns look like there, for the report.
-        [TestMethod]
-        public void TheKerbinColumnsArePrinted()
-        {
-            GeneratorState state = FieldFixture.Field().StateOf(Body);
-            BodyParams p = state.Parameters;
-            var lists = new Dictionary<string, List<double>>();
-            Action<string, double> add = (k, v) => { if (!lists.ContainsKey(k)) lists[k] = new List<double>(); lists[k].Add(v); };
-            foreach (Weather w in Columns(state.Generator))
-            {
-                SkyColumn s = Derive(p, w);
-                add("base m", s.BaseM); add("stable m", s.StableM); add("top m", s.TopM); add("shallow depth m", s.TopM - s.BaseM); add("surface RH", s.SurfaceHumidity);
-                add("cumuliform", s.CumuliformAmount); add("sheet", s.StratiformAmount); add("RH low", s.RhLow); add("RH mid", s.RhMid); add("RH high", s.RhHigh);
-            }
-            Console.WriteLine("Kerbin: tropopause " + p.TropopauseM.ToString("0") + " m; quartiles:");
-            foreach (KeyValuePair<string, List<double>> kv in lists)
-            {
-                List<double> l = kv.Value;
-                l.Sort();
-                Console.WriteLine("  " + kv.Key + ": " + l[l.Count / 4].ToString("0.00") + " / " + l[l.Count / 2].ToString("0.00") + " / " + l[3 * l.Count / 4].ToString("0.00"));
-            }
-            Assert.IsTrue(lists["base m"].Count > 0);
-        }
-
         [TestMethod]
         public void MoreInstabilityGivesADeeperTopAndStrongerDescentOrInversionALowerStableLayer()
         {
@@ -471,30 +447,6 @@ namespace ReDefinition.Tests.Atmospheres.C25
             BodyParams p = BodyParams.KerbinLike();
             List<Weather> a = Columns(new WeatherGenerator(p, 7)), b = Columns(new WeatherGenerator(p, 7));
             for (int i = 0; i < a.Count; i++) Assert.AreEqual(Derive(p, a[i]), Derive(p, b[i]), "column " + i);
-        }
-
-        // The cost of the weather maps of one body with and without the sky maps (printed; the cost row of the field is GeneratorFieldTests.TheCostRowsOfTheProofInManagedCode).
-        [TestMethod]
-        public void TheCostOfTheSkyMapsIsPrinted()
-        {
-            GeneratorState state = FieldFixture.Field().StateOf(Body);
-            var plain = new GeneratorMaps.Weather2D();
-            var sky = new GeneratorMaps.Weather2D();
-            sky.EnsureSky();
-            GeneratorMaps.RenderWeather(state, 3.0e6, plain);
-            GeneratorMaps.RenderWeather(state, 3.0e6, sky);
-            double plainMs = double.MaxValue, skyMs = double.MaxValue;
-            for (int rep = 0; rep < 3; rep++)
-            {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                GeneratorMaps.RenderWeather(state, 4.0e6 + rep, plain);
-                plainMs = Math.Min(plainMs, sw.Elapsed.TotalMilliseconds);
-                sw.Restart();
-                GeneratorMaps.RenderWeather(state, 4.0e6 + rep, sky);
-                skyMs = Math.Min(skyMs, sw.Elapsed.TotalMilliseconds);
-            }
-            Console.WriteLine("512x256 weather maps, best of 3: " + plainMs.ToString("0") + " ms without the sky maps, " + skyMs.ToString("0") + " ms with them");
-            CollectionAssert.AreEqual(plain.Coverage, sky.Coverage);
         }
 
         // The largest step between neighbouring texels of a map (east-west, wrapping, and north-south).

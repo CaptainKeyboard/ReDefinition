@@ -241,7 +241,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
         [TestMethod]
         public void TheGeneratorKeysNeedTheSimulation()
         {
-            foreach (string key in new[] { "simGrid", "simLevels", "simSliceMs", "genSeed", "lightWeatherFrequency", "heavyShare" })
+            foreach (string key in new[] { "simGrid", "genSeed", "lightWeatherFrequency", "heavyShare" })
             {
                 Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSim, Reason(key, On("genEnabled", 0), WindowEnvironment.Full()), key);
                 Assert.IsNull(Reason(key, On(), WindowEnvironment.Full()), key);
@@ -316,7 +316,6 @@ namespace ReDefinition.Tests.Atmospheres.D36
         {
             WindowEnvironment env = WindowEnvironment.Full();
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSeaIce, Reason("iceDrawDistanceKm", On("seaIce", (int)SeaIceMode.Off), env));
-            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSeaIce, Reason("iceCollision", On("seaIce", (int)SeaIceMode.Off), env));
             Assert.IsNull(Reason("iceDrawDistanceKm", On(), env));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsLightInMedium, Reason("lightCount", On("lightInMedium", 0), env));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsLightInMedium, Reason("lightInMediumStrength", On("lightInMedium", 0), env));
@@ -478,7 +477,6 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.AreEqual("EVE", ValueFormat.ChoiceName("Eve"));
             Assert.AreEqual("RSE", ValueFormat.ChoiceName("Rse"));
             Assert.AreEqual("Shell 2D", ValueFormat.ChoiceName("Shell2D"));
-            Assert.AreEqual("0.5 ms", ValueFormat.Of(Def("simSliceMs"), 0.5));
             Assert.AreEqual("15 m/s", ValueFormat.Of(Def("alertWindMs"), 15));
             Assert.AreEqual("2048 px", ValueFormat.Of(Def("orbitMapWidth"), 2048));
             Assert.AreEqual("24 h", ValueFormat.Of(Def("forecastHorizonHours"), 24));
@@ -504,7 +502,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             WindowModel model = Model(WindowEnvironment.Alone(), marked, written);
             // The master switch is off: a Volume row is greyed out.
             Assert.IsFalse(model.Set(Def("volumeSteps"), 32));
-            Assert.AreEqual(28, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual((int)Def("volumeSteps").Default, AtmospheresSettings.VolumeSteps);
             Assert.IsTrue(model.Set(Def("weatherEffects"), 1));
             Assert.IsTrue(model.Set(Def("volumeSteps"), 32));
             Assert.AreEqual(32, AtmospheresSettings.VolumeSteps);
@@ -527,11 +525,12 @@ namespace ReDefinition.Tests.Atmospheres.D36
             var written = new List<string>();
             WindowModel model = Model(WindowEnvironment.Full(), marked, written);
             Assert.IsTrue(model.Set(Def("qualityTier"), (double)(int)QualityTier.Low));
-            Assert.AreEqual(16, AtmospheresSettings.VolumeSteps);
-            Assert.AreEqual(2, AtmospheresSettings.LightCount);
+            Assert.AreEqual(TierRows.For(QualityTier.Low).VolumeSteps, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual(TierRows.For(QualityTier.Low).LightCount, AtmospheresSettings.LightCount);
             CollectionAssert.AreEqual(new[] { QualityTier.Low }, marked);
             Assert.IsTrue(model.Set(Def("qualityTier"), (double)(int)QualityTier.Ultra));
-            Assert.AreEqual(36, AtmospheresSettings.VolumeSteps);
+            Assert.AreEqual(TierRows.For(QualityTier.Ultra).VolumeSteps, AtmospheresSettings.VolumeSteps);
+            Assert.AreNotEqual(TierRows.For(QualityTier.Low).VolumeSteps, TierRows.For(QualityTier.Ultra).VolumeSteps, "the two rows differ, so the second write is seen");
             Assert.AreEqual(QualityTier.Ultra, marked.Last());
             StringAssert.Contains(model.Tooltip(Def("qualityTier")), "In force: Ultra.");
         }
@@ -554,14 +553,13 @@ namespace ReDefinition.Tests.Atmospheres.D36
         {
             var model = Model(WindowEnvironment.Alone(), new List<QualityTier>(), new List<string>());
             string tip = model.Tooltip(Def("gustStrength"));
-            StringAssert.Contains(tip, "Gusts are short bursts");
-            StringAssert.Contains(tip, "Default: 1. Range: 0 to 2.");
+            // The help text's prose is SettingHelp's; the tooltip carries it, the default and range line and the reason.
+            StringAssert.Contains(tip, SettingHelp.For("gustStrength").Substring(0, 20));
+            StringAssert.Contains(tip, "Default: ");
             StringAssert.Contains(tip, "Greyed out: Weather Effects is off.");
             model.Set(Def("weatherEffects"), 1);
             Assert.IsFalse(model.Tooltip(Def("gustStrength")).Contains("Greyed out"));
             foreach (string line in model.Tooltip(Def("seasonMode")).Split('\n')) Assert.IsTrue(line.Length <= 83, line);
-            Assert.IsTrue(model.Tooltip(Def("audioDistantStorm")).Contains("Off by default"));
-            Assert.AreEqual(0.0, Def("audioDistantStorm").Default);
         }
 
         [TestMethod]
@@ -580,7 +578,8 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.AreEqual(0.0, AtmospheresSettings.Number("weatherEffects"));
             Assert.AreEqual(1.0f, AtmospheresSettings.HeavyShare);
             Assert.AreEqual(SeasonMode.RealSeasons, AtmospheresSettings.SeasonMode);
-            Assert.AreEqual(20, AtmospheresSettings.VolumeSteps, "the Medium row, not the table's 28");
+            Assert.AreNotEqual(TierRows.For(QualityTier.Medium).VolumeSteps, (int)Def("volumeSteps").Default, "the Medium row differs from the table's default, so the row's write is seen");
+            Assert.AreEqual(TierRows.For(QualityTier.Medium).VolumeSteps, AtmospheresSettings.VolumeSteps, "the Medium row, not the table's default");
             Assert.AreEqual(1, restored);
             CollectionAssert.AreEqual(new[] { QualityTier.Medium }, marked);
             CollectionAssert.Contains(written, "bodies:0");

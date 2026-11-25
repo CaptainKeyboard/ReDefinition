@@ -243,12 +243,6 @@ namespace ReDefinition.Atmospheres
             if (Heights.Pending) Heights.Step(1);
         }
 
-        // Whether the buffer is on that camera at that event now (by this renderer's own bookkeeping, not the camera's list).
-        internal bool IsAttachedTo(Camera camera, CameraEvent cameraEvent)
-        {
-            return attached != null && ReferenceEquals(attached, camera) && attachedEvent == cameraEvent;
-        }
-
         // Puts the buffer on the camera at that event.
         internal void Attach(Camera camera, CameraEvent cameraEvent)
         {

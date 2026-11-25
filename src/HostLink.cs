@@ -25,12 +25,6 @@ namespace ReDefinition
             Fill();
         }
 
-        // The line for a loaded Common that is older than the one this build was made against; null where it is not older.
-        internal static string CommonProblem(Version built, Version loaded)
-        {
-            return CommonVersionCheck.Problem("ReDefinition", built, loaded);
-        }
-
         // Every frame, from SharedFrame.PollProfile: the caps the atmospheres read (WeatherHooks.Caps). The profile is the one the
         // last poll saw.
         internal static void FillCaps(string profile)

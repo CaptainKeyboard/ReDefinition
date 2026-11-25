@@ -56,11 +56,6 @@ namespace ReDefinition.Atmospheres
             return engine != null ? engine.NowBytes(1, layer) : null;
         }
 
-        internal long TypeVersion(int layer)
-        {
-            return engine != null ? engine.Version(1, layer) : 0;
-        }
-
         // The bytes a layer's type map is moving toward (E40 PP: the probe dumps both, the map as shown and its target).
         internal byte[] TypeGoalBytes(int layer)
         {
@@ -97,16 +92,8 @@ namespace ReDefinition.Atmospheres
             return array;
         }
 
-        // Sets the targets of a layer from the field's maps (either may be null: that map keeps its target). Values are 0 to 1 as bytes;
-        // the first target of a map jumps (it is primed by it), later ones are reached with the slew limit.
-        internal void SetTargets(int layer, WeatherMap coverageMap, WeatherMap typeMap)
-        {
-            if (engine == null) return;
-            if (coverageMap != null) { Copy(coverageMap, engine.ScratchGoal); engine.Stage(0, layer, engine.ScratchGoal); }
-            if (typeMap != null) { Copy(typeMap, engine.ScratchGoal); engine.Stage(1, layer, engine.ScratchGoal); }
-        }
-
-        // A map given as bytes directly (a test map, the player's input).
+        // Sets the targets of a layer as bytes (either may be null: that map keeps its target), values 0 to 1. The first target of a map jumps
+        // (it is primed by it), later ones are reached with the slew limit.
         internal void SetTargetBytes(int layer, byte[] coverageBytes, byte[] typeBytes)
         {
             if (engine == null) return;
@@ -135,13 +122,6 @@ namespace ReDefinition.Atmospheres
             double top = bytes[iy0 * Width + ix0] * (1 - fx) + bytes[iy0 * Width + ix1] * fx;
             double bottom = bytes[iy1 * Width + ix0] * (1 - fx) + bytes[iy1 * Width + ix1] * fx;
             return (float)((top * (1 - fy) + bottom * fy) / 255.0);
-        }
-
-        private void Copy(WeatherMap map, byte[] target)
-        {
-            if (map.Width != Width || map.Height != Height) throw new ArgumentException("The map is " + map.Width + "x" + map.Height + ", the store " + Width + "x" + Height + ".");
-            map.PackBytes(0f, 1f);
-            Array.Copy(map.Bytes, target, target.Length);
         }
 
         // Advances the store's clock by dt seconds and puts the pairs that are due on the GPU; the shader slews between them. snap jumps to the

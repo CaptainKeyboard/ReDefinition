@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
@@ -70,27 +69,6 @@ namespace ReDefinition.Tests.Atmospheres.T04
             CloudTypeDef type = smooth ? new CloudTypeDef("bell", 0f, 1f, new Curve(new[] { 0f, 0.15f, 0.5f, 0.85f, 1f }, new[] { 0f, 0.7f, 1f, 0.7f, 0f }), 0f) : null;
             var s = new LatLonSource(PackScenes.Kerbin).Add("n", baseM, topM, 3.0, cover, 0.15, type);
             return new VariedSource(s, cover, varied);
-        }
-
-        // The error of the fixed policy by step count and the scaled policy at the asked counts, against 256 steps: the measurement row of the step policy.
-        [TestMethod]
-        public void TheErrorByStepCountOfBothPoliciesOnBothClouds()
-        {
-            Table.Clear();
-            foreach (bool smooth in new[] { false, true })
-                foreach (bool varied in new[] { true, false })
-                {
-                    VariedSource s = Sky(varied, smooth);
-                    CloudShadowField reference = Field(s, 256, CloudShadowSteps.Fixed);
-                    foreach (double elevation in new[] { 45.0, 20.0 })
-                    {
-                        foreach (int steps in new[] { 8, 16, 24, 48, 64, 128 })
-                            Table.AppendLine((smooth ? "bell " : "slab ") + (varied ? "varied " : "flat   ") + "sun " + elevation + " fixed  " + steps + ": " + Line("T", Scan(s, Field(s, steps, CloudShadowSteps.Fixed), reference, elevation, false)));
-                        foreach (int steps in new[] { 4, 8, 12, 16 })
-                            Table.AppendLine((smooth ? "bell " : "slab ") + (varied ? "varied " : "flat   ") + "sun " + elevation + " scaled " + steps + ": " + Line("T", Scan(s, Field(s, steps, CloudShadowSteps.Scaled), reference, elevation, false)));
-                    }
-                }
-            Console.WriteLine(Table.ToString());
         }
 
         private struct Errors
@@ -219,35 +197,6 @@ namespace ReDefinition.Tests.Atmospheres.T04
                 Table.AppendLine((smooth ? "bell" : "slab") + " vertical tau at 16 steps: " + Line("fixed ", old) + "  | " + Line("scaled", now));
                 Assert.IsTrue(now.P90 <= old.P90 + 1e-9);
             }
-            Console.WriteLine(Table.ToString());
-        }
-
-        // The cost of one call on the CPU, ms, per policy and step count: DirectTransmission over the lattice.
-        [TestMethod]
-        public void TheCostOfTheScaledPolicyOnTheCpu()
-        {
-            Table.Clear();
-            VariedSource s = Sky(true);
-            foreach (CloudShadowSteps policy in new[] { CloudShadowSteps.Fixed, CloudShadowSteps.Scaled })
-                foreach (int steps in new[] { 4, 8, 12 })
-                {
-                    CloudShadowField f = Field(s, steps, policy);
-                    int calls = 0;
-                    double sink = 0.0;
-                    var watch = Stopwatch.StartNew();
-                    for (int rep = 0; rep < 3; rep++)
-                        for (double lat = -20; lat < 20; lat += 2.1)
-                            for (double lon = -30; lon < 30; lon += 0.37)
-                            {
-                                double x, y, z, sx, sy, sz;
-                                s.Position(lat, lon, 0.0, out x, out y, out z);
-                                LatLonSource.SunTowards(lat, lon, 45.0, 90.0, out sx, out sy, out sz);
-                                sink += f.DirectTransmission(x, y, z, sx, sy, sz);
-                                calls++;
-                            }
-                    watch.Stop();
-                    Table.AppendLine(policy + " " + steps + " steps: " + (watch.Elapsed.TotalMilliseconds / calls * 1000.0).ToString("0.0") + " us per call (" + calls + " calls, sink " + sink.ToString("0.0") + ")");
-                }
             Console.WriteLine(Table.ToString());
         }
     }

@@ -13,20 +13,6 @@ namespace ReDefinition.Atmospheres
     // amplitude of the layer's flow). The colour map holds the tint the layer's cloud is multiplied by (white = none).
     internal static class NoiseMaps
     {
-        // Loads a PNG as a map texture; null where the file is missing or does not decode.
-        internal static Texture2D LoadPng(string path, string name)
-        {
-            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
-            if (!ImageConversion.LoadImage(texture, File.ReadAllBytes(path), true))
-            {
-                UnityEngine.Object.Destroy(texture);
-                return null;
-            }
-            Setup(texture, name);
-            return texture;
-        }
-
         // A map texture from RGBA bytes (row 0 = north).
         internal static Texture2D FromBytes(int width, int height, byte[] rgba, string name)
         {
@@ -79,28 +65,6 @@ namespace ReDefinition.Atmospheres
                     bytes[i] = e;
                     bytes[i + 1] = n;
                     bytes[i + 2] = 128;
-                    bytes[i + 3] = 255;
-                }
-            }
-            return bytes;
-        }
-
-        // A colour map of latitude bands: `colours` are evenly spaced from the north pole to the south pole and blended between.
-        internal static byte[] BandColours(int width, int height, Color32[] colours)
-        {
-            if (colours == null || colours.Length == 0) throw new ArgumentException("at least one colour");
-            var bytes = new byte[width * height * 4];
-            for (int y = 0; y < height; y++)
-            {
-                double x = (y + 0.5) / height * (colours.Length - 1);
-                int i0 = Math.Min((int)x, colours.Length - 1), i1 = Math.Min(i0 + 1, colours.Length - 1);
-                double f = x - i0;
-                for (int c = 0; c < width; c++)
-                {
-                    int i = (y * width + c) * 4;
-                    bytes[i] = (byte)Math.Round(colours[i0].r * (1 - f) + colours[i1].r * f);
-                    bytes[i + 1] = (byte)Math.Round(colours[i0].g * (1 - f) + colours[i1].g * f);
-                    bytes[i + 2] = (byte)Math.Round(colours[i0].b * (1 - f) + colours[i1].b * f);
                     bytes[i + 3] = 255;
                 }
             }

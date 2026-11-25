@@ -184,8 +184,9 @@ namespace ReDefinition.Tests.Atmospheres.T18
                                           + " (n " + scan.RatioPlaces + ")");
                         if (scan.Places < 100) continue;
                         judged++;
-                        // [proposed] from the first runs of these scenes (45 degrees: p90 0.02 to 0.05, worst 0.18; 6 degrees: p90 up to 0.31, worst 0.84; the ratio 0.97
-                        // to 1.01 at 45 degrees and 0.73 to 1.0 at 6, where the shell's chord averages the column over many more texels than the cloud's own band holds).
+                        // The bounds were set from the first runs of these scenes (2026-11-15). Measured again on 2026-11-24 with the stratus at density scale 1:
+                        // 45 degrees p90 0.001 to 0.013, worst up to 0.045, ratio 0.999 to 1.009; 6 degrees p90 0.02 to 0.43, worst up to 0.76, ratio 1.005 to 1.52
+                        // (the shell's chord averages the column over many more texels than the cloud's own band holds).
                         // 0.07 of T at 45 degrees is a shadow a few percent too dark or too light; at a grazing sun the shadow edge of a thin cloud moves by kilometres.
                         bool high = elevation > 40.0;
                         Assert.IsTrue(scan.P90 <= (high ? 0.09 : 0.65), elevation + " degrees: p90 |dT| " + scan.P90);

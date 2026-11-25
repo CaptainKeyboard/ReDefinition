@@ -73,7 +73,6 @@ namespace ReDefinition.Atmospheres.Viewer
         private bool readoutWaiting;
         private float nextReadoutTry;
         internal const float ReadoutRetryS = 0.5f;
-        internal bool ReadoutWaiting { get { return readoutWaiting; } }
 
         private void WaitForWeather(string note)
         {

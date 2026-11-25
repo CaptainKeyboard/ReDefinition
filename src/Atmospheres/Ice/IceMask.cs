@@ -158,12 +158,6 @@ namespace ReDefinition.Atmospheres
             outB = cb + (0.99f - cb) * s;
         }
 
-        // The ice test on its own (the coverage the rows count): true where there is a floe.
-        internal static bool IsIce(IceParams p, float dx, float dy, float dz, float fieldFraction, float shore, float shoreMean, float ox, float oy, float oz)
-        {
-            return Evaluate(p, dx, dy, dz, fieldFraction, 1f, shore, shoreMean, ox, oy, oz).Ice;
-        }
-
         private static float Finite(float v)
         {
             return float.IsNaN(v) || float.IsInfinity(v) ? 0f : v;
