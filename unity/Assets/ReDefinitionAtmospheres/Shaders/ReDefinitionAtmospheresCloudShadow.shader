@@ -56,6 +56,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
 
         Texture2D _CameraDepthTexture;
         float4 _CameraDepthTexture_TexelSize;
+        // What pass 5 downscales: the ocean's depth for Scatterer's ocean shadow texture (CloudShadowRenderer.RecordOceanShadows).
+        Texture2D _CsDepthSource;
+        float4 _CsDepthSource_TexelSize;
         SamplerState cs_point_clamp_sampler;
         sampler2D _CsDepthHalf;                // the downscaled depth
         float4 _CsDepthHalf_TexelSize;
@@ -546,6 +549,41 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                 if (!IsSky(raw) && length(WorldPosFromDepth(i.uv, raw) - _WorldSpaceCameraPos) < t0 * 0.99) return 1.0;
                 float3 pc = (o + d * t0) * _CsSun.w;
                 return SunFactor(pc, _CsPlanet.w * _CsSun.w).xxxx;
+            }
+            ENDCG
+        }
+
+        Pass // 5: the same as pass 0 for the ocean's depth texture (_CsDepthSource, set by the ocean buffer): Scatterer's ocean shadow texture
+             // (CloudShadowRenderer.RecordOceanShadows, master plan 46.1). Last, so that the pass numbers of the renderer are the file order.
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 4.0
+
+            float4 frag(v2f i) : SV_Target
+            {
+                float2 inv = 1.0.xx / max(1.0.xx, _ScreenParams.xy);
+                int2 a = (i.uv - 0.5 * inv) * _CsDepthSource_TexelSize.zw;
+                int2 b = (i.uv + 0.5 * inv) * _CsDepthSource_TexelSize.zw;
+                a = clamp(a, 0, _CsDepthSource_TexelSize.zw);
+                b = clamp(b, 0, _CsDepthSource_TexelSize.zw);
+#if defined(UNITY_REVERSED_Z)
+                float result = 1.0;
+#else
+                float result = 0.0;
+#endif
+                for (int y = a.y; y < b.y; y++)
+                    for (int x = a.x; x < b.x; x++)
+                    {
+                        float d = _CsDepthSource.Load(int3(x, y, 0)).r;
+#if defined(UNITY_REVERSED_Z)
+                        result = min(result, d);
+#else
+                        result = max(result, d);
+#endif
+                    }
+                return result;
             }
             ENDCG
         }

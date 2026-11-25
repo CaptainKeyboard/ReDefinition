@@ -53,9 +53,13 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresCloudShadow";
         // The shader's pass 5 (the depth of a given texture to half size) was the ocean path's; nothing records it now.
-        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4;
+        internal const int PassDownscale = 0, PassShadow = 1, PassMask = 2, PassColour = 3, PassDisc = 4, PassDownscaleSource = 5;
         // The passes the shader must have: one more than the highest above.
-        internal const int RequiredPasses = PassDisc + 1;
+        internal const int RequiredPasses = PassDownscaleSource + 1;
+        // The names Scatterer 0.908's ocean reads for the cloud shadow on the water (OceanCommandBuffer.RecreateCommandBuffers; ScattererOceanCloudShadow).
+        internal const string OceanShadowsName = "ScattererOceanShadowsTexture";
+        internal const string OceanDepthName = "ScattererDownscaledOceanDepthTexture";
+        private static readonly int IdDepthSource = Shader.PropertyToID("_CsDepthSource");
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
@@ -330,6 +334,28 @@ namespace ReDefinition.Atmospheres
             cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
             Sub(cb, "shadow march");
             cb.SetGlobalTexture(IdShadowHalf, shadowId);
+        }
+
+        // The cloud shadow on Scatterer's ocean (master plan 46.1; restored from 0dbd4d7f, removed there as dead code before the ocean path was wired):
+        // what Scatterer 0.908's ocean buffer asks its cloud-shadow delegate for (OceanCommandBuffer.RecreateCommandBuffers, read decompiled), the way
+        // EVE's AddOceanShadowCommands answers it: the ocean's depth (oceanGbufferDepth, RFloat) to half size into ScattererDownscaledOceanDepthTexture
+        // (RFloat), the cloud shadow at half size into ScattererOceanShadowsTexture (R8), which stays the render target: Scatterer draws the ocean's
+        // own shadows into it next. Both are temporaries of the frame named by their identifiers (global for Scatterer's ocean shader).
+        internal void RecordOceanShadows(CommandBuffer cb, int width, int height, RenderTargetIdentifier oceanDepth)
+        {
+            int w = Mathf.Max(1, width / 2), h = Mathf.Max(1, height / 2);
+            int depthId = Shader.PropertyToID(OceanDepthName), shadowId = Shader.PropertyToID(OceanShadowsName);
+            cb.GetTemporaryRT(depthId, w, h, 0, FilterMode.Point, RenderTextureFormat.RFloat);
+            cb.GetTemporaryRT(shadowId, w, h, 0, FilterMode.Bilinear, RenderTextureFormat.R8);
+            cb.SetGlobalVector("_CsDepthSource_TexelSize", new Vector4(1f / width, 1f / height, width, height));
+            cb.SetGlobalVector("_CsDepthHalf_TexelSize", new Vector4(1f / w, 1f / h, w, h));
+            cb.SetGlobalTexture(IdDepthSource, oceanDepth);
+            cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscaleSource);
+            cb.SetGlobalTexture(IdDepthHalf, depthId);
+            cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
+            cb.SetGlobalTexture(OceanDepthName, depthId);
+            cb.SetGlobalTexture(OceanShadowsName, shadowId);
+            cb.SetRenderTarget(shadowId);
         }
     }
 }
