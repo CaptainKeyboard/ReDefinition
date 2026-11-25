@@ -96,15 +96,17 @@ namespace ReDefinition.Atmospheres
         // ragged shreds). LayerTypeTable bakes the chosen pair, so every reader of the table (the layer pass, the cloud shadow, the CPU readers) draws the same.
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
-        // The pannus' noise scale factor by height (cfg node PANNUS { SCALE { key0 = height factor } }, null: none): where it is g above 0 the layer's shape noise is read at
-        // pc (1 + g), so the shreds are 1 + g times smaller than the deck's own features (the profile texture's channel g; drawn only while the pannus is).
-        internal Curve PannusScale { get; set; }
+        // The pannus' erosion gain by height (cfg node PANNUS { EROSION { key0 = height gain } }, null: none): the type's erosion times 1 + g there, so the shreds are torn by the
+        // fine detail (the profile texture's channel g; drawn only while the pannus is).
+        internal Curve PannusErosion { get; set; }
 
-        // Master plan 43, one form description per type (cfg node FORM { SCALE { key0 = height factor } AMOUNT { key0 = height extra } }, null: none): over the type's height, the shape
-        // noise's scale factor g (read at pc (1 + g): features 1 + g times finer than the layer's noise scale) and its extra amount b (the amount (1 + b): more contrast, so the outline
-        // and the top follow the noise and not only the density inside; with a closed map the noise alone left every deck a flat slab, PRUEFPROTOKOLL 238). Baked into the profile
-        // texture's channels g and b (LayerTypeTable), read by the layer pass, the cloud shadow and the CPU twins.
-        internal Curve FormScale { get; set; }
+        // Master plan 43, one form description per type (cfg node FORM { EROSION { key0 = height gain } AMOUNT { key0 = height extra } }, null: none): over the type's height, the
+        // erosion gain g (the type's erosion times 1 + g: the fine detail eats the outline and the top, as PUFF does for the cumulus' heads) and the shape noise's extra amount b (the
+        // amount times 1 + b: more contrast, so the outline and the top follow the noise and not only the density inside; with a closed map the noise alone left every deck a flat
+        // slab, PRUEFPROTOKOLL 238). Until 2026-11-24 channel g scaled the noise's coordinate (pc (1 + g)); pc counts from the planet's centre, so a g that changes with height moved
+        // the read by dozens of noise periods over a few hundred metres and tore the top into steps (TypeFormSliceTool's relief, PRUEFPROTOKOLL 242). Baked into the profile
+        // texture's channels g and b (LayerTypeTable), read by the layer pass and the CPU twins; the cloud shadow reads b (it has no erosion).
+        internal Curve FormErosion { get; set; }
         internal Curve FormAmount { get; set; }
 
         private static double At(Curve c, double h)
@@ -112,11 +114,11 @@ namespace ReDefinition.Atmospheres
             return c == null ? 0.0 : c.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
         }
 
-        // The noise scale factor g at h: the pannus' SCALE where the pannus is drawn (cloud.pannus on and the type has one), else the FORM's SCALE (0: none).
-        internal double NoiseScaleAt(double h, bool pannus)
+        // The erosion gain g at h: the pannus' EROSION where the pannus is drawn (cloud.pannus on and the type has one), else the FORM's EROSION (0: none).
+        internal double ErosionGainAt(double h, bool pannus)
         {
-            if (pannus && PannusProfile != null && PannusScale != null) return At(PannusScale, h);
-            return At(FormScale, h);
+            if (pannus && PannusProfile != null && PannusErosion != null) return At(PannusErosion, h);
+            return At(FormErosion, h);
         }
 
         // The extra noise amount b at h (the FORM's AMOUNT; 0: none).

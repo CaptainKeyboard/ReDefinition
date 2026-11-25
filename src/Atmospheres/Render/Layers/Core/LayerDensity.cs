@@ -36,16 +36,16 @@ namespace ReDefinition.Atmospheres
                 smoothing[t] = type.ShapeSmoothing >= 0f ? type.ShapeSmoothing : Math.Max(0f, layer.ShapeSmoothing);
             }
             lift = new float[Count * ProfileSamples];
-            noiseScale = new float[Count * ProfileSamples];
+            erosionGain = new float[Count * ProfileSamples];
             noiseAmount = new float[Count * ProfileSamples];
             Bake();
         }
 
-        // Master plan 43, the form of each type: the noise scale factor g (the shader's profile texture channel g; FORM SCALE, the pannus' SCALE while it is drawn; 0: none) and the
+        // Master plan 43, the form of each type: the erosion gain g (the shader's profile texture channel g; FORM EROSION, the pannus' EROSION while it is drawn; 0: none) and the
         // extra noise amount b (channel b; FORM AMOUNT; 0: none), sample after sample, and the largest b of the layer (the shader's _LayerE.w: the empty-space bounds take it).
-        private readonly float[] noiseScale, noiseAmount;
+        private readonly float[] erosionGain, noiseAmount;
         private float maxAmount;
-        internal float[] NoiseScaleData { get { Sync(); return noiseScale; } }
+        internal float[] ErosionGainData { get { Sync(); return erosionGain; } }
         internal float[] NoiseAmountData { get { Sync(); return noiseAmount; } }
         internal float MaxNoiseAmount { get { Sync(); return maxAmount; } }
 
@@ -59,14 +59,14 @@ namespace ReDefinition.Atmospheres
             return Sample(noiseAmount, a, h) * (1.0 - f) + Sample(noiseAmount, c, h) * f;
         }
 
-        // The noise scale factor g at a type value and a type height h (blended as the shader reads channel g).
-        internal double NoiseScaleOf(double typeValue, double h)
+        // The erosion gain g at a type value and a type height h (blended as the shader reads channel g).
+        internal double ErosionGainOf(double typeValue, double h)
         {
             Sync();
             int a, c;
             double f;
             Neighbours(typeValue, out a, out c, out f);
-            return Sample(noiseScale, a, h) * (1.0 - f) + Sample(noiseScale, c, h) * f;
+            return Sample(erosionGain, a, h) * (1.0 - f) + Sample(erosionGain, c, h) * f;
         }
 
         // The type height h (0 base, 1 top) of a layer share at a type value; NaN outside the type.
@@ -202,7 +202,7 @@ namespace ReDefinition.Atmospheres
                     double h = i / (double)(ProfileSamples - 1);
                     profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
                     lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
-                    noiseScale[t * ProfileSamples + i] = (float)type.NoiseScaleAt(h, pannus);
+                    erosionGain[t * ProfileSamples + i] = (float)type.ErosionGainAt(h, pannus);
                     float extra = (float)type.NoiseAmountAt(h);
                     noiseAmount[t * ProfileSamples + i] = extra;
                     if (extra > maxAmount) maxAmount = extra;

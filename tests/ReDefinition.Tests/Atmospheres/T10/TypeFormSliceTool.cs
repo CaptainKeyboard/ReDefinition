@@ -78,12 +78,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
             double lift = table.LiftOf(typeValue, layerShare);
             double cov = layer.ClearSkyMap(1.0) - lift;
             int i = (int)Math.Round(h * (LayerTypeTable.ProfileSamples - 1));
-            double g = table.NoiseScaleData[type * LayerTypeTable.ProfileSamples + Math.Max(0, Math.Min(LayerTypeTable.ProfileSamples - 1, i))];
+            double g = table.ErosionGainData[type * LayerTypeTable.ProfileSamples + Math.Max(0, Math.Min(LayerTypeTable.ProfileSamples - 1, i))];
             NoiseLayerParams prm = NoiseLayerParams.Default(layer.EffectiveNoiseScaleM);
-            double s = 1.0 + g;
             double amount = layer.EffectiveNoiseAmount * (1.0 + table.NoiseAmountOf(typeValue, h));
-            double share = CloudShapeModel.Share(set, ref prm, x * s, y * s, z * s, cov, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount,
-                                                 layer.Types[type].Erosion, false);
+            double share = CloudShapeModel.Share(set, ref prm, x, y, z, cov, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness, amount,
+                                                 layer.Types[type].Erosion * (1.0 + g), true);
             share = CloudWater.Pow(share, layer.EffectiveWaterPowerAt(table, typeValue));
             return layer.EffectiveSigmaPerM * share * table.ProfileAt(type, h);
         }
@@ -95,6 +94,34 @@ namespace ReDefinition.Tests.Atmospheres.T10
             x = radiusM * Math.Cos(a) * Math.Cos(c);
             y = radiusM * Math.Sin(c);
             z = radiusM * Math.Sin(a) * Math.Cos(c);
+        }
+
+        private static double DensityAt(NoiseVolumeSet set, CloudLayerDef layer, LayerTypeTable table, int type, double bodyR, double alongM, double acrossM, double alt)
+        {
+            double x, y, z;
+            Point(bodyR + alt, alongM, acrossM, out x, out y, out z);
+            return Density(set, layer, table, type, x, y, z, alt);
+        }
+
+        // The top's height map as seen from above in a low sun: Lambert shading of the top surface, the sun 20 degrees high from the left, 0.5 = flat. The relief is what a
+        // deck's form looks like from above where its optical depth is saturated (the top view is white there).
+        private static double[] Relief(double[] height, double cellM)
+        {
+            var shade = new double[TopSize * TopSize];
+            double sunEl = 20.0 * Math.PI / 180.0;
+            double lx = -Math.Cos(sunEl), ly = Math.Sin(sunEl), flat = ly;
+            for (int j = 0; j < TopSize; j++)
+                for (int i = 0; i < TopSize; i++)
+                {
+                    int i0 = Math.Max(0, i - 1), i1 = Math.Min(TopSize - 1, i + 1);
+                    int j0 = Math.Max(0, j - 1), j1 = Math.Min(TopSize - 1, j + 1);
+                    double dx = (height[j * TopSize + i1] - height[j * TopSize + i0]) / ((i1 - i0) * cellM);
+                    double dz = (height[j1 * TopSize + i] - height[j0 * TopSize + i]) / ((j1 - j0) * cellM);
+                    double n = Math.Sqrt(dx * dx + dz * dz + 1.0);
+                    double lambert = Math.Max(0.0, (-dx * lx + ly) / n);
+                    shade[j * TopSize + i] = Math.Min(1.0, 0.5 * lambert / flat);
+                }
+            return shade;
         }
 
         private static void Write(string folder, NoiseVolumeSet set, CloudLayerDef layer, LayerTypeTable table, int type, bool pannus, StringBuilder text)
@@ -122,24 +149,37 @@ namespace ReDefinition.Tests.Atmospheres.T10
             // From above: the column's optical depth and the top's height (the highest altitude with density above 2 % of the slice's peak).
             int steps = 48;
             var tau = new double[TopSize * TopSize];
+            var topMap = new double[TopSize * TopSize];
             var tops = new System.Collections.Generic.List<double>();
+            double stepM = (outer - inner) / steps;
             for (int j = 0; j < TopSize; j++)
                 for (int i = 0; i < TopSize; i++)
                 {
                     double sum = 0.0, top = double.NaN;
+                    double px = (i + 0.5) / TopSize * AlongM, pz = (j + 0.5) / TopSize * AlongM;
                     for (int k = 0; k < steps; k++)
                     {
                         double alt = outer - (k + 0.5) / steps * (outer - inner);
-                        double x, y, z;
-                        Point(bodyR + alt, (i + 0.5) / TopSize * AlongM, (j + 0.5) / TopSize * AlongM, out x, out y, out z);
-                        double d = Density(set, layer, table, type, x, y, z, alt);
-                        if (double.IsNaN(top) && d > 0.02 * max) top = alt;
-                        sum += d * (outer - inner) / steps;
+                        double d = DensityAt(set, layer, table, type, bodyR, px, pz, alt);
+                        if (double.IsNaN(top) && d > 0.02 * max)
+                        {
+                            // The top to a metre: bisected between this step and the empty one above it.
+                            double lo = alt, hi = Math.Min(outer, alt + stepM);
+                            for (int n = 0; n < 8; n++)
+                            {
+                                double mid = 0.5 * (lo + hi);
+                                if (DensityAt(set, layer, table, type, bodyR, px, pz, mid) > 0.02 * max) lo = mid; else hi = mid;
+                            }
+                            top = lo;
+                        }
+                        sum += d * stepM;
                     }
                     tau[j * TopSize + i] = 1.0 - Math.Exp(-sum);
+                    topMap[j * TopSize + i] = double.IsNaN(top) ? inner : top;
                     if (!double.IsNaN(top)) tops.Add(top);
                 }
             WritePgm(Path.Combine(folder, "top-" + name + ".pgm"), TopSize, TopSize, tau);
+            WritePgm(Path.Combine(folder, "relief-" + name + ".pgm"), TopSize, TopSize, Relief(topMap, AlongM / TopSize));
 
             // The bands: the type's height in tenths, the share of the slice's columns with density there and the mean density where there is some.
             double b, t;

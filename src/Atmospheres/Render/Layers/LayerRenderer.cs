@@ -296,7 +296,7 @@ namespace ReDefinition.Atmospheres
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
-            // Four channels per sample (master plan 43, one form description per type): r the density profile, g the noise scale factor, b the extra noise amount (0: none for both),
+            // Four channels per sample (master plan 43, one form description per type): r the density profile, g the erosion gain, b the extra noise amount (0: none for both),
             // a the lift of the coverage threshold (E40 L2 D1, 0: none).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
@@ -333,7 +333,7 @@ namespace ReDefinition.Atmospheres
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
                     t => { double sum = 0; for (int i = 0; i < LayerTypeTable.ProfileSamples; i++) sum += table.ProfileData[t * LayerTypeTable.ProfileSamples + i]; return sum / LayerTypeTable.ProfileSamples; });
-                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.NoiseScaleData, amountData = table.NoiseAmountData;
+                float[] density = table.ProfileData, liftData = table.LiftData, scaleData = table.ErosionGainData, amountData = table.NoiseAmountData;
                 for (int i = 0; i < table.Count * LayerTypeTable.ProfileSamples; i++)
                 {
                     int texel = (l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples + i) * 4;

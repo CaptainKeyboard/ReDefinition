@@ -428,11 +428,10 @@ Shader "ReDefinition/AtmospheresLayers"
                 amountN = noiseAmount > 0.0 ? 1.0 : 0.0;
                 erosionN = 0.0;
             }
-            // Master plan 43: the profile texture's channel g is the type's noise scale factor at this height (FORM SCALE; the pannus' SCALE while cloud.pannus is on; 0: none): the shape
-            // noise is read at pc (1 + g), so a type's features can be finer than the layer's noise scale (which is the coarsest type's).
-            float3 pcN = pc;
-            [branch] if (pf.g > 0.0) pcN = pc * (1.0 + pf.g);
-            float s = NoiseShare(li, pcN, covN, coverage, edgeN, amountN, erosionN, light);
+            // Master plan 43: the profile texture's channel g is the type's erosion gain at this height (FORM EROSION; the pannus' EROSION while cloud.pannus is on; 0: none): the fine
+            // detail eats the outline and the top harder there. Not a scale of pc: pc counts from the planet's centre, and a factor on it that changes with height tore the top into steps.
+            erosionN *= 1.0 + pf.g;
+            float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
                 float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
