@@ -129,9 +129,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var shadow = new CloudShadowFrame();
             OwnCloudOptions.Apply(shadow, Default);
             Assert.AreEqual(4, shadow.Divisor);
-            Assert.IsTrue(CloudLookTuning.LightVolume);
-            Assert.AreEqual(0f, CloudLookTuning.LvHandOverM);
-            Assert.AreEqual(1, CloudLookTuning.LvFarTaps);
         }
 
         [TestMethod]
@@ -154,9 +151,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var shadow = new CloudShadowFrame();
             OwnCloudOptions.Apply(shadow, Default);
             Assert.AreEqual((int)OwnCloudOptions.ShadowResolutionDefault, shadow.Divisor);
-            Assert.IsFalse(CloudLookTuning.LightVolume);
-            Assert.AreEqual(8000f, CloudLookTuning.LvHandOverM);
-            Assert.AreEqual(3, CloudLookTuning.LvFarTaps);
         }
 
         [TestMethod]
@@ -165,7 +159,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.ClearOverrides();
             Tuning.SetOverride(OwnCloudOptions.TuneSpanGrowthPerM, 0f);
             Tuning.SetOverride(OwnCloudOptions.TuneReconRotate, 0f);
-            Tuning.SetOverride(CloudLookTuning.TuneLightVolume, 0f);
             Frame(9300003, true);
             var frame = new LayerFrame();
             OwnCloudOptions.Apply(frame, Default);
@@ -173,7 +166,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var recon = new ReconSettings();
             OwnCloudOptions.Apply(recon, Default);
             Assert.IsFalse(recon.Rotation);
-            Assert.IsFalse(CloudLookTuning.LightVolume);
         }
 
         [TestMethod]
@@ -198,7 +190,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.IsFalse(CloudFastPath.On);
         }
 
-        // The viewer's registry shows the default in force (it used to show the full path's on every tier: the light volume "off", the shortest step 6 m, ... on a Medium
+        // The viewer's registry shows the default in force (it used to show the full path's on every tier: the shortest step 6 m, the rotation off, ... on a Medium
         // tier that runs the fast path).
         [TestMethod]
         public void TheViewersDefaultsAreThoseOfTheTierInForce()
@@ -206,8 +198,6 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Tuning.ClearOverrides();
             var fast = new System.Collections.Generic.Dictionary<string, float>
             {
-                { CloudLookTuning.TuneLightVolume, CloudFastPath.LightVolume }, { CloudLookTuning.TuneLvHandOver, CloudFastPath.LvHandOverKm },
-                { CloudLookTuning.TuneLvFarTaps, CloudFastPath.LvFarTaps },
                 { OwnCloudOptions.TuneSpanGrowthPerM, CloudFastPath.SpanGrowthPerM }, { OwnCloudOptions.TuneShadowResolution, CloudFastPath.ShadowResolution },
                 { OwnCloudOptions.TuneReconRotate, CloudFastPath.ReconRotate }, { OwnCloudOptions.TuneTrueDistance, 1f }, { OwnCloudOptions.TuneAge, 1f },
                 { OwnCloudOptions.TuneMarchTriangle, 1f }, { OwnCloudOptions.TuneDistanceReject, CloudFastPath.DistanceReject }, { OwnCloudOptions.TuneClipSigma, CloudFastPath.ClipSigma }

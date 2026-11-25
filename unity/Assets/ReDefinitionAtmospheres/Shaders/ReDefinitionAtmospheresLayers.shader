@@ -24,7 +24,7 @@
 // Passes: 0 march into a premultiplied (radiance, alpha) target, 1 depth-aware composite over the camera target, 2 aux output
 // (alpha, tau, steps, first hit distance) for the parity checks and the aid pictures, 3 light cache fill (T03), 4 the final composite with the
 // display stage, 5 the culling's tile map (T16), 6 the march with the cloud's distance in a second target (recon.trueDistance), 7 the march
-// drawn as one procedural triangle (recon.marchTriangle), 8 light volume fill (LV1, keyword CLOUD_LIGHTVOL), 9 the light volume's blur (LV3).
+// drawn as one procedural triangle (recon.marchTriangle). The light volume's fill (pass 8) and blur (pass 9) were removed with the volume (master plan 44 steps 2 and 5).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader
@@ -1117,8 +1117,6 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.5
-            // LV1 (cloud.lightVolume): the sun's light beyond the hand-over distance from the light volume (LightVolume.cs); no keyword: today's march.
-            #pragma multi_compile_local __ CLOUD_LIGHTVOL
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
@@ -1215,8 +1213,7 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vertProc
             #pragma fragment frag
             #pragma target 3.5
-            // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
-            #pragma multi_compile_local __ CLOUD_LIGHTVOL
+            // The keyword variants of pass 0 (the lattice sky, the test variant), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             MarchTargets frag(v2f i) { return Pass0Targets(i); }
@@ -1231,64 +1228,10 @@ Shader "ReDefinition/AtmospheresLayers"
             #pragma vertex vertProc
             #pragma fragment frag
             #pragma target 3.5
-            // The keyword variants of pass 0 (the light volume, the map-driven sky), so that the march is the same whichever pass draws it.
-            #pragma multi_compile_local __ CLOUD_LIGHTVOL
+            // The keyword variants of pass 0 (the lattice sky, the test variant), so that the march is the same whichever pass draws it.
             #pragma multi_compile_local __ CLOUD_LATTICE
             #pragma multi_compile_local __ CLOUD_DEV
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
-            ENDCG
-        }
-
-        // Pass 8 (LV1): fills one slice (_LvSlice.x) of one cascade (_LvSlice.y) of the light volume with the optical depth towards the sun at the voxel centres (LightVolume.cs).
-        // A texel holds the voxel of its window (origin _LvSlice.zw) whose index is congruent to the texel's modulo the window's size (wrap-around addressing).
-        Pass
-        {
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma target 3.5
-            #pragma multi_compile_local CLOUD_LIGHTVOL
-            // The map-driven sky's density read, as in the march and the light cache's fill.
-            #pragma multi_compile_local __ CLOUD_LATTICE
-            #pragma multi_compile_local __ CLOUD_DEV
-            float4 frag(v2f i) : SV_Target
-            {
-                float gridN = _LvC.z;
-                bool far = _LvSlice.y > 0.5;
-                float vox = far ? _LvC.y : _LvC.x;
-                float2 tx = min(floor(i.uv * gridN), gridN - 1.0);
-                float2 rel = tx - _LvSlice.zw;
-                float2 idx = _LvSlice.zw + rel - gridN * floor(rel / gridN);
-                float2 xy = (idx + 0.5) * vox;
-                float sliceH = (_LvZ.y - _LvZ.x) / max(_LvZ.z, 1.0);
-                float alt = _LvZ.x + (_LvSlice.x + 0.5) * sliceH;
-                float3 p = normalize(_LvU.xyz + (xy.x * _LvE.xyz + xy.y * _LvN.xyz) / _PlanetR) * (_PlanetR + alt);
-                // The march reads the volume at the end of its far near taps (at most _LvA.z taps of the sun march from a sample inside a layer's shell) through the trilinear fetch
-                // (one voxel diagonal): a voxel farther than both from every shell is never read and stays empty.
-                int steps = _LightT.y > 0.5 ? (int)_LightT.y : (int)_MarchP.y;
-                int keep = min((int)_LvA.z, steps - 1);
-                float near = LightVolumeNear(keep, steps, p, _Sun.xyz);
-                float reach = length(float2(sqrt(2.0) * vox, sliceH)) + near;
-                bool read = false;
-                [loop] for (int lj = 0; lj < MAXL; lj++)
-                {
-                    if (lj >= (int)_LayerCount) break;
-                    float inner = _LayerA[lj].z, outer = _LayerA[lj].w;
-                    float lowest = inner > 0 ? inner - reach : (_StepP.w > 0.5 ? -reach : -1e30);
-                    if (alt <= outer + reach && alt >= lowest) read = true;
-                }
-                if (!read) return float4(0, 0, 0, 0);
-                float3 s = _Sun.xyz;
-                // _LvF.x 0: the march's own taps beyond the far path's near ones (their count, their growth, the rest of the sun march's length); above 0: that many taps growing by
-                // _LvF.y over the whole length.
-                bool own = _LvF.x < 0.5;
-                int taps = own ? max(1, steps - keep) : (int)_LvF.x;
-                float range = own ? max(_Sun.w - near, 1.0) : _Sun.w;
-                float ratio = own ? _LightR.y : _LvF.y;
-                // The density as the march reads it at this voxel's distance from the camera (a layer's distance fade).
-                float camDist = length(p - (_CamPos.xyz - _PlanetCenter.xyz));
-                return float4(LightVolumeEncode(LightTau(p, s, -1, taps, camDist, 0, range, ratio)), 0, 0, 0);
-            }
             ENDCG
         }
     }

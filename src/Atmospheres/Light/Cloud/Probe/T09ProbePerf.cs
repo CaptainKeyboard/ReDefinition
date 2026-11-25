@@ -133,9 +133,6 @@ namespace ReDefinition.Atmospheres
                 case "r3td":
                 case "pre":
                 case "combo":
-                case "lvall":
-                case "lvall2":
-                case "lvallr3":
                 case "samp75":
                 case "samp50":
                 case "r3samp75":
@@ -143,24 +140,12 @@ namespace ReDefinition.Atmospheres
                 case "third":
                 case "thirds75":
                 case "r3s50":
-                case "r3s50lv":
                 case "leap0":
                 case "leap2":
                 case "leap4":
                 case "leap2r3":
-                case "r4lv":
-                case "r3lvf20":
-                case "r3lvf10":
-                case "r4lvf20":
-                case "r4lvs75":
-                case "r4lvsh":
-                case "r4lvsg":
-                case "r4lvsgsh":
-                case "r4lvsg75sh":
-                case "r4lvsg50sh":
                 case "fpnorot":
                 case "fpnohist":
-                case "fpnolv":
                 case "fpnosg":
                 case "fpshfull":
                 case "hnoage":
@@ -311,10 +296,6 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
                     ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
                     break;
-                // The light-volume fps block (2026-11-21): the sun's light of every lit sample from the volume (CloudLight.cginc LightVolumePlan: with the hand-over at 0 the far
-                // path's share is saturate(dist / _LvA.y) with _LvA.y = max(band x 0, 1 m) (LightVolume.cs Bind), so 1 beyond a metre and cloud.lightVolume.band has no width
-                // to keep the full march in; the share is then multiplied by the volume read's weight, below 1 only outside or at the fade of a cascade's window), the far
-                // path's near taps 1 (lvall) or 2 (lvall2); lvallr3 is lvall with recon.rotate 3 and recon.trueDistance 1. The volume's other keys stay at their defaults.
                 // The step budget block (2026-11-21): the march's most samples per span. OwnCloudOptions.Apply(LayerFrame): f.MaxSteps = clamp(round(ScaleSamples(the step
                 // quality's maxSteps, cloudSamples) x layers.gridFine), 4, 256); at Medium 48 x 256 / 48 = 256 x gridFine 1 (GridFineDefault) = 256. samp75 / samp50 set
                 // layers.gridFine 0.75 / 0.5 (192 / 128 samples per span at most); r3samp75 adds recon.rotate 3 and recon.trueDistance 1 to samp75.
@@ -334,7 +315,6 @@ namespace ReDefinition.Atmospheres
                 //   third      recon.resolution 0.33 (pre's march size, a ninth of the pixels a frame like a 3 x 3 rotation; without the rotation, as above)
                 //   thirds75   third + layers.gridFine 0.75
                 //   r3s50      recon.rotate 3 + recon.trueDistance 1 + layers.gridFine 0.5
-                //   r3s50lv    r3s50 + cloud.lightVolume 1, cloud.lightVolume.handOverKm 0, cloud.lightVolume.farTaps 1
                 // The empty-leap block (2026-11-21): layers.leapScale (LayerFrame.LeapScales -> _SpacingP.z; default 1, OwnCloudOptions.LeapScaleDefault), the longest leap over empty grid
                 // points in the layer's noise scales (Layers.shader leapCap). leap0 the march without the leap, leap2 / leap4 two and four noise scales, leap2r3 leap2 with
                 // recon.rotate 3 and recon.trueDistance 1. (layers.emptyLeap only raises the floor leapMax of that cap, so 2 to 8 change nothing where a layer has a noise scale.)
@@ -353,89 +333,19 @@ namespace ReDefinition.Atmospheres
                 case "third":
                 case "thirds75":
                 case "r3s50":
-                case "r3s50lv":
                     if (name == "half") ForceTuning(OwnCloudOptions.TuneReconResolution, 0.5f);
                     if (name == "third" || name == "thirds75") ForceTuning(OwnCloudOptions.TuneReconResolution, 0.33f);
                     if (name == "thirds75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
-                    if (name == "r3s50" || name == "r3s50lv")
+                    if (name == "r3s50")
                     {
                         ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
                         ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
                         ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
                     }
-                    if (name == "r3s50lv")
-                    {
-                        ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
-                        ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
-                        ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
-                    }
-                    break;
-                // The 48 fps block on the cleaned-up code (2026-11-22, prio 2: quality may drop for now): the light volume (lvall's keys) with the rotation and a far fade.
-                //   r4lv     r4n (4 x 4 rotation with the new history) + the light volume
-                //   r3lvf20  lvallr3 + cloud.fadeFarM 20 km with the march ending there (layers.costCutM 20 km): the clouds fade out towards 20 km, so the cut
-                //            leaves a correct picture; r3lvf10 the same at 10 km
-                //   r4lvf20  r4lv + the 20 km fade and cut
-                //   r4lvs75  r4lv + layers.gridFine 0.75
-                case "r4lv":
-                case "r3lvf20":
-                case "r3lvf10":
-                case "r4lvf20":
-                case "r4lvs75":
-                // The far points block (2026-11-22): r4lv with the cloud shadow at its cheapest (sh: cloudShadowQuality 0 and shadow.resolution 4, as shadowlow) and the
-                // span's points by distance (sg: layers.spanGrowthPerM 0.001, the player's sg1000, wolken-m2a-technik 12.7/12.8); sg75 / sg50 with layers.gridFine 0.75 / 0.5.
-                case "r4lvsh":
-                case "r4lvsg":
-                case "r4lvsgsh":
-                case "r4lvsg75sh":
-                case "r4lvsg50sh":
-                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
-                    ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
-                    ForceTuning(CloudLookTuning.TuneLvFarTaps, 1f);
-                    if (name.StartsWith("r3"))
-                    {
-                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
-                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
-                    }
-                    else
-                    {
-                        ForceTuning(OwnCloudOptions.TuneReconRotate, 4f);
-                        ForceTuning(OwnCloudOptions.TuneMarchTriangle, 1f);
-                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
-                        ForceTuning(OwnCloudOptions.TuneAge, 1f);
-                        ForceTuning(OwnCloudOptions.TuneDistanceReject, 0.3f);
-                        ForceTuning(OwnCloudOptions.TuneClipSigma, 2f);
-                    }
-                    if (name.EndsWith("f20") || name.EndsWith("f10"))
-                    {
-                        float farM = name.EndsWith("f10") ? 10000f : 20000f;
-                        ForceTuning(CloudLookTuning.TuneFadeFar, farM);
-                        ForceTuning(OwnCloudOptions.TuneCostCutM, farM);
-                    }
-                    if (name == "r4lvs75") ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
-                    if (name.Contains("sg")) ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.001f);
-                    if (name.Contains("sg75")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.75f);
-                    if (name.Contains("sg50")) ForceTuning(OwnCloudOptions.TuneGridFine, 0.5f);
-                    if (name.EndsWith("sh"))
-                    {
-                        SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, 0.0);
-                        ForceTuning(OwnCloudOptions.TuneShadowResolution, 4f);
-                    }
-                    break;
-                case "lvall":
-                case "lvall2":
-                case "lvallr3":
-                    ForceTuning(CloudLookTuning.TuneLightVolume, 1f);
-                    ForceTuning(CloudLookTuning.TuneLvHandOver, 0f);
-                    ForceTuning(CloudLookTuning.TuneLvFarTaps, name == "lvall2" ? 2f : 1f);
-                    if (name == "lvallr3")
-                    {
-                        ForceTuning(OwnCloudOptions.TuneReconRotate, 3f);
-                        ForceTuning(OwnCloudOptions.TuneTrueDistance, 1f);
-                    }
                     break;
                 // The grid hunt (2026-11-22, PRUEFPROTOKOLL 75: a regular 16-render-pixel grid over the storm's ground view with the map sky): one part of the fast cloud
                 // path off each (CloudFastPath): fpnorot the 4 x 4 rotation (recon.rotate 0: the setting's own), fpnohist the march's distance history (trueDistance, age,
-                // distanceReject, clipSigma back to their full-path values), fpnolv the light volume, fpnosg the points by distance, fpshfull the full cloud shadow.
+                // distanceReject, clipSigma back to their full-path values), fpnosg the points by distance, fpshfull the full cloud shadow.
                 case "fpnorot": ForceTuning(OwnCloudOptions.TuneReconRotate, 0f); break;
                 case "fpnohist":
                     ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f);
@@ -444,7 +354,6 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault);
                     ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
                     break;
-                case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
                 // The grid hunt, step 2 (PRUEFPROTOKOLL 76: the grid goes with the five history keys off together, fpnohist): one key back to its full-path value each.
                 case "hnoage": ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f); break;
                 case "hnodr": ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault); break;
@@ -495,17 +404,15 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(CloudDevVariant.TuneForce, 1f);
                     ForceTuning(OwnCloudOptions.TuneCostDebug, 16f);
                     break;
-                // The cost of the other layers' even light taps (PRUEFPROTOKOLL 206) on the full light march (the light volume off, the march's own light everywhere, as at High),
-                // both on the test variant: fullnew / fullnew2 the even taps, fullold / fullold2 the former ones (layers.costDebug bit 32).
+                // The cost of the other layers' even light taps (PRUEFPROTOKOLL 206) on the full light march, both on the test variant: fullnew / fullnew2 the even taps,
+                // fullold / fullold2 the former ones (layers.costDebug bit 32).
                 case "fullnew":
                 case "fullnew2":
                     ForceTuning(CloudDevVariant.TuneForce, 1f);
-                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
                     break;
                 case "fullold":
                 case "fullold2":
                     ForceTuning(CloudDevVariant.TuneForce, 1f);
-                    ForceTuning(CloudLookTuning.TuneLightVolume, 0f);
                     ForceTuning(OwnCloudOptions.TuneCostDebug, 32f);
                     break;
                 // The cost of the undulatus default (cloud.undulatus 1 since e3c0d370): und0 / und0b with it off, to alternate with plain and plain2.

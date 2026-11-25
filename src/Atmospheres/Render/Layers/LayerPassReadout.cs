@@ -20,25 +20,24 @@ namespace ReDefinition.Atmospheres
             "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_UndulatusP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
             "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BulgeP", "_CumuliformP", "_BlendP", "_MapReachCov", "_MapReachType",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheX", "_CacheY", "_CacheZ", "_CacheH", "_CacheSlice",
-            "_LvA", "_LvU", "_LvE", "_LvN", "_LvZ", "_LvC", "_LvF", "_LvSlice", "_LvR",
             "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullD", "_CullT", "_EdgeP", "_FieldP", "_CellK"
         };
 
         internal static readonly string[] Arrays =
         {
             "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_TypeUndulatus", "_TypeTopRough", "_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
-            "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_LvO", "_FieldC", "_CellE", "_CellS"
+            "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_FieldC", "_CellE", "_CellS"
         };
 
         internal static readonly string[] Textures =
         {
             "_TypeProfile", "_TypeInfo", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
-            "_NoiseColour", "_LightCache", "_LightVolume", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
+            "_NoiseColour", "_LightCache", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
         };
 
-        // The local keywords the layer shader declares (multi_compile_local; LightVolume.Keyword, LayerRenderer.LatticeKeyword, CloudDevVariant.Keyword): the
-        // readout says for each whether the material has it on.
-        internal static readonly string[] Keywords = { "CLOUD_LIGHTVOL", "CLOUD_LATTICE", "CLOUD_DEV" };
+        // The local keywords the layer shader declares (multi_compile_local; LayerRenderer.LatticeKeyword, CloudDevVariant.Keyword): the readout says for each whether the
+        // material has it on.
+        internal static readonly string[] Keywords = { "CLOUD_LATTICE", "CLOUD_DEV" };
 
         // Where the numbers come from: a material in the game and in the player, a stand-in in the tests.
         internal interface ISource

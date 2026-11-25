@@ -41,10 +41,11 @@ namespace ReDefinition.Atmospheres
         // chose on 2026-11-17: in the player's photo framing the cloud converges steadily from 96 (wider, soft) over 160 and 192 to 256, which matches the ceiling march (b_ng*, b_c256).
         // Low keeps 48 (its tier is the cost); 256's cost in the game is measured after the look (owner order 2026-11-17: the look first, then the performance).
         internal int CloudSamples { get; }
-        // The fast cloud path (owner 2026-11-22: Medium at >= 48 fps in the game, PRUEFPROTOKOLL 68, probe variant r4lvsgsh): the light volume for the sun's light of every
-        // lit sample, the 4 x 4 rotation with the march's own distance history, a span's points by distance and the cloud shadow at a quarter size. CloudFastPath.cs
-        // turns it into the defaults of those tuning keys; a key set by hand still wins. Measured at 2560 x 1440, DLSS Quality, A4500, n = 2: ground / inside / above /
-        // sky 52 / 55 / 50 / 58 fps against 23 / 18 / 16 / 26 without it. Low takes it too (a lower tier is never slower than Medium); High and above keep the full march.
+        // The fast cloud path (owner 2026-11-22: Medium at >= 48 fps in the game, PRUEFPROTOKOLL 68): the 4 x 4 rotation with the march's own distance history, a span's
+        // points by distance and the cloud shadow at a quarter size. CloudFastPath.cs turns it into the defaults of those tuning keys; a key set by hand still wins. Its
+        // light volume was removed on 2026-11-25 (owner, PRUEFPROTOKOLL 261-263): every tier lights the clouds with the full sun march. Measured at 2560 x 1440, DLSS
+        // Quality, A4500 without the volume: fair 56.9 / 58.4 / 59.5 / 57.9 fps, storm 53.1 / 58.7 / 53.1 / 52.9 (ground / inside / above / sky). Low takes it too
+        // (a lower tier is never slower than Medium); High and above do not take it (High ran with the 2 x 2 rotation in PRUEFPROTOKOLL 263).
         internal bool CloudFastPath { get; }
         // Key cloudShadowQuality: Low (4 steps, 1 tap) with the fast path (the shadow pass 4.5 -> 0.15 ms from above), the setting's default Medium otherwise.
         internal CloudDetailLevel CloudShadowQuality { get; }
