@@ -72,6 +72,7 @@ namespace ReDefinition.Atmospheres
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
         internal Curve PannusErosion { get; set; }
+        internal Curve PannusAmount { get; set; }
         // The type's form (cfg node FORM { EROSION, AMOUNT }; null: none): see CloudTypeDef.FormErosion.
         internal Curve FormErosion { get; set; }
         internal Curve FormAmount { get; set; }
@@ -98,7 +99,7 @@ namespace ReDefinition.Atmospheres
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 Lift = Lift, Climate = Climate,
                 ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, TopRoughness = TopRoughness, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form,
-                PannusProfile = PannusProfile, PannusLift = PannusLift, PannusErosion = PannusErosion, FormErosion = FormErosion, FormAmount = FormAmount
+                PannusProfile = PannusProfile, PannusLift = PannusLift, PannusErosion = PannusErosion, PannusAmount = PannusAmount, FormErosion = FormErosion, FormAmount = FormAmount
             };
         }
     }

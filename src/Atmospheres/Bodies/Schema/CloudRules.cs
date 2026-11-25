@@ -128,9 +128,20 @@ namespace ReDefinition.Atmospheres
             return At(FormErosion, h);
         }
 
-        // The extra noise amount b at h (the FORM's AMOUNT; 0: none).
+        // The pannus' noise amount by height (cfg node PANNUS { AMOUNT { key0 = height extra } }, -0.95 to 8; null: none): below 0 the layer's coarse noise is weakened in the shreds'
+        // band, so the band stands evenly near the threshold and the fine erosion detail (PANNUS EROSION) cuts the shreds; the 10 km noise alone drew one smooth slab of several km there
+        // (TypeFormSliceTool, 11-25 08:4x).
+        internal Curve PannusAmount { get; set; }
+
+        // The extra noise amount b at h: the pannus' AMOUNT where the pannus is drawn, else the FORM's AMOUNT (0: none).
         internal double NoiseAmountAt(double h)
         {
+            return NoiseAmountAt(h, false);
+        }
+
+        internal double NoiseAmountAt(double h, bool pannus)
+        {
+            if (pannus && PannusProfile != null && PannusAmount != null) return At(PannusAmount, h);
             return At(FormAmount, h);
         }
 

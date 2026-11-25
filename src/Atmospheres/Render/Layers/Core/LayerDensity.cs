@@ -203,7 +203,7 @@ namespace ReDefinition.Atmospheres
                     profile[t * ProfileSamples + i] = (float)(drawn.Evaluate((float)h) * type.ProfileFactor(h, soft));
                     lift[t * ProfileSamples + i] = (float)type.BakedLiftAt(h, pannus);
                     erosionGain[t * ProfileSamples + i] = (float)type.ErosionGainAt(h, pannus);
-                    float extra = (float)type.NoiseAmountAt(h);
+                    float extra = (float)type.NoiseAmountAt(h, pannus);
                     noiseAmount[t * ProfileSamples + i] = extra;
                     if (extra > maxAmount) maxAmount = extra;
                 }

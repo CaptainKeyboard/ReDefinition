@@ -114,7 +114,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 Assert.AreEqual(0f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + i], "off: the nimbostratus' erosion is as before");
             Set(1f);
             int band = (int)(0.05 * (LayerTypeTable.ProfileSamples - 1)), deck = (int)(0.5 * (LayerTypeTable.ProfileSamples - 1));
-            Assert.AreEqual(2f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the shreds' band is eroded 3 times harder");
+            Assert.AreEqual(4f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the shreds' band is eroded 5 times harder");
+            Assert.AreEqual(-0.9f, table.NoiseAmountData[ns * LayerTypeTable.ProfileSamples + band], 1e-6, "on: the coarse noise weakened to 0.1 in the shreds' band");
             Assert.AreEqual(0f, table.ErosionGainData[ns * LayerTypeTable.ProfileSamples + deck], 1e-6, "on: the deck keeps its erosion");
             for (int i = 0; i < LayerTypeTable.ProfileSamples; i++)
                 Assert.AreEqual(stratusOff[i], table.ErosionGainData[st * LayerTypeTable.ProfileSamples + i], "a type without a pannus keeps its own form");
