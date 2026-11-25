@@ -43,10 +43,6 @@ namespace ReDefinition.Atmospheres.Viewer
                 KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneFieldWind, 0f, KeySection.Shape,
                 "direction of the cloud streets in degrees from east, counter-clockwise in the map's frame", KeyLiveness.FrameHistory, KeyMarker.Live, -360f, 360f);
-            r.Key(CellCoreProfile.TuneDepth, CellCoreProfile.DepthDefault, KeySection.Shape,
-                "a single cloud's core profile: the depth over which its share rises to the core's, in shares of its shorter semi-axis (0: off, uniform inside)", KeyLiveness.Frame, KeyMarker.Live, 0f, 1f);
-            r.Key(CellCoreProfile.TuneFloor, CellCoreProfile.FloorDefault, KeySection.Shape,
-                "a single cloud's share at its surface against its core's while the core profile is on", KeyLiveness.Frame, KeyMarker.Live, 0f, 1f);
             r.Key(CloudLookTuning.TuneCellBulge, -1f, KeySection.Shape,
                 "how far the bulges move a single cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBulge)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
             r.Key(CloudLookTuning.TuneCellBand, -1f, KeySection.Shape,
