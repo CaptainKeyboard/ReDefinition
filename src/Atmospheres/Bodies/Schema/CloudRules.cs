@@ -72,6 +72,13 @@ namespace ReDefinition.Atmospheres
         // Stratus_clouds_Vodno_4.jpg; from below as lighter and darker bands) while the base stays even; the wavelength cloud.undulatusWavelengthShare of the layer's
         // depth. Drawn only while the tuning key cloud.undulatus is on (default off: the layer of before).
         internal float UndulatusAmount { get; set; }
+        // Master plan 43 step 4, the form from above: the share the type's thickness swings by in SHORT waves (cfg key topRoughness, 0 to 0.5; 0: none). WMO, stratus seen from
+        // an aircraft: "the upper surface generally shows undulations (usually of short wavelengths)". The top moves by a two-octave value noise (HeightRagged) with features of
+        // TopRoughnessWavelengthShare and 1 / 2.31 of it of the layer's depth (420 and 180 m on the 2.1 km low layer); the base stays even. Below about 0.1 the light's
+        // resolution shows nothing of it (0.06 invisible, 0.15 soft bumps at a grazing view; PRUEFPROTOKOLL 245). It moves the top, not the coverage
+        // threshold: a closed deck passes the threshold by a small margin only, so the noise's amount and the erosion either left its top flat or cut it into terraces (PRUEFPROTOKOLL 242, 243).
+        internal float TopRoughness { get; set; }
+        internal const float TopRoughnessWavelengthShare = 0.2f;
         // The type's climate (E40 L3; cfg node CLIMATE, null: none): see CloudClimateSpec.
         internal CloudClimateSpec Climate { get; set; }
         // How far the shape noise is smoothed where this type is drawn (E40 L6 shape; cfg key shapeSmoothing, in noise scales; below 0: the layer's own, 0: not at all): see

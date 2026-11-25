@@ -66,6 +66,8 @@ namespace ReDefinition.Atmospheres
         internal float Outflow { get; set; }
         // The depth of the type's undulations (cfg key undulatusAmount): see CloudTypeDef.UndulatusAmount.
         internal float UndulatusAmount { get; set; }
+        // The short-wave swing of the type's top (cfg key topRoughness): see CloudTypeDef.TopRoughness.
+        internal float TopRoughness { get; set; }
         // The type's pannus (cfg node PANNUS { PROFILE, LIFT }; null: none): see CloudTypeDef.PannusProfile.
         internal Curve PannusProfile { get; set; }
         internal Curve PannusLift { get; set; }
@@ -95,7 +97,7 @@ namespace ReDefinition.Atmospheres
             {
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 Lift = Lift, Climate = Climate,
-                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form,
+                ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, TopRoughness = TopRoughness, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form,
                 PannusProfile = PannusProfile, PannusLift = PannusLift, PannusErosion = PannusErosion, FormErosion = FormErosion, FormAmount = FormAmount
             };
         }
