@@ -735,6 +735,8 @@ namespace ReDefinition.Atmospheres
             pendingCamera = null;
             SetShell(false);
             Detach();
+            // No own clouds drawn: Scatterer's flare as without them.
+            ScattererFlareClouds.Release();
             if (dropStack) RtOwnClouds.Release();
             if (dropStack && stack != null) DropStack("the pass is off: " + Stats.Why);
         }
@@ -1576,15 +1578,18 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.Inscatter = AerialPerspectivePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
             f.Far.InscatterNear = AerialPerspectivePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
-            // The air at the camera under the clouds (PRUEFPROTOKOLL 272): the share of the sun's flux the own layers above it pass on, from the CPU's cloud field along the sun.
-            f.Far.CameraLitShare = 1f;
+            // The sun's direct transmission through the own layers at the camera, from the CPU's cloud field along the sun: the air under the clouds gets the share of the
+            // flux they pass on (PRUEFPROTOKOLL 272), and Scatterer's sun flare is dimmed by the direct beam (master plan 46.1, ScattererFlareClouds).
+            float sunTransmission = 1f;
             if (sunBody != null && OwnCloudOpticalDepth.Bound)
             {
                 double sla = b.GetLatitude(sunBody.position) * Math.PI / 180.0, slo = b.GetLongitude(sunBody.position) * Math.PI / 180.0;
                 Vector3d camWorld = camPos;
-                f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
-                                                                                                             Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla)));
+                sunTransmission = OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
+                                                                         Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla));
             }
+            f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(sunTransmission);
+            ScattererFlareClouds.Apply(sunTransmission);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
