@@ -46,7 +46,10 @@ namespace ReDefinition.Atmospheres
         // What Scatterer's ocean buffer records: the own cloud shadow where it is on, else nothing (Scatterer then clears its texture to white).
         private bool Record(CommandBuffer cb, int width, int height, int oceanDepthId)
         {
-            if (cb == null || !renderer.Ready || !enabled()) return false;
+            bool on = cb != null && renderer.Ready && enabled();
+            // Each record is rare (a size change or RecordAgain): the log says what the ocean got (PRUEFPROTOKOLL 281).
+            AtmospheresLog.Say("own clouds: Scatterer's ocean asked for the cloud shadow (" + width + " x " + height + "): " + (on ? "recorded" : "none, the shadow is off"));
+            if (!on) return false;
             renderer.RecordOceanShadows(cb, width, height, new RenderTargetIdentifier(oceanDepthId));
             return true;
         }
@@ -78,6 +81,7 @@ namespace ReDefinition.Atmospheres
                 previous = f.GetValue(h);
                 f.SetValue(h, ours);
                 installed = true;
+                AtmospheresLog.Say("own clouds: the cloud shadow is Scatterer's ocean shadow source (before: " + (previous == null ? "none" : "EVE's") + ")");
                 lastEnabled = false;
                 RecordAgain();
                 return true;
