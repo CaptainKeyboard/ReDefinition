@@ -343,15 +343,13 @@ namespace ReDefinition.Atmospheres
         // The parts of the placed vessel are held kinematic (no forces, no joint loads) for as long as the placement stands, as LandProbe.Hover holds its capsule. A loaded rocket put in
         // the air and held by repeated SetPosition lost 14 of 64 parts at once in K-T2 (Parsek: radial decoupler, fuel tanks and a landing leg 'JointBreak', 0.1 s after the
         // placement, the vessel unpacked for 40 s by then); a pad vessel placed while still packed was snapped 308 m down at its unpacking and shed 25 debris vessels (K-V1, K-S1,
-        // K-S2). The key viewer.freezeParts (default on) puts the hold back to the old way. StopHold gives the parts back to the physics.
-        internal const string FreezeKey = "viewer.freezeParts";
+        // K-S2). StopHold gives the parts back to the physics.
         private readonly System.Collections.Generic.List<Rigidbody> frozen = new System.Collections.Generic.List<Rigidbody>();
         private static int frozenParts;
 
         private void FreezeParts(Vessel vessel)
         {
             ThawParts();
-            if (!Tuning.Flag(FreezeKey, true)) return;
             try
             {
                 foreach (Part part in vessel.parts)

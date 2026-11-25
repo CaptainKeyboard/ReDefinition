@@ -266,19 +266,6 @@ namespace ReDefinition.Tests.Atmospheres.C20
         }
 
         [TestMethod]
-        public void FreezingRainIsRareAndDeterministic()
-        {
-            int hits = 0;
-            for (int slot = 0; slot < 20000; slot++)
-            {
-                bool a = PrecipTypeModel.FreezingRainFlag(slot * 600.0 + 5.0, 7);
-                Assert.AreEqual(a, PrecipTypeModel.FreezingRainFlag(slot * 600.0 + 300.0, 7), "one answer per ten minutes");
-                if (a) hits++;
-            }
-            Assert.IsTrue(hits > 20000 * 0.06 && hits < 20000 * 0.10, "share " + hits / 20000.0);
-        }
-
-        [TestMethod]
         public void TheBodyKindOfDustAndSandComesFromItsRule()
         {
             var dust = new PrecipRules(new[] { new PrecipTypeRule("dust", PrecipType.Dust) });

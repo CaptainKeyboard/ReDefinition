@@ -36,9 +36,8 @@ namespace ReDefinition.Atmospheres
         public float OpticalDepth;
         // The colours of the body's look (linear).
         public Color VisibilityExtinctionColour, PrecipExtinctionGroundColour, PrecipExtinctionSkyColour;
-        // Whether the shower pulse is on; whether the freezing-rain flag is allowed.
+        // Whether the shower pulse is on.
         public bool ShowerPulse;
-        public bool FreezingRain;
         // A level that replaces the field's (diagnostics), or a negative number for none.
         public float LevelOverride;
         // The player's scales of the 1.0 column (settings extinctionStrength / 0.85, blizzardVisibilityM / 60, skyDimming / 0.6); 1 is the
@@ -89,7 +88,6 @@ namespace ReDefinition.Atmospheres
         private float hydrometeorDirection;
         private TypeMix mix;
         private float lastExtinctionDensity;
-        private bool lastFreezing;
         private long layersBuiltFor = -1;
         private readonly HydrometeorLayer[] layerTemplate = new HydrometeorLayer[3];
 
@@ -193,13 +191,6 @@ namespace ReDefinition.Atmospheres
                         : PrecipTypeModel.Mix(input.Sample.TemperatureK, displayLevel, input.CentreC, input.WidthC);
                     mix = PrecipTypeModel.Limit(mix, targetMix, input.DtGame, jump);
                     type = mix.Dominant;
-                    lastFreezing = false;
-                    if (input.FreezingRain && (type == PrecipType.Rain || type == PrecipType.Sleet) && !float.IsNaN(input.Sample.TemperatureK)
-                        && input.Sample.TemperatureK < 273.15f && mix.Snow > 0.2f && mix.Snow < 0.8f && PrecipTypeModel.FreezingRainFlag(input.Ut, input.Seed))
-                    {
-                        type = PrecipType.FreezingRain;
-                        lastFreezing = true;
-                    }
                 }
             }
             else
@@ -293,12 +284,6 @@ namespace ReDefinition.Atmospheres
             view.Readiness = input.Sample.Readiness;
             lastExtinctionDensity = extinctionDensity;
             view.Publish(input.FrameCount, moved);
-        }
-
-        // Whether the last frame set the freezing-rain flag.
-        internal bool FreezingRain
-        {
-            get { return lastFreezing; }
         }
 
         // The visibility extinction density (Unity's exp2 fog density) of the last frame.

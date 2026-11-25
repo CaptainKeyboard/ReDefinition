@@ -43,8 +43,6 @@ namespace ReDefinition.Atmospheres
         // forecast, the cover and the ground effects (the generator's fractions) and the sky (this) are one model.
         internal const float DefaultCentreC = (float)AtmoSim.Core.PrecipTypeMath.DefaultCentreC, DefaultWidthC = (float)AtmoSim.Core.PrecipTypeMath.DefaultWidthC;
         internal const float WetBulbOffsetLightK = (float)AtmoSim.Core.PrecipTypeMath.WetBulbOffsetLightK, WetBulbOffsetHeavyK = (float)AtmoSim.Core.PrecipTypeMath.WetBulbOffsetHeavyK;
-        // The chance of freezing rain per ten minutes of game time inside the transition zone, when the flag is on.
-        internal const float FreezingRainChance = 0.08f;
         // The most a fraction may change per second of game time: 0.1 per game minute.
         internal const float MaxFractionPerGameSecond = 0.1f / 60f;
 
@@ -93,17 +91,6 @@ namespace ReDefinition.Atmospheres
                 if (k == PrecipType.Dust || k == PrecipType.Sand || k == PrecipType.Ash || k == PrecipType.Methane) return k;
             }
             return PrecipType.None;
-        }
-
-        // Whether the freezing-rain flag is set for that time and seed: the same answer for the same ten minutes of game time.
-        internal static bool FreezingRainFlag(double ut, int seed)
-        {
-            long slot = (long)Math.Floor(ut / 600.0);
-            uint h = unchecked((uint)(slot * 2654435761L) ^ (uint)seed * 2246822519u);
-            h ^= h >> 15;
-            h = unchecked(h * 2246822519u);
-            h ^= h >> 13;
-            return (h & 0xFFFFFF) / (float)0x1000000 < FreezingRainChance;
         }
 
         // The mix one step on: snow and rain move towards the target by at most half of MaxFractionPerGameSecond each, and sleet is the

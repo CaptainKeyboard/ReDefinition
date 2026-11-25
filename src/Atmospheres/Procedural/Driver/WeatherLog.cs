@@ -12,8 +12,7 @@ namespace ReDefinition.Atmospheres
         internal static string DriverReady()
         {
             return "frame driver ready in flight: the single writer of the weather view (LateUpdate), light written in Camera.onPreCull; "
-                   + "shower pulse " + (Tuning.Flag("driver.showerPulse", true) ? "on" : "off")
-                   + ", freezing rain " + (Tuning.Flag("driver.freezingRain", false) ? "on" : "off");
+                   + "shower pulse " + (Tuning.Flag("driver.showerPulse", true) ? "on" : "off");
         }
 
         // The band or the type changed: the numbers that follow from the level.

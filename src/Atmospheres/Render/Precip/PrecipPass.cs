@@ -20,7 +20,6 @@ namespace ReDefinition.Atmospheres
         public int TargetWidth, TargetHeight;
         // The render-size depth the host gave, or null.
         public RenderTexture Depth;
-        public bool DepthFlipY;
         // The camera's place in the frame, in metres, accumulated (double), and the time in seconds mod 60.
         public double CamE, CamU, CamN;
         public float TimeMod60;
@@ -140,7 +139,7 @@ namespace ReDefinition.Atmospheres
             if (weight <= 0f) return;
             PrecipTuning tuning = draw.Tuning;
 
-            Vector4 target = new Vector4(draw.TargetWidth, draw.TargetHeight, draw.DepthFlipY ? 1f : 0f, draw.Host && draw.Depth != null ? 1f : 0f);
+            Vector4 target = new Vector4(draw.TargetWidth, draw.TargetHeight, 0f, draw.Host && draw.Depth != null ? 1f : 0f);
 
             // The extinction first, so that the hydrometeors are not washed out by it.
             if (frame.ExtinctionGround > 0.001f || frame.ExtinctionSky > 0.001f)
