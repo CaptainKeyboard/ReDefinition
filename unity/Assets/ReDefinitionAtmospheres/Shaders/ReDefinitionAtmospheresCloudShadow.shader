@@ -1,5 +1,5 @@
 // The cloud shadow of the own cloud system (package T04): the share of the sun's direct light that the layers let through, per pixel, into the
-// sun's shadow mask (deferred) or as a colour multiply (forward), at half resolution, plus the map view's disc and the ocean's texture.
+// sun's shadow mask (deferred) or as a colour multiply (forward), at half resolution, plus the map view's disc.
 //
 // Per pixel: the world position comes from the (downscaled) depth; the sun ray from there goes up through every layer's shell (the spans of
 // LayerGeometry.ShellSpans); the optical depth is the midpoint sum of the density along it (the CPU mirror CloudShadowField), averaged over a few
