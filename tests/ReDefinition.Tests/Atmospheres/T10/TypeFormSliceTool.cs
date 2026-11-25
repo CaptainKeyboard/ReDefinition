@@ -49,19 +49,16 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var text = new StringBuilder();
             text.AppendLine("layer type pannus | band(h) area_share mean_density | top_height_p10_p90_m");
             foreach (string[] lt in Types)
-                foreach (bool pannus in new[] { false, true })
-                {
-                    Tuning.ClearOverrides();
-                    if (pannus) Tuning.SetOverride(CloudLookTuning.TunePannus, 1f);
-                    Tuning.BeginFrame(++frame);
-                    CloudLayerDef layer = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == lt[0]).Build(1);
-                    int type = -1;
-                    for (int i = 0; i < layer.Types.Count; i++) if (layer.Types[i].Name == lt[1]) type = i;
-                    if (type < 0) continue;
-                    if (pannus && layer.Types[type].PannusProfile == null) continue;
-                    var table = new LayerTypeTable(layer);
-                    Write(folder, set, layer, table, type, pannus, text);
-                }
+            {
+                Tuning.ClearOverrides();
+                Tuning.BeginFrame(++frame);
+                CloudLayerDef layer = CloudLayerSchemaTests.ParseKerbin().Climate.Clouds.Layers.Single(l => l.Name == lt[0]).Build(1);
+                int type = -1;
+                for (int i = 0; i < layer.Types.Count; i++) if (layer.Types[i].Name == lt[1]) type = i;
+                if (type < 0) continue;
+                var table = new LayerTypeTable(layer);
+                Write(folder, set, layer, table, type, layer.Types[type].PannusProfile != null, text);
+            }
             File.WriteAllText(Path.Combine(folder, "form.txt"), text.ToString());
         }
 

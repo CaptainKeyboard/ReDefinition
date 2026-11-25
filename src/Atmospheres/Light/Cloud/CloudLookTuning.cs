@@ -51,7 +51,6 @@ namespace ReDefinition.Atmospheres
         private static float cumuliformForce = -1f, edgeForce, cavityForce = -1f, cumuliformFoot = 1f, cumuliformIso = 1f;
         // cloud.field as last read (the type table's cumuliform, edge and cavity follow it, LayerDensity: a change must re-upload the table).
         private static float fieldState = -1f;
-        private static float pannusState = -1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -104,10 +103,8 @@ namespace ReDefinition.Atmospheres
             float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneCumuliformFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneCumuliformIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
             float fd = Tuning.Get(TuneField, FieldDefault) > 0.5f ? 1f : 0f;
-            float pn = Tuning.Get(TunePannus, PannusDefault) > 0.5f ? 1f : 0f;
-            bool changed = hf != cumuliformForce || ef != edgeForce || cf != cavityForce || ft != cumuliformFoot || hi != cumuliformIso || fd != fieldState || pn != pannusState;
+            bool changed = hf != cumuliformForce || ef != edgeForce || cf != cavityForce || ft != cumuliformFoot || hi != cumuliformIso || fd != fieldState;
             fieldState = fd;
-            pannusState = pn;
             cumuliformIso = hi;
             cumuliformForce = hf;
             edgeForce = ef;
@@ -300,11 +297,6 @@ namespace ReDefinition.Atmospheres
         internal const float FieldDefault = 1f;
         internal static bool Field { get { return Tuning.Get(TuneField, FieldDefault) > 0.5f; } }
         internal static float FieldWindDeg { get { return Clean(Tuning.Get(TuneFieldWind, 0f), 0f, -360f, 360f); } }
-        // cloud.pannus (M2c 4a(1), 2026-11-24): 1 draws the pannus of the types that have one (cfg node PANNUS: the ragged shreds below a nimbostratus deck, CloudTypeDef.PannusProfile);
-        // 0 (the default until the owner's yes on the pictures) the types as before. A change re-bakes the type tables (the stamp below).
-        internal const string TunePannus = "cloud.pannus";
-        internal const float PannusDefault = 0f;
-        internal static bool Pannus { get { return Tuning.Get(TunePannus, PannusDefault) > 0.5f; } }
         // The body of a single cloud in the viewer (CloudLayerDef.CellBulge, CellBandM, CellFine): cloud.cellBulge, cloud.cellBand and cloud.cellFine set it on every layer with cells where
         // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
         internal const string TuneCellBulge = "cloud.cellBulge", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";

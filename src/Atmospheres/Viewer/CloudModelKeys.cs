@@ -41,8 +41,6 @@ namespace ReDefinition.Atmospheres.Viewer
             r.Flag(CloudLookTuning.TuneField, CloudLookTuning.FieldDefault > 0.5f, KeySection.Shape,
                 "the cumuliform types (form in the cfg) as single clouds placed by the weather map's share and a multi-scale field: a broad size spectrum, clusters and gaps, streets; off: as before",
                 KeyLiveness.FrameHistory);
-            r.Flag(CloudLookTuning.TunePannus, CloudLookTuning.PannusDefault > 0.5f, KeySection.Shape,
-                "M2c: the pannus, ragged shreds below a nimbostratus deck (the types with a PANNUS node in the cfg); off: the types as before", KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneFieldWind, 0f, KeySection.Shape,
                 "direction of the cloud streets in degrees from east, counter-clockwise in the map's frame", KeyLiveness.FrameHistory, KeyMarker.Live, -360f, 360f);
             r.Key(CellCoreProfile.TuneDepth, CellCoreProfile.DepthDefault, KeySection.Shape,
