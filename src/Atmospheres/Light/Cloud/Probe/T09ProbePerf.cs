@@ -161,6 +161,8 @@ namespace ReDefinition.Atmospheres
                 case "fpnorot":
                 case "fpnohist":
                 case "fpnolv":
+                case "lvfill32":
+                case "lvhand5":
                 case "fpnosg":
                 case "fpshfull":
                 case "hnoage":
@@ -445,6 +447,13 @@ namespace ReDefinition.Atmospheres
                     ForceTuning(OwnCloudOptions.TuneClipSigma, OwnCloudOptions.ClipSigmaDefault);
                     break;
                 case "fpnolv": ForceTuning(CloudLookTuning.TuneLightVolume, 0f); break;
+                // Master plan 44 step 5, Low/Medium's light model: the volume's fill over 32 even taps (the pannus' blocks gone, PRUEFPROTOKOLL 252), and the full march up to 5 km
+                // with the volume beyond (the blocks gone and the shreds sharp near the camera, 251).
+                case "lvfill32":
+                    ForceTuning(CloudLookTuning.TuneLvFillTaps, 32f);
+                    ForceTuning(CloudLookTuning.TuneLvFillRatio, 1f);
+                    break;
+                case "lvhand5": ForceTuning(CloudLookTuning.TuneLvHandOver, 5f); break;
                 // The grid hunt, step 2 (PRUEFPROTOKOLL 76: the grid goes with the five history keys off together, fpnohist): one key back to its full-path value each.
                 case "hnoage": ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f); break;
                 case "hnodr": ForceTuning(OwnCloudOptions.TuneDistanceReject, OwnCloudOptions.DistanceRejectDefault); break;
