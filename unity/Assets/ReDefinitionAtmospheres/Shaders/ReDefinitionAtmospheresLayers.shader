@@ -267,6 +267,15 @@ Shader "ReDefinition/AtmospheresLayers"
             // The thickness in m of the cloud slab at the point when it reached the slab test (the type's base to top after the height variation and the undulations); 0 where
             // the sample was made empty before (the map, the layer's reach): the march then takes the layer's thinnest slab (_CullL[li].x).
             float slabM;
+            // What the noise and cell helpers left at the point (their own scratch globals, copied once in LayerDensityEx): the erosion detail's value (PUFF's bulge light),
+            // the cumuliform volume's cavity channel and its type strength (CLOUDR1 P3), whether a single cloud's body was read, the least horizontal distance to another
+            // body (CellProfile), and the depth the march may leap inside a body's shell without meeting its surface (CellShellGap; 0 where no body was read).
+            float noiseD;
+            float cavity;
+            float cavityK;
+            bool bodyRead;
+            float cellOther;
+            float shellGap;
         };
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
@@ -280,12 +289,19 @@ Shader "ReDefinition/AtmospheresLayers"
         }
 
         // light 1: the light march's read (the shape only: no erosion detail, no far-view mean; the inlined copy of the light path is the slim one, CLOUDR2 P4).
-        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
+        float LayerDensityCore(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
         {
             share = 0;
             dr.emptyM = 0;
             dr.slabGap = 0;
             dr.slabM = 0;
+            // The helpers' values: LayerDensityEx copies them after this returns.
+            dr.noiseD = 0;
+            dr.cavity = 1;
+            dr.cavityK = 0;
+            dr.bodyRead = false;
+            dr.cellOther = 1e9;
+            dr.shellGap = 0;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -467,6 +483,19 @@ Shader "ReDefinition/AtmospheresLayers"
             return _LayerB[li].x * s * pf.x * fade;
         }
 
+        // The density read with everything the march takes from it in dr (the helpers' scratch globals copied at this one place).
+        float LayerDensityEx(int li, float3 pc, float alt, float t, int light, out float share, out DensityRead dr)
+        {
+            float density = LayerDensityCore(li, pc, alt, t, light, share, dr);
+            dr.noiseD = gNoiseD;
+            dr.cavity = gCumuliformCav;
+            dr.cavityK = gCumuliformCavK;
+            dr.bodyRead = gBodyRead;
+            dr.cellOther = gCellOther;
+            dr.shellGap = CellShellGap(li);
+            return density;
+        }
+
         float LayerDensity(int li, float3 pc, float alt, float t, out float share, out DensityRead dr)
         {
             return LayerDensityEx(li, pc, alt, t, 0, share, dr);
@@ -635,30 +664,30 @@ Shader "ReDefinition/AtmospheresLayers"
                     DensityRead dr;
                     float dens = LayerDensity(li, pc, alt, t, share, dr) * spanF;
                     // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
-                    // depth (CellShellGap) nor within the reach of a neighbour's body (gCellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
+                    // depth (dr.shellGap) nor within the reach of a neighbour's body (dr.cellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
                     // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
                     // bulges' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
                     float traceGap = -1.0;
-                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && gBodyRead && !(dens > 0))
+                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && dr.bodyRead && !(dens > 0))
                     {
                         float band = CellBand(li);
-                        float gap = min(CellShellGap(li), gCellOther - 4.0 * band);
+                        float gap = min(dr.shellGap, dr.cellOther - 4.0 * band);
                         // Only where it leaps further than the empty reach of the coverage (the grid's own skip below) would.
                         if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(dr.emptyM / dtv)) traceGap = dtv * floor(gap / dtv);
                     }
                     float2 topAlt = float2(dr.topAlt, dr.baseAlt);   // the type's top and base at the sample
                     float slabM = dr.slabM > 0.0 ? dr.slabM : _CullL[li].x;
-                    float bulgeD = gNoiseD;
+                    float bulgeD = dr.noiseD;
                     // CLOUDR1 P3: the cumuliform volume's cavity channel at the sample to the type's strength: 1 on tops and flat parts, below 1 in the creases between lobes (the light below takes it).
                     float cavity = 1.0;
-                    [branch] if (gCumuliformCavK > 0.0) cavity = pow(max(gCumuliformCav, 0.02), 4.0 * gCumuliformCavK);
+                    [branch] if (dr.cavityK > 0.0) cavity = pow(max(dr.cavity, 0.02), 4.0 * dr.cavityK);
                     r.steps += 1;
                     // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
                     // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
                     // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
                     // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
                     float shellStep = -1.0;
-                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && gBodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && CellShellGap(li) <= 0.0)
+                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && dr.bodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && dr.shellGap <= 0.0)
                     {
                         float fine = clamp(_CullD.y * t, CELL_SHELL_STEP_MIN, dtv);
                         if (fine < dtv)
