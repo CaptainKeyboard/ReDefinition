@@ -81,7 +81,6 @@ namespace ReDefinition.Tests
         [DataRow("alertMinLevel", "None", "Heavy")]
         [DataRow("qualityTier", "Max", "Max")]
         [DataRow("alertSites", "Home;Pad", "Home;Pad")]
-        [DataRow("forceBody", "Duna", "Duna")]
         public void EveryValueIsBroughtIntoItsRangeOrIgnored(string key, string input, string expected)
         {
             Dictionary<string, string> written = ReadBack(key + " = " + input);
@@ -121,13 +120,13 @@ namespace ReDefinition.Tests
             {
                 "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "windShear", "layerWindSteering", "verticalMotion", "anvilTilt", "solarDimming", "solarDimmingStrength",
-                "visibilityExport", "genEnabled", "simGrid", "simLevels", "simSliceMs", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
-                "stormCullDistance", "visibilityExtinctionBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
+                "visibilityExport", "genEnabled", "simGrid", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
+                "visibilityExtinctionBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "vehicleCoverMethod", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
-                "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",
+                "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp", "alertScreenMessage", "forecastOverlay",
                 "alertSites", "forecastHorizonHours", "forecastUncertainty", "launchMaxLevel", "launchMaxWindMs", "launchMinVisibilityM", "launchLeadHours",
-                "orbitBodies", "qualityGovernor", "forceLevel", "forceType", "forceBody", "forcePhase", "atmoDebug"
+                "orbitBodies", "forceLevel", "forceType", "forcePhase"
             };
             foreach (string key in named) Assert.IsNotNull(AtmospheresSettings.Definition(key), key);
         }
@@ -137,6 +136,19 @@ namespace ReDefinition.Tests
         {
             Assert.IsNull(AtmospheresSettings.Definition("stormFrequency"));
             Assert.IsFalse(ReadBack("stormFrequency = 1.5").ContainsKey("stormFrequency"), "an unknown key in a player's file is neither read nor written");
+        }
+
+        // The seven settings removed on 2026-11-25 (owner: nothing read them): a player's file that still holds them loads without an error, the keys
+        // are dropped when the file is written again, and the settings beside them are read as before.
+        [TestMethod]
+        public void AFileWithTheRemovedSettingsStillLoads()
+        {
+            string[] removed = { "qualityGovernor", "simLevels", "simSliceMs", "stormCullDistance", "iceCollision", "forceBody", "atmoDebug" };
+            foreach (string key in removed) Assert.IsNull(AtmospheresSettings.Definition(key), key);
+            Dictionary<string, string> written = ReadBack("qualityGovernor = True\nsimLevels = 12\nsimSliceMs = 2\nstormCullDistance = True\niceCollision = True\n"
+                                                          + "forceBody = Duna\natmoDebug = Contrib\ncoverStrength = 0.25");
+            foreach (string key in removed) Assert.IsFalse(written.ContainsKey(key), key + " is not written back");
+            Assert.AreEqual("0.25", written["coverStrength"], "the setting beside them is read");
         }
 
         [TestMethod]
@@ -199,11 +211,9 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(10f, AtmospheresSettings.LaunchMaxWindMs);
                 Assert.AreEqual(1000f, AtmospheresSettings.LaunchMinVisibilityM);
                 Assert.AreEqual(2f, AtmospheresSettings.LaunchLeadHours);
-                Assert.IsFalse(AtmospheresSettings.QualityGovernor, "the governor is off");
                 Assert.AreEqual(AuroraMode.Auto, AtmospheresSettings.Aurora);
                 Assert.AreEqual(ReDefinition.Core.QualityTier.Auto, AtmospheresSettings.QualityTier);
                 Assert.AreEqual(VehicleCoverMode.Landed, AtmospheresSettings.VehicleCover);
-                Assert.IsFalse(AtmospheresSettings.IceCollision);
                 Assert.AreEqual(-1f, AtmospheresSettings.ForceLevel);
                 Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
                 Assert.AreEqual(ReDefinition.Core.PrecipBand.Heavy, AtmospheresSettings.BandOf(LevelChoice.Heavy));
@@ -227,7 +237,7 @@ namespace ReDefinition.Tests
                 { "audioMuffling", typeof(AudioMuffling) }, { "eveSound", typeof(EveSoundPolicy) }, { "audioBedSource", typeof(AudioBedSource) },
                 { "vehicleCover", typeof(VehicleCoverMode) }, { "vehicleCoverMethod", typeof(VehicleCoverMethod) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },
                 { "simGrid", typeof(SimGridChoice) }, { "alertMinLevel", typeof(LevelChoice) }, { "launchMaxLevel", typeof(LevelChoice) },
-                { "forceType", typeof(ForceType) }, { "atmoDebug", typeof(AtmoDebugMode) }, { "qualityTier", typeof(ReDefinition.Core.QualityTier) }
+                { "forceType", typeof(ForceType) }, { "qualityTier", typeof(ReDefinition.Core.QualityTier) }
             };
             foreach (KeyValuePair<string, Type> pair in pairs)
             {
@@ -316,15 +326,15 @@ namespace ReDefinition.Tests
 
                 AtmospheresSettings.SetNumber("genSeed", 99);
                 AtmospheresSettings.SetNumber("orbitMapWidth", 1024);
-                AtmospheresSettings.SetText("forceBody", "Eve");
+                AtmospheresSettings.SetText("alertSites", "Eve");
                 ConfigNode changed = AtmospheresSettings.Snapshot();
                 AtmospheresSettings.ResetToDefaults();
                 Assert.AreEqual(1, AtmospheresSettings.GenSeed);
-                Assert.AreEqual("", AtmospheresSettings.ForceBody);
+                Assert.AreEqual("", AtmospheresSettings.AlertSites);
                 AtmospheresSettings.Restore(changed);
                 Assert.AreEqual(99, AtmospheresSettings.GenSeed);
                 Assert.AreEqual(1024, AtmospheresSettings.OrbitMapWidth);
-                Assert.AreEqual("Eve", AtmospheresSettings.ForceBody);
+                Assert.AreEqual("Eve", AtmospheresSettings.AlertSites);
             }
             finally
             {
@@ -344,9 +354,9 @@ namespace ReDefinition.Tests
                 Assert.IsFalse(AtmospheresSettings.CameraFrost);
                 Assert.IsFalse(AtmospheresSettings.SetNumber("lightCount", double.NaN));
                 Assert.IsFalse(AtmospheresSettings.SetNumber("noSuchKey", 1));
-                Assert.IsFalse(AtmospheresSettings.SetNumber("forceBody", 1), "a text setting is not a number");
+                Assert.IsFalse(AtmospheresSettings.SetNumber("alertSites", 1), "a text setting is not a number");
                 Assert.IsFalse(AtmospheresSettings.SetText("lightCount", "x"));
-                Assert.IsFalse(AtmospheresSettings.SetText("forceBody", null));
+                Assert.IsFalse(AtmospheresSettings.SetText("alertSites", null));
             }
             finally
             {

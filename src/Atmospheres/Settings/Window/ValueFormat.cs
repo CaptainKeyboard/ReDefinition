@@ -9,7 +9,6 @@ namespace ReDefinition.Atmospheres
     {
         private static readonly Dictionary<string, string> Units = new Dictionary<string, string>
         {
-            { AtmospheresSettings.Keys.SimSliceMs, " ms" },
             { AtmospheresSettings.Keys.AlertWindMs, " m/s" },
             { AtmospheresSettings.Keys.LaunchMaxWindMs, " m/s" },
             { AtmospheresSettings.Keys.BlizzardVisibilityM, " m" },

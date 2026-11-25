@@ -134,7 +134,6 @@ namespace ReDefinition.Atmospheres
         internal static readonly Dictionary<string, string> NotSet = new Dictionary<string, string>
         {
             { AtmospheresSettings.Keys.QualityTier, "the choice of the tier itself" },
-            { AtmospheresSettings.Keys.QualityGovernor, "a switch of the player's; its rule is E42's" },
             { AtmospheresSettings.Keys.CloudSource, "which renderer draws the clouds, not how large" },
             { AtmospheresSettings.Keys.WeatherCompose, "where the precipitation extinction and hydrometeors are composed, not how large" },
             { AtmospheresSettings.Keys.EveLayerCap, "a limit on EVE's own layers, which are EVE's cost" },
@@ -145,10 +144,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.WindForces, "gameplay switch" },
             { AtmospheresSettings.Keys.WindStrength, "gameplay and taste" },
             { AtmospheresSettings.Keys.GenEnabled, "a switch of the player's" },
-            { AtmospheresSettings.Keys.SimLevels, "0 asks for the body's own; the grid choice carries the size" },
-            { AtmospheresSettings.Keys.SimSliceMs, "a hitch limit of the main thread, not a size" },
             { AtmospheresSettings.Keys.PrecipDensity, "taste: how dense the precipitation looks; the cap is TierRow.ParticleCap" },
-            { AtmospheresSettings.Keys.StormCullDistance, "a look switch of the player's" },
             { AtmospheresSettings.Keys.LightInMedium, "a switch of the player's" },
             { AtmospheresSettings.Keys.Aurora, "which aurora is drawn, a choice of look" },
             { AtmospheresSettings.Keys.CameraFrost, "a switch of the player's" },

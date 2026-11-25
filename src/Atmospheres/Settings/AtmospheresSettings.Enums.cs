@@ -172,16 +172,4 @@ namespace ReDefinition.Atmospheres
         Ash,
         Methane
     }
-
-    // What the debug overlay shows (key atmoDebug).
-    internal enum AtmoDebugMode
-    {
-        Off,
-        // The contribution mask: which pass drew each pixel.
-        Contrib,
-        // The level at the camera as text.
-        Level,
-        // The maps of the field.
-        Maps
-    }
 }

@@ -32,7 +32,6 @@ namespace ReDefinition.Atmospheres
                 { "yearLengthFactor", "How long the seasons last against the body's own year. 2 makes every season twice as long, 0.5 half as long." },
                 { "seasonMode", "Global Summer and Global Winter hold every body at midsummer or midwinter. Global Seasons runs one season for both hemispheres. Real Seasons follows each body's orbit and gives the hemispheres opposite seasons where the body is tilted." },
                 { "qualityTier", "How much the weather may cost. Auto follows the main mod's graphics profile and takes Low below 10 GB of video memory; Max has no limit. A tier changes cost and never taste." },
-                { "qualityGovernor", "Lets the mod lower its own cost when frames run short and raise it again later." },
 
                 // Clouds
                 { "cloudSource", "Who draws the clouds. Ours uses the mod's own volume pass, Eve paints the weather into EVE's clouds, Both does both, None draws no clouds." },
@@ -114,8 +113,6 @@ namespace ReDefinition.Atmospheres
                 // Simulation
                 { "genEnabled", "Runs the weather generator. Off, there is no weather: no moving systems, no precipitation and no wind from the field." },
                 { "simGrid", "How fine the weather grid is against the body's own: Coarse costs least, Fine is most detailed. Auto takes the body's own setting." },
-                { "simLevels", "How many layers of air the simulation has. 0 takes the body's own number." },
-                { "simSliceMs", "The most time in milliseconds the simulation may take in one frame. A smaller slice avoids hitches and catches up slower." },
                 { "genSeed", "The number the weather grows from. The same number gives the same weather on the same day." },
 
                 // Volume
@@ -133,7 +130,6 @@ namespace ReDefinition.Atmospheres
                 { "precipSand", "Draws blowing sand." },
                 { "precipAsh", "Draws falling ash." },
                 { "precipMethane", "Draws methane precipitation." },
-                { "stormCullDistance", "Leaves out terrain beyond what the storm's fog shows. Saves frame time in a blizzard." },
                 { "visibilityExtinctionBrightness", "How bright the haze of lost visibility in rain, snow, dust and fog is." },
                 { "precipExtinctionStrength", "How much heavy precipitation washes out the picture (the light the falling drops and flakes scatter and block)." },
                 { "blizzardVisibilityM", "How far one can see in the worst blizzard, in metres." },
@@ -172,7 +168,6 @@ namespace ReDefinition.Atmospheres
                 // Ice
                 { "seaIce", "Ice on the sea. Orbit shows it in the map view only, OrbitAndGround also on the surface, Physical adds a solid sheet (experimental)." },
                 { "iceDrawDistanceKm", "How far from the camera the ice is drawn, in kilometres." },
-                { "iceCollision", "Makes the ice solid so that vehicles can drive on it. Experimental." },
 
                 // Forecast
                 { "forecastEnabled", "Shows the forecast window, the line in the flight view and the weather in the map." },
@@ -201,9 +196,7 @@ namespace ReDefinition.Atmospheres
                 // Diagnostics
                 { "forceLevel", "For screenshots and tests: a precipitation level from 0 to 1 at the camera whatever the weather is. Negative leaves it to the weather." },
                 { "forceType", "For screenshots and tests: the type of precipitation to show. Auto leaves it to the weather." },
-                { "forceBody", "For screenshots and tests: the body the forced weather is on. Empty is the body you are at." },
-                { "forcePhase", "For screenshots and tests: a season from 0 to 1 that replaces the clock. Negative leaves it to the clock." },
-                { "atmoDebug", "Shows how the weather is made: which pass drew each pixel, the level at the camera, or the maps." }
+                { "forcePhase", "For screenshots and tests: a season from 0 to 1 that replaces the clock. Negative leaves it to the clock." }
             };
         }
 

@@ -144,7 +144,6 @@ The table of `SettingsTable.All`, in the order of the window.
 | `yearLengthFactor` | 1 | 0.01 to 10 | Season Year Length | - | - |
 | `seasonMode` | RealSeasons | GlobalSummer / GlobalWinter / GlobalSeasons / RealSeasons | Season Mode | - | - |
 | `qualityTier` | Auto | Auto / Low / Medium / High / Ultra / Max | Quality Tier | - | quality |
-| `qualityGovernor` | off | on / off | Quality Governor | needs-weather-effects | quality |
 
 **Clouds**
 
@@ -227,8 +226,6 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 |---|---|---|---|---|---|
 | `genEnabled` | on | on / off | Weather Generator | needs-weather-effects | simulation |
 | `simGrid` | Auto | Auto / Coarse / Normal / Fine | Simulation Grid | needs-simulation | simulation |
-| `simLevels` | 0 | 0 to 32 | Simulation Levels | needs-simulation | simulation |
-| `simSliceMs` | 0.5 | 0.1 to 4 | Simulation Slice | needs-simulation | simulation |
 | `genSeed` | 1 | -2147483648 to 2147483647 | Weather Seed | needs-simulation | - |
 
 **Volume**
@@ -252,7 +249,6 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `precipSand` | on | on / off | Draw Sand | needs-precipitation | - |
 | `precipAsh` | on | on / off | Draw Ash | needs-precipitation | - |
 | `precipMethane` | on | on / off | Draw Methane | needs-precipitation | - |
-| `stormCullDistance` | off | on / off | Cull Distant Terrain In Storms | needs-weather-effects | precipitation |
 | `visibilityExtinctionBrightness` | 1 | 0.25 to 2 | Visibility Extinction Brightness | needs-weather-effects | - |
 | `precipExtinctionStrength` | 0.85 | 0 to 0.95 | Precipitation Extinction | needs-weather-effects | - |
 | `blizzardVisibilityM` | 60 | 20 to 500 | Blizzard Visibility | needs-weather-effects | - |
@@ -313,7 +309,6 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 |---|---|---|---|---|---|
 | `seaIce` | Orbit | Off / Orbit / OrbitAndGround / Physical | Sea Ice | needs-weather-effects | ice |
 | `iceDrawDistanceKm` | 5 | 1 to 50 | Ice Draw Distance | needs-sea-ice | ice |
-| `iceCollision` | off | on / off | Ice Collision | needs-sea-ice | - |
 
 **Forecast**
 
@@ -351,9 +346,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 |---|---|---|---|---|---|
 | `forceLevel` | -1 | -1 to 1 | Force Precipitation Level | - | - |
 | `forceType` | Auto | Auto / Snow / Rain / Sleet / FreezingRain / Dust / Sand / Ash / Methane | Force Precipitation Type | - | - |
-| `forceBody` | empty | text | Force Body | - | - |
 | `forcePhase` | -1 | -1 to 1 | Force Season Phase | - | - |
-| `atmoDebug` | Off | Off / Contrib / Level / Maps | Debug Overlay | - | - |
 
 ### Audit of the settings that existed before the contract
 
@@ -380,7 +373,7 @@ The mod is unreleased, so no old name is kept: not as a key, not as a C# alias (
 | `stormVolumeSteps` | rename | `volumeSteps` |
 | `stormClouds` | delete | `cloudSource` replaces the cell layers |
 | `stormOwnFlakes` | delete | `weatherCompose` and `IEveFieldSuppressor` decide who draws |
-| `stormCullDistance` | keep | unchanged |
+| `stormCullDistance` | delete | nothing read it (2026-11-25) |
 | `orbitSnow` | rename | `orbitOverlay` |
 | `orbitSnowWidth` | rename | `orbitMapWidth` |
 | `forceStorm` | rename | `forceLevel` |

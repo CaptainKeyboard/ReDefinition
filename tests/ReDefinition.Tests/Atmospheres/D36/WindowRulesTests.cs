@@ -241,7 +241,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
         [TestMethod]
         public void TheGeneratorKeysNeedTheSimulation()
         {
-            foreach (string key in new[] { "simGrid", "simLevels", "simSliceMs", "genSeed", "lightWeatherFrequency", "heavyShare" })
+            foreach (string key in new[] { "simGrid", "genSeed", "lightWeatherFrequency", "heavyShare" })
             {
                 Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSim, Reason(key, On("genEnabled", 0), WindowEnvironment.Full()), key);
                 Assert.IsNull(Reason(key, On(), WindowEnvironment.Full()), key);
@@ -316,7 +316,6 @@ namespace ReDefinition.Tests.Atmospheres.D36
         {
             WindowEnvironment env = WindowEnvironment.Full();
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSeaIce, Reason("iceDrawDistanceKm", On("seaIce", (int)SeaIceMode.Off), env));
-            Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSeaIce, Reason("iceCollision", On("seaIce", (int)SeaIceMode.Off), env));
             Assert.IsNull(Reason("iceDrawDistanceKm", On(), env));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsLightInMedium, Reason("lightCount", On("lightInMedium", 0), env));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsLightInMedium, Reason("lightInMediumStrength", On("lightInMedium", 0), env));
@@ -478,7 +477,6 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.AreEqual("EVE", ValueFormat.ChoiceName("Eve"));
             Assert.AreEqual("RSE", ValueFormat.ChoiceName("Rse"));
             Assert.AreEqual("Shell 2D", ValueFormat.ChoiceName("Shell2D"));
-            Assert.AreEqual("0.5 ms", ValueFormat.Of(Def("simSliceMs"), 0.5));
             Assert.AreEqual("15 m/s", ValueFormat.Of(Def("alertWindMs"), 15));
             Assert.AreEqual("2048 px", ValueFormat.Of(Def("orbitMapWidth"), 2048));
             Assert.AreEqual("24 h", ValueFormat.Of(Def("forecastHorizonHours"), 24));
