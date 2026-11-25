@@ -40,6 +40,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             rain.Types[1].DensityScale = 1f;   // the ISCCP stratus class (tau 23 to 379) since 2026-11-24, 0.22 before
             rain.Types[1].UndulatusAmount = 0.2f;   // M2c: the stratus undulations (0.2 of the thickness, on by default since 2026-11-24)
             rain.Types[1].TopRoughness = 0.15f;   // master plan 43: the stratus top's short waves (since 2026-11-25)
+            rain.Types[2].TopRoughness = 0.06f;   // master plan 43: the nimbostratus top's short waves (since 2026-11-25)
             // The tops follow the updraft (E40 L6 shape): 1200 m of the layer's 2.1 km at 11.2 m/s.
             rain.TopReach = 0.5714f;
             rain.TopRefMs = 1.2f;

@@ -86,8 +86,9 @@ namespace ReDefinition.Tests.Atmospheres.T10
                     bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
                     Assert.AreEqual(stratus ? 0.2f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
                     Assert.AreEqual(stratus ? 0.2f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
-                    // Master plan 43: only the stratus types' tops have the short waves.
-                    Assert.AreEqual(stratus ? 0.15f : 0f, type.Build().TopRoughness, 1e-6f, layer.Name + " " + type.Name + " top roughness");
+                    // Master plan 43: the stratus and nimbostratus types' tops have the short waves (the same absolute swing, about +-60 m), no other type.
+                    bool nimbostratus = type.Name == "Nimbostratus" || type.Name == "Snow nimbostratus";
+                    Assert.AreEqual(stratus ? 0.15f : nimbostratus ? 0.06f : 0f, type.Build().TopRoughness, 1e-6f, layer.Name + " " + type.Name + " top roughness");
                 }
             Assert.AreEqual(1f, OwnCloudOptions.UndulatusDefault, "on: the types' own amount");
             Tuning.ClearOverrides();
