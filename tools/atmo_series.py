@@ -95,6 +95,7 @@ BUILD_ARTIFACTS = [
 ]
 BUNDLE = ("build/atmospheres.shaders", "GameData/ReDefinition/Atmospheres/Shaders/atmospheres.shaders")
 ATMO_PLUGINDATA = "GameData/ReDefinition/Atmospheres/PluginData"
+SCATTERER_CONFIG = "GameData/scatterer/config/config.cfg"
 
 
 class Refusal(Exception):
@@ -1009,6 +1010,9 @@ class Runner:
         # The shader bundle is not protected: it stays deployed together with the DLLs the build deployed.
         for f in ("settings.cfg", "saves/ReDefinitionProbe/persistent.sfs"):
             snap.add_file(f)
+        # Scatterer's main settings, which a diagnosis start may pin (schema.json; master plan 46.1, PRUEFPROTOKOLL 280): put back byte for byte.
+        if os.path.isfile(os.path.join(self.ksp, SCATTERER_CONFIG)):
+            snap.add_file(SCATTERER_CONFIG)
         if os.path.isdir(self.profile_cache):
             for rel in tree_files(self.profile_cache):
                 if not is_texture_cache_file(rel):  # apply_profile never copies these
