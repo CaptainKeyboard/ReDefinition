@@ -20,7 +20,7 @@ namespace ReDefinition.Atmospheres
             "_PhaseP", "_OutP", "_OutW", "_SkipP", "_SpacingP", "_ReuseP", "_LeapP", "_CostP", "_DitherP", "_UndulatusP", "_ReconP", "_ReconD", "_MarchTex_TexelSize",
             "_NoiseP", "_NoiseQ", "_NoiseR", "_NoiseS", "_NoiseT", "_BulgeP", "_CumuliformP", "_BlendP", "_MapReachCov", "_MapReachType",
             "_LightP", "_LightQ", "_LightR", "_LightS", "_LightT", "_SunAir", "_LightU", "_LightV", "_LightW", "_LightX", "_CellA", "_CellB", "_CacheA", "_CacheX", "_CacheY", "_CacheZ", "_CacheH", "_CacheSlice",
-            "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullD", "_CullT", "_EdgeP", "_FieldP", "_CellK"
+            "_FarA", "_FarB", "_FarC", "_FarE", "_FarD", "_CullA", "_CullB", "_CullD", "_CullT", "_EdgeP", "_FieldP"
         };
 
         internal static readonly string[] Arrays =

@@ -463,7 +463,6 @@ namespace ReDefinition.Atmospheres
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             CloudFieldGpu.Apply();
-            CellCoreProfile.Apply();
             bool cells = CloudLookTuning.Cells;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);

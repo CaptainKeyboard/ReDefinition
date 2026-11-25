@@ -17,9 +17,6 @@
 // leaps over the space beyond the bulges' reach (CellShellGap, cloud.cellTrace), 2 unused, 4 the march steps finely
 // inside that reach, where the surface can lie (cloud.cellShell, CELL_SHELL_STEP_MIN).
 float4 _CellE[4];
-// The body's core profile (a global, set by CellCoreProfile.Apply for the layer pass and the cloud shadow alike): x the depth of the rise in shares of the body's shorter semi-axis (0: off),
-// y the share at the surface.
-float4 _CellK;
 // The sky drawn from the weather map (MapSkyRegions.StratiformTypes, cloud.weatherMapSky; zero while it is off): per layer x 1 where the layer's stratiform types are drawn connected, y the type value
 // of the low stratiform type (Stratocumulus), z the one of the high stratiform type (Altocumulus; above 1: none), w the type value of one type step. Where the type map stands at a stratiform type, the
 // map's own value is drawn instead of single clouds (wMap 1): a connected cloud layer over the area the map gives; one type step away the lattice draws alone.
@@ -224,11 +221,8 @@ float CellBody(int li, float h, float bulge, float2 fine, float typeHeightM)
     // radial coordinate changes by at most 1 / axis per m, so its term by at most 1 (gBodyFar, the depth below the shell's outer side).
     gBodyFar = qBase + e.x * axis * (0.5 + 0.5 * e.z * (0.37 + 0.137));
     gBodyRead = true;
-    // The core profile (_CellK, cloud.cellCoreDepth / cloud.cellCoreFloor; x 0: off, the uniform body of before): the share rises from x.y of the core's at the surface to the core's at the depth
-    // _CellK.x of the shorter semi-axis below it. A uniform body with a crisp rim casts hard self-shadow zones in the sun's light (the contour bands, master plan 32, PRUEFPROTOKOLL 77); a body
-    // that thins towards its surface lets the light through its outer part, so the zones soften while the rim stays where it was.
-    float core = _CellK.x > 0.0 ? lerp(_CellK.y, 1.0, smoothstep(0.0, _CellK.x * axis, q)) : 1.0;
-    return saturate(q / band + 0.5) * core;
+    // The core profile (cloud.cellCoreDepth / .cellCoreFloor, a share rising from the surface into the body) was removed on 2026-11-25: no visible effect in the game (PRUEFPROTOKOLL 82).
+    return saturate(q / band + 0.5);
 }
 
 // The distance along any line from the point of the last CellBody within which the body's surface band cannot begin (m, 0 inside the shell or where no body was read): the depth below the shell's
