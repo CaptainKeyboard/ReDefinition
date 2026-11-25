@@ -72,7 +72,6 @@ value that is not a number is ignored.
 | `winterSnowLine` | `42` | 30 to 60 | The latitude of the snow line in a hemisphere's midwinter, in degrees. |
 | `groundRefreshMode` | `Live` | `Live`, `Rebuild`, `Off` | How ground that is already built follows the season (below). |
 | `refreshSeconds` | `5` | 1 to 120 | Real seconds between two passes of the `Live` mode. |
-| `forcePhase` | `-1` | -1, or 0 to 1 | A diagnostics setting for screenshots: a fixed season phase instead of the clock. 0 is the northern midwinter, 0.5 the northern midsummer. Leave it at -1 to play. |
 
 ## Snow on the ground
 

@@ -227,7 +227,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             // The taste keys of the player: frequencies, strengths, colours and looks, the switches, the audio and the forecast limits.
             var taste = new HashSet<string>(StringComparer.Ordinal)
             {
-                "yearLengthFactor", "seasonMode", "lightWeatherFrequency", "heavyShare", "windStrength", "gustStrength", "precipDensity",
+                "yearLengthFactor", "lightWeatherFrequency", "heavyShare", "windStrength", "gustStrength", "precipDensity",
                 "visibilityExtinctionBrightness", "precipExtinctionStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
                 "weatherAudioVolume", "coverStrength", "coverDrift", "forecastUncertainty", "genSeed"
             };

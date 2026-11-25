@@ -7,7 +7,6 @@ The atmospheres (the season clock, the snow and the storm cells) as a mod of its
 | File | Read it for |
 |---|---|
 | `src/Atmospheres/SeasonClock.cs` | The season phase from the universal time, the year length and the hemispheres. |
-| `src/Atmospheres/SeasonState.cs` | The phase the ground uses: the forced one or the clock's; none where there is no clock. |
 | `src/Atmospheres/SnowMask.cs` | The snow cover from latitude, height, phase and noise, and the design constants. |
 | `src/Atmospheres/SnowPaint.cs`, `SnowNoise.cs` | The snow colour and the blend, and the deterministic noise. |
 | `src/Atmospheres/AtmospheresSettings.cs` | The settings in `PluginData/settings.cfg`: keys, ranges, defaults, snapshot and reset. |
