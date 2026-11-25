@@ -202,17 +202,8 @@ namespace ReDefinition.Atmospheres
         internal Action<CommandBuffer> MarkMask, MarkEdge;
         // The timing marks around the culling's tile pass (package T16; the player sets them, the game leaves them null).
         internal Action<CommandBuffer> MarkCull, MarkCullEnd;
-        // Called right after the light cache's or the light volume's fill (null: no mark; the weather player's cost scene times the fill as its own segment).
+        // Called right after the light cache's fill (null: no mark; the weather player's cost scene times the fill as its own segment).
         internal Action<CommandBuffer> MarkCacheFilled;
-        // The light volume (cloud.lightVolume): made when the key is first on; its textures are freed while it is off.
-        private LightVolume lightVolume;
-        internal LightVolume CurrentLightVolume { get { return lightVolume; } }
-        // Whether this reconstruction may use the light volume: the player's view does; a probe camera's (reset every frame, LayerReconstructDriver.ProbeFor) does not, since
-        // each reset would lay and fill its own volume completely every frame. It marches with today's light.
-        internal bool LightVolumeAllowed = true;
-        // Whether the layer material had the light volume's keyword (LightVolume.Keyword) right after this reconstruction's last Record bound or unbound it: the pinned capture
-        // writes it into pass.json (another camera's Record may change the shared material's keyword before the frame's end).
-        internal bool LightVolumeKeywordAtRecord { get; private set; }
         // GPU profiler sub-markers of the reconstruction (labels "ReDefinition clouds: <part>"); the module sets it to the host's marker seam, null alone (the weather player).
         internal static Action<CommandBuffer, string> SubMark;
 
@@ -245,7 +236,6 @@ namespace ReDefinition.Atmospheres
             havePose = false;
             blockIndex = 0;
             edgeIndex = 0;
-            if (lightVolume != null) lightVolume.Invalidate();   // the next frame lays the light volume anew (a teleport leaves its content elsewhere)
         }
 
         internal void Dispose()
@@ -258,8 +248,6 @@ namespace ReDefinition.Atmospheres
             if (edgeMaterial != null) UnityEngine.Object.Destroy(edgeMaterial);
             if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
             material = edgeMaterial = edgeLayers = null;
-            if (lightVolume != null) lightVolume.Dispose();
-            lightVolume = null;
             low = latest = spare = output = null;
             edgeLow = stateLast = stateNew = dilated = mask = null;
         }
@@ -416,31 +404,6 @@ namespace ReDefinition.Atmospheres
             Material layers = renderer.Material;
             // The light cache's box follows the camera (the body's radius is the renderer's after Apply); bound again with the box's new place.
             LightCache cache = f.Light.Cache != null && f.Light.Cache.Enabled ? f.Light.Cache : null;
-            // The light volume replaces the cache while cloud.lightVolume is on (the march's keyword drops the cache's read). With the key off, at a hand-over distance of infinity
-            // or above the warp limit no sample reads it: the march keeps its no-keyword variant, nothing is filled, and the volume's textures are freed (the next use lays it anew).
-            LightVolume volume = null;
-            bool volumeOn = LightVolumeAllowed && CloudLookTuning.LightVolume && CloudLookTuning.LvHandOverM >= 0f;
-            if (volumeOn)
-            {
-                if (lightVolume == null) lightVolume = new LightVolume();
-                lightVolume.Configure();
-                volumeOn = lightVolume.WarpAllows;
-            }
-            if (volumeOn)
-            {
-                volume = lightVolume;
-                volume.PixelAngleRad = f.Cull.PixelAngleRad;
-                int sunSteps = f.Light.SunStepsOverride > 0 ? f.Light.SunStepsOverride : f.SunSteps;
-                volume.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM, renderer.ShellAltitudes(), sunSteps, f.SunMarchM, f.Light.TapRatio);
-                volume.Bind(layers);
-                cache = null;
-            }
-            else
-            {
-                LightVolume.Unbind(layers);
-                if (lightVolume != null) lightVolume.Dispose();
-            }
-            LightVolumeKeywordAtRecord = layers.IsKeywordEnabled(LightVolume.Keyword);
             if (cache != null)
             {
                 cache.Follow(t.position - f.PlanetCenter, (float)renderer.PlanetRadiusM);
@@ -483,13 +446,6 @@ namespace ReDefinition.Atmospheres
             {
                 cache.Record(cb, layers);
                 Sub(cb, "light cache");
-                if (MarkCacheFilled != null) MarkCacheFilled(cb);
-            }
-            if (volume != null)
-            {
-                volume.Record(cb, layers, f.TowardsSun);
-                volume.ApplyStamps(edgeOn ? edgeLayers : null);
-                Sub(cb, "light volume");
                 if (MarkCacheFilled != null) MarkCacheFilled(cb);
             }
             renderer.RecordCull(cb, f, w, h, MarkCull, MarkCullEnd);   // T16: the tile pass; nothing while no skip switch is on

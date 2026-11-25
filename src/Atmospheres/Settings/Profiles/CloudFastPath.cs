@@ -6,8 +6,6 @@ namespace ReDefinition.Atmospheres
     // probe and the viewer compare both paths in one session.
     internal static class CloudFastPath
     {
-        // The light volume for the sun's light of every lit sample: on, handed over at 0 km, one near tap on the far path.
-        internal const float LightVolume = 1f, LvHandOverKm = 0f, LvFarTaps = 1f;
         // The rotation over 4 x 4 blocks with the march's own distance history.
         // The clip stays the full path's 1 sigma (OwnCloudOptions.ClipSigmaDefault; a literal, because the weather player links this file without OwnCloudOptions, and CloudFastPathTests
         // keeps the two equal): 2 sigma drew a 4-pixel stipple and a 16-pixel grid over a fog-filled view (storm, ground; PRUEFPROTOKOLL 77).

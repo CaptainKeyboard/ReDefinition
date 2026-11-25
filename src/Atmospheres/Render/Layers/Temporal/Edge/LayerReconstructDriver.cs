@@ -114,12 +114,7 @@ namespace ReDefinition.Atmospheres
             LayerReconstructor r;
             if (probes.TryGetValue(id, out r)) return r;
             r = Make();
-            if (r != null)
-            {
-                // A probe's reconstruction is reset every frame: it marches with today's light, not the light volume (LayerReconstructor.LightVolumeAllowed).
-                r.LightVolumeAllowed = false;
-                probes[id] = r;
-            }
+            if (r != null) probes[id] = r;
             return r;
         }
 

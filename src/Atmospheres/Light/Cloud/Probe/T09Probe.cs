@@ -591,11 +591,7 @@ namespace ReDefinition.Atmospheres
             string prefix = "T09.view." + view.Name + ".";
             Emit(prefix + "frames", frames);
             Emit(prefix + "fps", frames / Math.Max(0.001, seconds));
-            if (PerfStart)
-            {
-                EmitReconState(own, prefix);
-                EmitLightVolumeState(own, prefix);
-            }
+            if (PerfStart) EmitReconState(own, prefix);
             Check("no frame cap in the " + view.Name + " view (" + variant + ")", NoFrameCap(), "targetFrameRate " + Game.TargetFrameRate + ", vSyncCount " + Game.VSyncCount);
             // A driver reset (K-T2 2026-11-16/17: three, each at the placement from the ground view to the inside view) leaves the game running on a removed device: the
             // frames after it draw nothing and are fast, so a view's rows would read as a gain. The view fails by name and its rows are void.
@@ -662,25 +658,6 @@ namespace ReDefinition.Atmospheres
             Emit(prefix + "recon_edge", player.LastEdge);
             Emit(prefix + "recon_march_pass", player.LastMarchPass);
             Emit(prefix + "recon_count_target", player.LastCountTarget);
-        }
-
-        // LV3: the light volume of the player's view at the end of a perf view's dwell: whether its last Record left the march's keyword on (lv_keyword), and while the volume's
-        // textures exist its lays so far and the near cascade's stamped slices; "none" where no volume exists (plain, plain2: the key off frees the textures).
-        private void EmitLightVolumeState(OwnCloudModule own, string prefix)
-        {
-            LayerReconstructor player = own != null && own.Driver != null ? own.Driver.Player : null;
-            LightVolume lv = player != null ? player.CurrentLightVolume : null;
-            EmitText(prefix + "lv_keyword", player == null ? "none" : player.LightVolumeKeywordAtRecord ? "true" : "false");
-            if (lv == null || !lv.Created)
-            {
-                EmitText(prefix + "lv_lays", "none");
-                EmitText(prefix + "lv_stamped_near", "none");
-                return;
-            }
-            int near, far;
-            lv.Stamped(out near, out far);
-            Emit(prefix + "lv_lays", lv.Lays);
-            Emit(prefix + "lv_stamped_near", near);
         }
 
         // PERF48 (the 48 fps block, 2026-11-21): the march's effective numbers of the frame the pass drew (OwnCloudModule.Frame: the shortest step, the step growth, the

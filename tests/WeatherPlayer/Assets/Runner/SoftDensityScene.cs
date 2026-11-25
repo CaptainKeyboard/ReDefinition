@@ -198,17 +198,6 @@ namespace ReDefinition.WeatherPlayer
             // The light cache (LightCache.cs, 2026-11-18): lcache<N> on with N near sun taps of the march's own; lcfill<N> the fill's taps, lcbox<km> the box's width,
             // lcgrid<N> its voxels across (the voxels up are a quarter of them).
             public int CacheNear, CacheFill, CacheKm, CacheGrid;
-            // The light volume (LV1, cloud.lightVolume): lv<km> on with that hand-over distance (lvinf: on, hand-over at infinity), lvn<N> slices per frame (0: all), lvt<N> the far near taps,
-            // lvw<N> the warp factor; set as tuning overrides by ApplyCase (no lv token: off).
-            public bool LvOn;
-            public float LvKm = -1f;
-            public int LvSlices = -1, LvTaps = -1, LvWarp = -1;
-            // The diagnosis levers: lvc<N> cascades, lvz<N> slices of a cascade, lvv<N> the near voxel in m, lvf<N> the fill's taps, lvr<N> their growth in hundredths, lvb<N> the band in percent.
-            public int LvCascades = -1, LvGridZ = -1, LvVoxel = -1, LvFillTaps = -1, LvFillRatio = -1, LvBand = -1;
-            // lvs<N>: the far cascade's voxel over the near one's.
-            public int LvFarScale = -1;
-            // lvh<N> k of the stored transmittance, lvo<N> the time warp's rate (LightVolume.TimeWarpRate), lvu<N> the warp limit.
-            public int LvStoreK = -1, LvWarpRate = -1, LvWarpLimit = -1;
         }
 
         private static LightCache cache;
@@ -284,21 +273,6 @@ namespace ReDefinition.WeatherPlayer
                 else if (t.StartsWith("blk")) c.Block = Number(t, 3);
                 else if (t.StartsWith("clip")) c.ClipSigma = Number(t, 4) / 10f;
                 else if (t.StartsWith("acc")) c.Accumulate = Number(t, 3) / 100f;
-                else if (t == "lvinf") { c.LvOn = true; c.LvKm = -1f; }   // LV1: the light volume on, hand-over at infinity
-                else if (t.StartsWith("lvn")) c.LvSlices = Number(t, 3);
-                else if (t.StartsWith("lvt")) c.LvTaps = Number(t, 3);
-                else if (t.StartsWith("lvw")) c.LvWarp = Number(t, 3);
-                else if (t.StartsWith("lvc")) c.LvCascades = Number(t, 3);
-                else if (t.StartsWith("lvs")) c.LvFarScale = Number(t, 3);
-                else if (t.StartsWith("lvh")) c.LvStoreK = Number(t, 3);
-                else if (t.StartsWith("lvo")) c.LvWarpRate = Number(t, 3);
-                else if (t.StartsWith("lvu")) c.LvWarpLimit = Number(t, 3);
-                else if (t.StartsWith("lvz")) c.LvGridZ = Number(t, 3);
-                else if (t.StartsWith("lvv")) c.LvVoxel = Number(t, 3);
-                else if (t.StartsWith("lvf")) c.LvFillTaps = Number(t, 3);
-                else if (t.StartsWith("lvr")) c.LvFillRatio = Number(t, 3);
-                else if (t.StartsWith("lvb")) c.LvBand = Number(t, 3);
-                else if (t.StartsWith("lv")) { c.LvOn = true; c.LvKm = Number(t, 2); }
                 else if (t.StartsWith("lcache")) c.CacheNear = Number(t, 6);
                 else if (t.StartsWith("lcfill")) c.CacheFill = Number(t, 6);
                 else if (t.StartsWith("lcbox")) c.CacheKm = Number(t, 5);
@@ -317,34 +291,12 @@ namespace ReDefinition.WeatherPlayer
             return c;
         }
 
-        // A light volume lever of a case: set to value * scale, or back to its default when the case does not name it (-1).
-        private static void Lever(string key, int value, float scale)
-        {
-            if (value >= 0) Tuning.SetOverride(key, value * scale);
-            else Tuning.ClearOverride(key);
-        }
-
         private static readonly LayerFrame FrameDefaults = new LayerFrame();
         private static readonly CloudLightSettings LightDefaults = new CloudLightSettings();
 
         // Every field a case can name is set on every call, so that a case never keeps what the one before it set on the same frame.
         internal static void ApplyCase(LayerFrame f, Case c)
         {
-            Tuning.SetOverride(CloudLookTuning.TuneLightVolume, c.LvOn ? 1f : 0f);
-            Tuning.SetOverride(CloudLookTuning.TuneLvHandOver, c.LvKm);
-            if (c.LvSlices >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvSlices, c.LvSlices); else Tuning.ClearOverride(CloudLookTuning.TuneLvSlices);
-            if (c.LvTaps >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvFarTaps, c.LvTaps); else Tuning.ClearOverride(CloudLookTuning.TuneLvFarTaps);
-            if (c.LvWarp >= 0) Tuning.SetOverride(CloudLookTuning.TuneLvWarp, c.LvWarp); else Tuning.ClearOverride(CloudLookTuning.TuneLvWarp);
-            Lever(CloudLookTuning.TuneLvCascades, c.LvCascades, 1f);
-            Lever(CloudLookTuning.TuneLvFarScale, c.LvFarScale, 1f);
-            Lever(CloudLookTuning.TuneLvStoreK, c.LvStoreK, 1f);
-            Lever(CloudLookTuning.TuneLvWarpLimit, c.LvWarpLimit, 1f);
-            LightVolume.TimeWarpRate = c.LvWarpRate > 0 ? c.LvWarpRate : 1f;
-            Lever(CloudLookTuning.TuneLvGridZ, c.LvGridZ, 1f);
-            Lever(CloudLookTuning.TuneLvVoxel, c.LvVoxel, 1f);
-            Lever(CloudLookTuning.TuneLvFillTaps, c.LvFillTaps, 1f);
-            Lever(CloudLookTuning.TuneLvFillRatio, c.LvFillRatio, 0.01f);
-            Lever(CloudLookTuning.TuneLvBand, c.LvBand, 0.01f);
             ApplyMarch(f, c.Base);
             f.LightStride = c.Stride >= 0 ? c.Stride : FrameDefaults.LightStride;
             f.SpanGrowthPerM = c.SpanGrowthE6 * 1e-6f;
@@ -572,28 +524,6 @@ namespace ReDefinition.WeatherPlayer
             }
         }
 
-        private void DumpVolume(LightVolume lv, string name)
-        {
-            RenderTexture v = lv.Volume;
-            if (v == null) return;
-            AsyncGPUReadbackRequest r = AsyncGPUReadback.Request(v, 0, 0, v.width, 0, v.height, 0, v.volumeDepth, TextureFormat.RFloat);
-            r.WaitForCompletion();
-            if (r.hasError) { Sink.Info("lvdump_error", 1); return; }
-            string header = "{'descr': '<f4', 'fortran_order': False, 'shape': (" + r.layerCount + ", " + v.height + ", " + v.width + "), }";
-            int total = 10 + header.Length + 1;
-            header = header + new string(' ', (64 - total % 64) % 64) + "\n";
-            using (var stream = new FileStream(Path.Combine(Output, name + ".npy"), FileMode.Create, FileAccess.Write))
-            using (var writer = new BinaryWriter(stream))
-            {
-                writer.Write(new byte[] { 0x93, (byte)'N', (byte)'U', (byte)'M', (byte)'P', (byte)'Y', 1, 0 });
-                writer.Write((ushort)header.Length);
-                writer.Write(Encoding.ASCII.GetBytes(header));
-                for (int layer = 0; layer < r.layerCount; layer++)
-                    foreach (float f in r.GetData<float>(layer)) writer.Write(f);
-            }
-            File.WriteAllText(Path.Combine(Output, name + ".json"), lv.Describe());
-        }
-
         private void Render(TemporalRig rig, LayerReconstructor recon, ReconSettings s, int number)
         {
             var cb = new CommandBuffer { name = "soft temporal" };
@@ -724,9 +654,6 @@ namespace ReDefinition.WeatherPlayer
                                                               LayerPassReadout.Uniforms(rig.Renderer.Material));
                                         dumped++;
                                         SoftTable.ReportCache(Sink, "lightcache." + view + "." + march);
-                                        // LV1: the light volume of a still view as it stands (-lvdump 1): its slices (depth, voxels, voxels) as .npy and its layout as .json.
-                                        if (sc.Name == "static" && marchCase.LvOn && WeatherPass.Argument("-lvdump") == "1" && rig.Recon.CurrentLightVolume != null)
-                                            DumpVolume(rig.Recon.CurrentLightVolume, "lv-" + view + "-" + march + "-f" + i);
                                     }
                                     if (i % 8 == 7) yield return null;
                                 }
@@ -823,7 +750,6 @@ namespace ReDefinition.WeatherPlayer
                             if (!samples.ContainsKey(label)) samples[label] = new[] { new List<double>(), new List<double>(), new List<double>(), new List<double>() };
                             List<double>[] s = samples[label];
                             int guard = 0, n = 0, taken = 0, first = s[0].Count, firstFill = s[3].Count;
-                            int laysBefore = rig.Recon.CurrentLightVolume != null ? rig.Recon.CurrentLightVolume.Lays : 0;
                             while (taken < 40 && guard++ < 1200)
                             {
                                 cb.Clear();
@@ -841,7 +767,7 @@ namespace ReDefinition.WeatherPlayer
                                 if (m >= 0f && r >= 0f && e >= 0f)
                                 {
                                     s[0].Add(m); s[1].Add(r); s[2].Add(e); taken++;
-                                    // With the light cache or the light volume the march segment starts after the fill; the fill is its own segment (PraecipitatioStart's mark).
+                                    // With the light cache the march segment starts after the fill; the fill is its own segment (PraecipitatioStart's mark).
                                     float fill = segments[WeatherGpuTimer.PraecipitatioStart - WeatherGpuTimer.SlabStart];
                                     if (fill >= 0f) s[3].Add(fill);
                                 }
@@ -856,9 +782,6 @@ namespace ReDefinition.WeatherPlayer
                                 if (!perRoundFill.ContainsKey(label)) perRoundFill[label] = new List<double>();
                                 perRoundFill[label].Add(Median(s[3].GetRange(firstFill, s[3].Count - firstFill)));
                             }
-                            // LV1: the light volume's lays in this case (one at the first frame after the Reset; more would be a relay the case did not ask for).
-                            if (marchCase.LvOn && rig.Recon.CurrentLightVolume != null && round == 0)
-                                Sink.Info("softcost.lvlays." + label, rig.Recon.CurrentLightVolume.Lays - laysBefore);
                             if (marchCase.Skip && round == 0)
                             {
                                 // What the tile pass dropped: the share of the 16 x 16 tiles that march no layer at all, and of the (tile, layer) pairs that are not marched.
@@ -895,7 +818,6 @@ namespace ReDefinition.WeatherPlayer
             evictB.Release();
             Cam.RemoveCommandBuffer(CameraEvent.AfterSkybox, cb);
             rig.Recon.MarkCacheFilled = null;
-            LightVolume.TimeWarpRate = 1f;
             rig.Dispose();
             Sink.Flag("soft_cost_completed", true);
         }
