@@ -64,11 +64,15 @@ namespace ReDefinition.Atmospheres
         internal CloudShadowFrame DiscFrame { get; } = new CloudShadowFrame();
         internal bool Enabled { get; set; }
 
+        // The cloud shadow on Scatterer's ocean (master plan 46.1): its delegate is ours while the shadow is on.
+        private readonly ScattererOceanCloudShadow ocean;
+
         internal CloudShadowIntegration(CloudShadowRenderer renderer, Func<Camera, CloudShadowRole> classify, Func<Light> sun)
         {
             this.renderer = renderer;
             this.classify = classify;
             this.sun = sun;
+            ocean = new ScattererOceanCloudShadow(renderer, () => Enabled);
         }
 
         // The roles of the game's cameras by name: the flight cameras take the scene's shadow, the scaled-space camera the disc's.
@@ -103,6 +107,7 @@ namespace ReDefinition.Atmospheres
             Camera.onPreCull -= OnPreCull;
             Camera.onPostRender -= OnPostRender;
             Detach();
+            ocean.Uninstall();
             maskBuffer.Release();
             maskDisplayBuffer.Release();
             forwardBuffer.Release();
@@ -113,6 +118,7 @@ namespace ReDefinition.Atmospheres
         private void OnPreCull(Camera camera)
         {
             Detach();
+            ocean.Update();
             if (!Enabled || !renderer.Ready) return;
             CloudShadowRole role = classify(camera);
             if (role == CloudShadowRole.None) return;
