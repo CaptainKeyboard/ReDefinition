@@ -28,6 +28,8 @@ namespace ReDefinition.Atmospheres
         // saturated horizon colour above is what a cloud far away fades into. The pass blends the two by the blue channel's extinction along the ray (the aerial perspective at the end of the layer shader's march). Null: the same as
         // Inscatter, so a caller that knows only one colour sees the pass as it was.
         public Color? InscatterNear;
+        // The share of the sun's flux at the camera that the clouds above it pass on (AerialPerspectivePlan.LitShare; 1: clear sky): the air under a deck lies in its shadow (PRUEFPROTOKOLL 272).
+        public float CameraLitShare = 1f;
 
         // The distance LOD of the shape noise: where the march's sample spacing exceeds the noise's feature size the shape is replaced by its
         // mean over the noise (closed form, FarViewMath.ShapeMean). Spacing in noise scales from which the mean takes over and at which it
@@ -67,7 +69,7 @@ namespace ReDefinition.Atmospheres
         {
             m.SetVector(Ids.A, new Vector4(AerialPerspective ? 1f : 0f, Mathf.Max(AerialPerspectiveStrength, 0f), Mathf.Max(RayleighHeightM, 1f), Mathf.Max(MieHeightM, 1f)));
             m.SetVector(Ids.B, new Vector4(RayleighPerM.x, RayleighPerM.y, RayleighPerM.z, MiePerM));
-            m.SetVector(Ids.C, new Vector4(Inscatter.r, Inscatter.g, Inscatter.b, 0f));
+            m.SetVector(Ids.C, new Vector4(Inscatter.r, Inscatter.g, Inscatter.b, Mathf.Clamp01(CameraLitShare)));
             Color near = InscatterNear ?? Inscatter;
             m.SetVector(Ids.E, new Vector4(near.r, near.g, near.b, 0f));
             m.SetVector(Ids.D,new Vector4(ShapeMean ? 1f : 0f, Mathf.Max(LodStart, 0f), Mathf.Max(LodEnd, LodStart + 0.01f), Mathf.Clamp(MinSamples, 0, 16)));

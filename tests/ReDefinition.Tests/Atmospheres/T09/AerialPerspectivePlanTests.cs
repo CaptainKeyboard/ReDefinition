@@ -314,6 +314,23 @@ Scatterer_atmosphere
             Assert.IsTrue(blended.b > blended.r, "the air's own extinction still makes it blue");
         }
 
+        [TestMethod]
+        public void TheAirUnderADeckGetsOnlyTheFluxTheDeckPassesOn()
+        {
+            // PRUEFPROTOKOLL 272: a clear sky passes the whole flux; a deck of tau 26 along the sun (T e^-26) a quarter (1 / (1 + 0.11 x 26)); T 0 stays finite
+            Assert.AreEqual(1f, AerialPerspectivePlan.LitShare(1f), 1e-6f);
+            Assert.AreEqual(1f / (1f + 0.11f * 26f), AerialPerspectivePlan.LitShare((float)Math.Exp(-26.0)), 1e-4f);
+            float dark = AerialPerspectivePlan.LitShare(0f);
+            Assert.IsTrue(dark > 0.05f && dark < 0.2f, "T 0: " + dark);
+            // the in-scatter scales with the share; the cloud's own colour times the air's transmittance does not
+            var cloud = new Color(0.2f, 0.2f, 0.2f, 1f);
+            var t = new Vector3(0.93f, 0.88f, 0.76f);
+            Color near = new Color(0.5f, 0.55f, 0.6f, 1f), far = new Color(0.4f, 0.5f, 0.7f, 1f);
+            Color lit = AerialPerspectivePlan.AerialMix(cloud, 1f, t, near, far, 1f), shaded = AerialPerspectivePlan.AerialMix(cloud, 1f, t, near, far, 0.25f);
+            Assert.AreEqual(AerialPerspectivePlan.AerialMix(cloud, 1f, t, near, far).b, lit.b, 1e-7f);
+            Assert.AreEqual(cloud.b * t.z + 0.25f * (lit.b - cloud.b * t.z), shaded.b, 1e-6f);
+        }
+
         // The fog mix at the numbers of start 55 (K-T2d, above view, bands 3 and 4 below the horizon row, order 1 and 0 of the same pixels) as an offline row: the pass's mix
         // C T + L (1 - T) with Scatterer's transmittance moves the low stratiform layer of 0.48 neutral (ord1) toward the aerial perspective colour, and the lift is of the size the game measured for Scatterer's own
         // air (ord0 minus ord1 +0.17 / +0.20 / +0.23): the sign and order of magnitude, not the pixel values (the in-scatter colour of the game is not known offline).
