@@ -560,6 +560,13 @@ namespace ReDefinition.Atmospheres
             int framesBefore = Game.FrameCount;
             string size = Game.ScreenWidth + "x" + Game.ScreenHeight;
             AtmospheresLog.Say("T09 view begin: " + view.Name + " " + variant + " " + size);
+            // The distance views (PRUEFPROTOKOLL 347): what the scene depth holds in the view, one read (its frame is inside the view's timed frames: a distance start's
+            // frame rates are read from a start without it).
+            if (CommandLine.Has(Args(), "-t09DepthStats", true))
+            {
+                OwnCloudModule.ProbeDepthStatsTag = view.Name + " " + variant;
+                OwnCloudModule.ProbeDepthStats = true;
+            }
             // E40 C2: the maps the pass marches in this view, for the player to draw the same sky (OwnCloudModule.DumpMaps).
             // The variant's name at the end keeps each variant's dump (a tag already dumped is skipped).
             // -t09NoMapDump (the 48 fps block): no dump, so no write lands inside a view's timed frames.

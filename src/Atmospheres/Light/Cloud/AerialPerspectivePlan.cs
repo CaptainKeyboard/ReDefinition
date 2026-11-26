@@ -75,6 +75,17 @@ namespace ReDefinition.Atmospheres
             return scattererLoaded && ruleHolds && !groundActive;
         }
 
+        // The greatest scene depth in m that limits the clouds (the depth pass's _LayerDepthMaxM; 0: none; master plan 46.4, PRUEFPROTOKOLL 349). While the body's ground
+        // is drawn, every depth counts. While it is not (the planet is the scaled one, which is not in the camera's depth), only vessels are local, and KSP draws none
+        // beyond the range at which it unloads them: twice the largest unload range of the active vessel's situations (the margin for a vessel on its way out).
+        internal const float LocalDepthMargin = 2f;
+
+        internal static float SceneDepthMaxM(bool groundActive, float largestUnloadRangeM)
+        {
+            if (groundActive || !(largestUnloadRangeM > 0f)) return 0f;
+            return largestUnloadRangeM * LocalDepthMargin;
+        }
+
         // KSP's ambient light at a pressure (DynamicAmbientLight.Update, decompiled 2026-11-26): the vacuum colour blended to the body's atmospheric ambient colour by the
         // pressure at the VESSEL over the sea level's, then the player's boost towards white (above 0) or black (below).
         internal static Color KspAmbient(Color vacuum, Color atmospheric, float normalisedPressure, float boost)

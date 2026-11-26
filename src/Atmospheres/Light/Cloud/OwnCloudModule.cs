@@ -1808,6 +1808,19 @@ namespace ReDefinition.Atmospheres
                 renderer.Detach();
                 buffersOn = false;
             }
+            // While the body's ground is not drawn, only what lies within the vessels' unload range is local (AerialPerspectivePlan.SceneDepthMaxM).
+            if (depthMaterial != null)
+            {
+                float unload = 0f;
+                Vessel active = GameGlobals.ActiveVessel;
+                VesselRanges ranges = active != null ? active.vesselRanges : null;
+                if (ranges != null)
+                    unload = Mathf.Max(Mathf.Max(Mathf.Max(ranges.prelaunch.unload, ranges.landed.unload), Mathf.Max(ranges.splashed.unload, ranges.flying.unload)),
+                                       Mathf.Max(Mathf.Max(ranges.subOrbital.unload, ranges.orbit.unload), ranges.escaping.unload));
+                depthMaterial.SetFloat(DepthIds.MaxM,AerialPerspectivePlan.SceneDepthMaxM(b.pqsController != null && b.pqsController.isActive, unload));
+            }
+            // Measurement: one read of the last frame's scene depth where a probe asked (OwnCloudModule.DepthStats.cs).
+            DepthStatsIfAsked(((Vector3d)cam.transform.position - b.position).magnitude - b.Radius);
             depthCommands.Clear();
             LayerReconstructor.Sub(depthCommands, "before the scene depth copy");
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);

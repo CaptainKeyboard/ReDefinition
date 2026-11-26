@@ -216,6 +216,15 @@ Scatterer_atmosphere
             Assert.AreEqual(other, AerialPerspectivePlan.CloudAmbient(other, vacuum, air, 0f, 0f));
         }
 
+        // PRUEFPROTOKOLL 349: while the body's ground is not drawn, only what lies within the vessels' unload range limits the clouds.
+        [TestMethod]
+        public void TheSceneDepthCountsOnlyNearVesselsWhileTheGroundIsOff()
+        {
+            Assert.AreEqual(0f, AerialPerspectivePlan.SceneDepthMaxM(true, 2500f), "the ground is drawn: every depth counts");
+            Assert.AreEqual(5000f, AerialPerspectivePlan.SceneDepthMaxM(false, 2500f), "the ground is off: twice the largest unload range");
+            Assert.AreEqual(0f, AerialPerspectivePlan.SceneDepthMaxM(false, 0f), "no range known: no limit");
+        }
+
         [TestMethod]
         public void TheShaderLumaUsesTheShadersWeights()
         {

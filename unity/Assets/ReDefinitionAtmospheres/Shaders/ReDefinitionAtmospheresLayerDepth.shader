@@ -16,6 +16,10 @@ Shader "ReDefinition/AtmospheresLayerDepth"
             #include "UnityCG.cginc"
 
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+            // The greatest depth in m that counts (0: none; master plan 46.4, PRUEFPROTOKOLL 349). While the body's ground is not drawn in flight (its PQS is off and the
+            // planet is the scaled one, which is not in this depth), only vessels are local, and none is drawn beyond the range at which KSP unloads them. After a
+            // jump back from far KSP kept a ground tile in the depth texture (260 to 446 km away, nothing of it in the picture) and the clouds were cut in it.
+            float _LayerDepthMaxM;
 
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
 
@@ -36,7 +40,9 @@ Shader "ReDefinition/AtmospheresLayerDepth"
             #else
                 if (raw >= 1.0 - 1e-7) return 0;
             #endif
-                return LinearEyeDepth(raw);
+                float z = LinearEyeDepth(raw);
+                if (_LayerDepthMaxM > 0.0 && z > _LayerDepthMaxM) return 0;
+                return z;
             }
             ENDCG
         }
