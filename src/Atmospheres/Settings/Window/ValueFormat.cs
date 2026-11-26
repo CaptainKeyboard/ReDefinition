@@ -26,7 +26,8 @@ namespace ReDefinition.Atmospheres
             { "Eve", "EVE" },
             { "Shell2D", "Shell 2D" },
             { "Own", "Built In" },
-            { "Ours", "Ours" }
+            // The owner 2026-11-26: our own choice is shown as "ReDefinition" (the stored value stays Ours: players' files and the series keep it).
+            { "Ours", "ReDefinition" }
         };
 
         // The unit a key's number is written with, or empty.

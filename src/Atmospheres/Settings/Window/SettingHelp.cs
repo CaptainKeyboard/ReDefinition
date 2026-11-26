@@ -33,7 +33,7 @@ namespace ReDefinition.Atmospheres
                 { "qualityTier", "How much the weather may cost. Auto follows the main mod's graphics profile and takes Low below 10 GB of video memory; Max has no limit. A tier changes cost and never taste." },
 
                 // Clouds
-                { "cloudSource", "Who draws the clouds. Ours uses the mod's own volume pass, Eve paints the weather into EVE's clouds, Both does both, None draws no clouds." },
+                { "cloudSource", "Who draws the clouds. ReDefinition uses the mod's own volume pass, EVE paints the weather into EVE's clouds, Both does both, None draws no clouds." },
                 { "weatherCompose", "Where the precipitation extinction and the falling precipitation particles are put on the picture. Scene is before the upscaler, Host is after it through the main mod. Auto picks Scene unless the pair of graphics card and upscaler is recorded." },
                 { "useEveWeather", "Lets EVE's own weather layers stay on the bodies where this mod paints no map." },
                 { "eveLayerCap", "The most EVE cloud layers the mod paints on one body. Fewer layers cost less." },
@@ -95,7 +95,7 @@ namespace ReDefinition.Atmospheres
                 { "baseRagged", "Roughens the underside of the clouds with fine detail, so that it is not a clean cut. Off, the base is smooth." },
 
                 // Wind
-                { "windSource", "Whose wind is used. Auto leaves the base wind to a wind mod where one is installed and adds our storm wind on top; Ours replaces it; Foreign and Off leave our wind off while the visuals still draw." },
+                { "windSource", "Whose wind is used. Auto leaves the base wind to a wind mod where one is installed and adds our storm wind on top; ReDefinition replaces it; Foreign and Off leave our wind off while the visuals still draw." },
                 { "windInjection", "How the wind reaches a vehicle. Aero changes the air speed the drag sees and needs ModularFlightIntegrator; Force pushes the parts. Auto picks Aero where it can." },
                 { "windForces", "Lets the wind push vehicles. Off, the wind is seen and heard but does not move anything." },
                 { "windStrength", "How strong the wind is against a vehicle: 0 none, 1 as simulated, 2 twice as strong." },
@@ -225,7 +225,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.GreyReasons.NeedsLightInMedium, "Light In Fog And Precipitation is off." },
             { AtmospheresSettings.GreyReasons.NeedsPrecip, "Precipitation Density is 0." },
             { AtmospheresSettings.GreyReasons.NeedsSolarDimming, "Solar Panel Dimming is off." },
-            { AtmospheresSettings.GreyReasons.NeedsOwnSource, "Cloud Source is not Ours." },
+            { AtmospheresSettings.GreyReasons.NeedsOwnSource, "Cloud Source is not ReDefinition." },
             { AtmospheresSettings.GreyReasons.NeedsOwnClouds, "Own Volumetric Clouds is off." },
             { AtmospheresSettings.GreyReasons.NeedsCloudNoise, "Cloud Shape Noise is off." },
             { AtmospheresSettings.GreyReasons.NeedsCloudShadows, "Cloud Shadows is off." },
