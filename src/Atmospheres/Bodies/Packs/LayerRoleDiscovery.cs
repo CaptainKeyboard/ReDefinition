@@ -52,7 +52,7 @@ namespace ReDefinition.Atmospheres
         internal CloudSourceKind EffectiveSource(CloudSourceKind requested)
         {
             if (!None) return requested;
-            return requested == CloudSourceKind.Eve || requested == CloudSourceKind.Both ? CloudSourceKind.Ours : requested;
+            return requested == CloudSourceKind.Eve || requested == CloudSourceKind.Both ? CloudSourceKind.ReDefinition : requested;
         }
 
         // The memory the maps of the layers we drive hold, in MB: per layer two render textures and two readable copies of the

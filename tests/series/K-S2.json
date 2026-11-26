@@ -27,7 +27,7 @@
       "id": "surface",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "Five frames of one pose and one sun (SurfaceProbe, module order 993) at 2560x1440, UI_SCALE 1.5. About 4 to 6 minutes after the flight is up.",
-      "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "Ours" },
+      "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "ReDefinition" },
       "disableMods": [ "EVE" ],
       "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceProbe" ]
     },
@@ -36,28 +36,28 @@
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "The control of the ground starts (SurfaceGroundProbe, module order 994): Atmospheres on with the weather effects and the own clouds from load (-atmoSet), K-S2's time and sun, the cb_far pose at both headings and two ground-level poses over the pad, every layer empty. About 3 to 4 minutes after the flight is up.",
       "disableMods": [ "EVE" ],
-      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "weatherEffects=1,cloudSource=ReDefinition,ownClouds=1" ]
     },
     {
       "id": "ground_off",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "As ground_on with Atmospheres' master switch off from load (-atmoSet enabled=0): no module of the package acts, the cover's PQS mod is never put into the ground. The frames of the pad's ground without any of the package.",
       "disableMods": [ "EVE" ],
-      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1" ]
     },
     {
       "id": "capture_ab",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "Does the way K-S2's pictures are taken change the ground? The package off from load (-atmoSet enabled=0, as ground_off), K-S2's time, the far_p2 pose three ways in one start: B the camera alone with the vessel on the pad (tools/ProbeLite's way, a screen read at the end of a frame), then A the viewer's placement (the vessel held 300 m over the pad) with the viewer's own picture and a screen read at the end of the very frame the viewer asked for its picture. Logs the ground's mean colour of each and every camera's depth and culling mask. About 3 minutes after the flight is up.",
       "disableMods": [ "EVE" ],
-      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "enabled=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1" ]
     },
     {
       "id": "ground_nocover",
       "settings": [ { "file": "settings.cfg", "set": { "SCREEN_RESOLUTION_WIDTH": 2560, "SCREEN_RESOLUTION_HEIGHT": 1440, "FULLSCREEN": false, "UI_SCALE": 1.5 } } ],
       "description": "As ground_on with only the cover feature off from load (-atmoSet groundCover=0): the rest of the package runs, the cover's PQS mod is never put into the ground.",
       "disableMods": [ "EVE" ],
-      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "groundCover=0,weatherEffects=1,cloudSource=Ours,ownClouds=1" ]
+      "probeArgs": [ "-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-screen-width", "2560", "-screen-height", "1440", "-screen-fullscreen", "0", "-atmoProbe", "SurfaceGroundProbe", "-atmoSet", "groundCover=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1" ]
     }
   ],
   "rows": []

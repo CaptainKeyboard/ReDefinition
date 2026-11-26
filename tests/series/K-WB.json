@@ -28,7 +28,7 @@
   ],
   "productSwitches": {
     "ownClouds": 1,
-    "cloudSource": "Ours"
+    "cloudSource": "ReDefinition"
   },
   "starts": [
     {

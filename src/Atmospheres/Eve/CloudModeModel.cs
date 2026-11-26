@@ -16,7 +16,7 @@ namespace ReDefinition.Atmospheres
         // own volume pass, the own precipitation and the own shell carry the weather and nothing is bound to EVE's layers.
         internal static CloudSourceKind Effective(CloudSourceKind source, bool eveBlocked)
         {
-            if (eveBlocked && (source == CloudSourceKind.Eve || source == CloudSourceKind.Both)) return CloudSourceKind.Ours;
+            if (eveBlocked && (source == CloudSourceKind.Eve || source == CloudSourceKind.Both)) return CloudSourceKind.ReDefinition;
             return source;
         }
 
@@ -24,7 +24,7 @@ namespace ReDefinition.Atmospheres
         // none of the body's layers carries a 2D layer EVE draws the picture with.
         internal static bool ShellWanted(CloudSourceKind source, bool eveCarriesPicture)
         {
-            if (source == CloudSourceKind.Ours) return true;
+            if (source == CloudSourceKind.ReDefinition) return true;
             if (source == CloudSourceKind.None) return false;
             return !eveCarriesPicture;
         }

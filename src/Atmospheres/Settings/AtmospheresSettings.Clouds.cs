@@ -108,7 +108,8 @@ namespace ReDefinition.Atmospheres
             return new[]
             {
                 // The layer core (T01, T01c, T05)
-                SettingDef.Bool("ownClouds", false, CL, "Own Volumetric Clouds", SRC),
+                // On by default with the cloud source ReDefinition (the owner 2026-11-26: our clouds are the standard of a new install).
+                SettingDef.Bool("ownClouds", true, CL, "Own Volumetric Clouds", SRC),
                 SettingDef.Int("layerCap", CloudLayerDef.MaxLayers, 1, CloudLayerDef.MaxLayers, CL, "Own Cloud Layer Cap", OWN, RV),
                 SettingDef.Choice("layerStepQuality", typeof(CloudDetailLevel), CloudDetailLevel.Medium, CL, "Own Cloud Step Quality", OWN, RV),
                 SettingDef.Float("layerStepGrowth", 2.0, 0.0, 4.0, CL, "Own Cloud Step Growth", OWN),

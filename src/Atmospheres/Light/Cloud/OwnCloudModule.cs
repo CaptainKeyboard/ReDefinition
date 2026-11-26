@@ -640,7 +640,7 @@ namespace ReDefinition.Atmospheres
                 for (int k = 0; k < 3; k++) worldToMapRows[r * 3 + k] = f.WorldToMap[r, k];
             shadowNoise.Update(renderer.Noise, stack, worldToMapRows, OwnCloudOptions.ShadowShapeNoise);
             if (shadowIntegration == null) return;
-            bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.Ours, stack != null ? stack.LayerCount : 0);
+            bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.ReDefinition, stack != null ? stack.LayerCount : 0);
             shadowIntegration.Enabled = on;
             Stats.ShadowOn = on;
             if (!on) return;

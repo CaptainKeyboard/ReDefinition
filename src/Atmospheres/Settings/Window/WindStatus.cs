@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
                     return foreign
                         ? "Wind: " + foreignOwner + " owns the base wind, ours adds the storm wind on top."
                         : "Wind: ours, base wind and storms.";
-                case WindSourceMode.Ours:
+                case WindSourceMode.ReDefinition:
                     return foreign
                         ? "Wind: ours replaces " + foreignOwner + "'s where it can; see the log."
                         : "Wind: ours, base wind and storms.";

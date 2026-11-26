@@ -99,13 +99,13 @@ The field counts as priority 0. Every provider that answers takes part.
 - Sun transmission: `OpticalDepthVertical` adds, so the transmissions multiply. `CloudCover01` combines as independent layers (1 - product of the clear shares).
 - `TemperatureK`: the highest priority that knows it.
 - `Readiness` is the worst of the sources, `Approximate` is true if any source says so.
-- `windSource` (Auto / Ours / Foreign / Off) decides which providers the consumers register; the forecast's wind uses the same order and labels the source (`WeatherSource`).
+- `windSource` (Auto / ReDefinition / Foreign / Off; a file's older `Ours` is read as ReDefinition) decides which providers the consumers register; the forecast's wind uses the same order and labels the source (`WeatherSource`).
 
 ## 5. `cloudSource`
 
 | Value | Cloud layers | 3D form (storm cores, praecipitatio) | Particles and ground effects | Orbit and map picture | Old cell injection |
 |---|---|---|---|---|---|
-| Ours | own volume pass; EVE's weather layers on that body are off | own | own precipitation | own 2D shell | deleted |
+| ReDefinition (before 2026-11-26 `Ours`, still read) | own volume pass; EVE's weather layers on that body are off | own | own precipitation | own 2D shell | deleted |
 | Eve | EVE renders the maps the field paints | own, only where needed | EVE's field and ground effects through the mirror; ours suppresses them only if `precipDensity` is on | EVE's 2D layer fed by the map plus the swirl | deleted |
 | Both | as Eve, plus EVE's native weather on layers we do not paint (`useEveWeather`) | own | as Eve | as Eve | deleted |
 | None | none from us | none | own precipitation | none | deleted |
@@ -127,7 +127,7 @@ The level changes density and thickness continuously through the type map's blen
 
 `AtmospheresSettings` holds every setting of the project in one table (`SettingsTable.All`, `Settings/AtmospheresSettings.Keys.cs`), stored in `PluginData/settings.cfg` of the mod and nowhere else. A key is added there and nowhere else; packages only read (`AtmospheresSettings.GustStrength`, ...). Reset puts a setting back to its default. A value outside its range is brought into it, a value that is not a number is ignored. Tooltips are Title Case words. The window and the profiles are package D36's; the greyed-out reason ids are `AtmospheresSettings.GreyReasons` and the profile rows `AtmospheresSettings.ProfileRows`.
 
-Greyed-out reasons: `needs-weather-effects` (`weatherEffects` off), `needs-eve` (no EVE or `cloudSource` Ours / None), `needs-host-api`, `needs-simulation`, `needs-volume-pass`, `needs-weather-audio`, `needs-forecast`, `needs-alerts`, `needs-wind-forces`, `needs-ground-cover`, `needs-sea-ice`, `needs-light-in-medium`, `needs-precipitation`, `needs-solar-dimming`, `needs-own-source`, `needs-own-clouds`, `needs-cloud-noise`, `needs-cloud-shadows`, `needs-ambient-taps`, `needs-lightning`.
+Greyed-out reasons: `needs-weather-effects` (`weatherEffects` off), `needs-eve` (no EVE or `cloudSource` ReDefinition / None), `needs-host-api`, `needs-simulation`, `needs-volume-pass`, `needs-weather-audio`, `needs-forecast`, `needs-alerts`, `needs-wind-forces`, `needs-ground-cover`, `needs-sea-ice`, `needs-light-in-medium`, `needs-precipitation`, `needs-solar-dimming`, `needs-own-source`, `needs-own-clouds`, `needs-cloud-noise`, `needs-cloud-shadows`, `needs-ambient-taps`, `needs-lightning`.
 
 `weatherEffects` is the master of the weather system: off, there is no simulation, no cloud-map painter and no side file. `enabled` stays the switch of the whole mod. The default of `weatherEffects` is off (master plan Q5) until the K-W3a rows pass; the E40 wave flips it to on. A test that needs weather sets it explicitly.
 
@@ -148,14 +148,14 @@ The table of `SettingsTable.All`, in the order of the window.
 
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
-| `cloudSource` | Eve | Ours / Eve / Both / None | Cloud Source | needs-weather-effects | volume |
+| `cloudSource` | ReDefinition | ReDefinition / Eve / Both / None | Cloud Source | needs-weather-effects | volume |
 | `weatherCompose` | Auto | Auto / Scene / Host | Weather Composition | needs-weather-effects | volume |
 | `useEveWeather` | on | on / off | Use EVE Weather | needs-eve | - |
 | `eveLayerCap` | 4 | 1 to 8 | EVE Layer Cap | needs-eve | volume |
 | `lightWeatherFrequency` | 1 | 0 to 2 | Light Weather Frequency | needs-simulation | - |
 | `heavyShare` | 1 | 0 to 2 | Heavy Weather Share | needs-simulation | - |
 | `typeByTemperature` | on | on / off | Precipitation Type By Temperature | needs-weather-effects | - |
-| `ownClouds` | off | on / off | Own Volumetric Clouds | needs-own-source | - |
+| `ownClouds` | on | on / off | Own Volumetric Clouds | needs-own-source | - |
 | `layerCap` | 4 | 1 to 4 | Own Cloud Layer Cap | needs-own-clouds | volume |
 | `layerStepQuality` | Medium | Low / Medium / High | Own Cloud Step Quality | needs-own-clouds | volume |
 | `layerStepGrowth` | 2 | 0 to 4 | Own Cloud Step Growth | needs-own-clouds | - |
@@ -205,7 +205,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
-| `windSource` | Auto | Auto / Ours / Foreign / Off | Wind Source | needs-weather-effects | wind |
+| `windSource` | Auto | Auto / ReDefinition / Foreign / Off | Wind Source | needs-weather-effects | wind |
 | `windInjection` | Auto | Auto / Aero / Force | Wind Injection | needs-wind-forces | wind |
 | `windForces` | on | on / off | Wind Forces On Vehicles | needs-weather-effects | wind |
 | `windStrength` | 1 | 0 to 2 | Wind Strength | needs-wind-forces | wind |
@@ -286,7 +286,7 @@ The own cloud system's keys (package T10) follow the stream T option structs: `L
 | `audioDistantStorm` | off | on / off | Distant Storm Sound | needs-weather-audio | - |
 | `audioQuietSnow` | on | on / off | Quiet Snow | needs-weather-audio | - |
 | `audioMuffling` | Auto | Auto / Own / Rse | Sound Muffling | needs-weather-audio | - |
-| `eveSound` | Auto | Auto / Eve / Ours / Both | EVE Sound | needs-weather-audio | - |
+| `eveSound` | Auto | Auto / Eve / ReDefinition / Both | EVE Sound | needs-weather-audio | - |
 | `audioBedSource` | Synth | Synth / Recorded / Mix | Sound Bed Source | needs-weather-audio | - |
 | `audioProbeSolo` | off | on / off | Solo Weather Audio For Probes | needs-weather-audio | - |
 

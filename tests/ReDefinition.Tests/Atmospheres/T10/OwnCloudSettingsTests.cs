@@ -135,7 +135,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
             Assert.AreEqual(frame.SunSteps, sunSteps);
             Assert.AreEqual(12f, minStep);
             Assert.AreEqual((double)(int)ReconMode.Full, AtmospheresSettings.Definition("cloudReconMode").Default, "no reconstruction by default");
-            Assert.AreEqual(0.0, AtmospheresSettings.Definition("ownClouds").Default, "the system is off until T09 accepts it");
+            Assert.AreEqual(1.0, AtmospheresSettings.Definition("ownClouds").Default, "the own clouds are the standard of a new install (the owner 2026-11-26)");
             Assert.AreEqual(0.0, AtmospheresSettings.Definition("cloudLightCache").Default, "the light cache is a cost experiment");
         }
 
@@ -533,15 +533,16 @@ namespace ReDefinition.Tests.Atmospheres.T10
         [TestMethod]
         public void ThePassDrawsOnlyWhereTheSwitchIsOnAndTheSourceIsOurs()
         {
-            Func<string, double> off = Defaults();
+            Func<string, double> off = Defaults("ownClouds", 0);
             Func<string, double> on = Defaults("ownClouds", 1);
-            Assert.IsFalse(OwnCloudOptions.Active(off, CloudSourceKind.Ours));
-            Assert.IsTrue(OwnCloudOptions.Active(on, CloudSourceKind.Ours));
+            Assert.IsTrue(OwnCloudOptions.Active(Defaults(), CloudSourceKind.ReDefinition), "a new install draws the own clouds (the owner 2026-11-26)");
+            Assert.IsFalse(OwnCloudOptions.Active(off, CloudSourceKind.ReDefinition));
+            Assert.IsTrue(OwnCloudOptions.Active(on, CloudSourceKind.ReDefinition));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.Eve));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.Both));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.None));
-            Assert.IsTrue(OwnCloudOptions.ShadowActive(on, CloudSourceKind.Ours, 3));
-            Assert.IsFalse(OwnCloudOptions.ShadowActive(Defaults("ownClouds", 1, "cloudShadows", 0), CloudSourceKind.Ours, 3));
+            Assert.IsTrue(OwnCloudOptions.ShadowActive(on, CloudSourceKind.ReDefinition, 3));
+            Assert.IsFalse(OwnCloudOptions.ShadowActive(Defaults("ownClouds", 1, "cloudShadows", 0), CloudSourceKind.ReDefinition, 3));
             Assert.IsFalse(OwnCloudOptions.ShadowActive(on, CloudSourceKind.Eve, 3));
             Assert.AreEqual(2, OwnCloudOptions.LayersToDraw(Defaults("layerCap", 2), 4));
             Assert.AreEqual(3, OwnCloudOptions.LayersToDraw(Defaults("layerCap", 4), 3));
@@ -552,26 +553,30 @@ namespace ReDefinition.Tests.Atmospheres.T10
         {
             WindowEnvironment eve = WindowEnvironment.Full();
             WindowEnvironment alone = WindowEnvironment.Alone();
-            Func<string, double> master = Defaults("weatherEffects", 1);
+            // The old standard written out (the defaults are ReDefinition and ownClouds on since 2026-11-26).
+            Func<string, double> master = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Eve, "ownClouds", 0);
             // EVE installed and the source Eve: the system does not draw; every row names the source.
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnSource, Reason("ownClouds", master, eve));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnSource, Reason("cloudNoise", master, eve));
-            // Without EVE the source in force is Ours: the switch is open, the rows wait for the switch.
+            // Without EVE the source in force is ReDefinition: the switch is open, the rows wait for the switch.
             Assert.IsNull(Reason("ownClouds", master, alone));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsOwnClouds, Reason("cloudNoise", master, alone));
-            Func<string, double> own = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1);
+            // The new install's defaults: the own clouds draw, nothing of them is greyed.
+            Assert.IsNull(Reason("ownClouds", Defaults("weatherEffects", 1), eve));
+            Assert.IsNull(Reason("cloudNoise", Defaults("weatherEffects", 1), eve));
+            Func<string, double> own = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.ReDefinition, "ownClouds", 1);
             Assert.IsNull(Reason("ownClouds", own, eve));
             Assert.IsNull(Reason("cloudNoise", own, eve));
             Assert.IsNull(Reason("cloudNoiseTier", own, eve));
             // A branch switch off greys its rows with its own reason; the switch itself stays open.
-            Func<string, double> noNoise = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudNoise", 0);
+            Func<string, double> noNoise = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.ReDefinition, "ownClouds", 1, "cloudNoise", 0);
             Assert.IsNull(Reason("cloudNoise", noNoise, eve));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsCloudNoise, Reason("cloudNoiseCurl", noNoise, eve));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsCloudNoise, Reason("cloudFineDetail", noNoise, eve));
-            Func<string, double> noShadow = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudShadows", 0);
+            Func<string, double> noShadow = Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.ReDefinition, "ownClouds", 1, "cloudShadows", 0);
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsCloudShadows, Reason("cloudShadowFloor", noShadow, eve));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsAmbientTaps, Reason("cloudAmbientReuse", own, eve));
-            Assert.IsNull(Reason("cloudAmbientReuse", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.Ours, "ownClouds", 1, "cloudAmbientTaps", 1), eve));
+            Assert.IsNull(Reason("cloudAmbientReuse", Defaults("weatherEffects", 1, "cloudSource", (int)CloudSourceKind.ReDefinition, "ownClouds", 1, "cloudAmbientTaps", 1), eve));
             Assert.IsNull(Reason("cloudResolution", own, eve));
             // The master switch is the root of all of them.
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsMaster, Reason("cloudNoise", Defaults(), eve));

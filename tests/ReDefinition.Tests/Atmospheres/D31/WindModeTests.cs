@@ -81,10 +81,10 @@ namespace ReDefinition.Tests.Atmospheres.D31
         [TestMethod]
         public void OursAppliesEverythingAndWarnsWhereAForeignWindCannotBeReplaced()
         {
-            WindPlan p = WindPlanner.Decide(WindSourceMode.Ours, With("Windy"), WindInjection.Auto, true, true);
+            WindPlan p = WindPlanner.Decide(WindSourceMode.ReDefinition, With("Windy"), WindInjection.Auto, true, true);
             Assert.IsTrue(p.ApplyBase && p.ApplyStorm);
             StringAssert.Contains(p.Warning, "Windy");
-            WindPlan q = WindPlanner.Decide(WindSourceMode.Ours, ForeignWinds.None, WindInjection.Auto, true, true);
+            WindPlan q = WindPlanner.Decide(WindSourceMode.ReDefinition, ForeignWinds.None, WindInjection.Auto, true, true);
             Assert.AreEqual("", q.Warning);
         }
 
@@ -114,7 +114,7 @@ namespace ReDefinition.Tests.Atmospheres.D31
         public void FarWithAWindApiWhoseBridgeIsNotUsableIsOffAndTheStatusSaysSo()
         {
             ForeignWinds both = With("FerramAerospaceResearch", "WindAPI");
-            foreach (WindSourceMode mode in new[] { WindSourceMode.Auto, WindSourceMode.Ours })
+            foreach (WindSourceMode mode in new[] { WindSourceMode.Auto, WindSourceMode.ReDefinition })
             {
                 WindPlan broken = WindPlanner.Decide(mode, both, WindInjection.Auto, true, true, false);
                 Assert.AreEqual(WindRoute.Off, broken.Route, mode + ": no provider can be registered, so nothing acts");

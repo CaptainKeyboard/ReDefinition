@@ -265,7 +265,7 @@ namespace ReDefinition.Tests.Atmospheres.D33
             Assert.AreEqual(0f, eve.BedFactor);
             Assert.AreEqual(0f, eve.HissFactor);
             Assert.IsFalse(eve.SilenceEve);
-            EveSoundDecision ours = EveSoundPolicyTable.Decide(EveSoundPolicy.Ours, true);
+            EveSoundDecision ours = EveSoundPolicyTable.Decide(EveSoundPolicy.ReDefinition, true);
             Assert.AreEqual(1f, ours.BedFactor);
             Assert.IsTrue(ours.SilenceEve);
             EveSoundDecision both = EveSoundPolicyTable.Decide(EveSoundPolicy.Both, true);

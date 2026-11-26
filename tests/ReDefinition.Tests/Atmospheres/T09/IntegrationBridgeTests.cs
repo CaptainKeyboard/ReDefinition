@@ -169,11 +169,11 @@ namespace ReDefinition.Tests.Atmospheres.T09
         public void OnlyTheSourceOursDrawsTheOwnPass()
         {
             Func<string, double> on = key => key == AtmospheresSettings.Keys.OwnClouds ? 1.0 : 0.0;
-            Assert.IsTrue(OwnCloudOptions.Active(on, CloudSourceKind.Ours));
+            Assert.IsTrue(OwnCloudOptions.Active(on, CloudSourceKind.ReDefinition));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.Eve));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.Both));
             Assert.IsFalse(OwnCloudOptions.Active(on, CloudSourceKind.None));
-            Assert.IsFalse(OwnCloudOptions.Active(key => 0.0, CloudSourceKind.Ours));
+            Assert.IsFalse(OwnCloudOptions.Active(key => 0.0, CloudSourceKind.ReDefinition));
         }
 
         [TestMethod]
@@ -219,14 +219,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 SettingDef def = AtmospheresSettings.Definition(key);
                 return def.Kind == SettingKind.Text ? 0.0 : def.Default;
             };
-            OwnCloudOptions.Active(v, CloudSourceKind.Ours);
+            OwnCloudOptions.Active(v, CloudSourceKind.ReDefinition);
             OwnCloudOptions.LayersToDraw(v, 4);
             OwnCloudOptions.Apply(new NoiseSwitches(), v);
             OwnCloudOptions.Apply(new HeightTuning(), v);
             OwnCloudOptions.Apply(new LayerFrame(), v);
             OwnCloudOptions.Apply(new CloudLightSettings(), v);
             OwnCloudOptions.Apply(new CloudShadowFrame(), v);
-            OwnCloudOptions.ShadowActive(v, CloudSourceKind.Ours, 2);
+            OwnCloudOptions.ShadowActive(v, CloudSourceKind.ReDefinition, 2);
             OwnCloudOptions.Apply(new FarViewSettings(), v);
             OwnCloudOptions.MapFade(v);
             OwnCloudOptions.Apply(new ReconSettings(), v);

@@ -14,7 +14,7 @@
     { "file": "GameData/ReDefinition/Main/PluginData/settings.cfg", "set": { "raytracing": "Off", "frameGeneration": false, "qualityAuto": false, "quality": "NativeAA" } },
     { "file": "settings.cfg", "set": { "SYNC_VBL": 0, "FRAMERATE_LIMIT": 1000 } }
   ],
-  "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "Ours" },
+  "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1, "ownClouds": 1, "cloudSource": "ReDefinition" },
   "sections": [ { "id": "SOLOPROBE", "package": "SOLOPROBE", "title": "Types drawn alone" } ],
   "collect": [
     { "from": "GameData/ReDefinition/Atmospheres/PluginData/CloudViewer/Captures", "to": ".local/work/series-pictures/K-S1/captures", "optional": true }

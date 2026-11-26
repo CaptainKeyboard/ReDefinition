@@ -235,7 +235,7 @@ namespace ReDefinition.Atmospheres
         private void UseOwn()
         {
             ClearForced();
-            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.ReDefinition);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudReconMode, (double)(int)ReconMode.Full);
             SetSetting(AtmospheresSettings.Keys.CloudResolution, 1.0);

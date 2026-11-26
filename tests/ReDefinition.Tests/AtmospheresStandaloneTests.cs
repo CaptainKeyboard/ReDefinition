@@ -46,7 +46,7 @@ namespace ReDefinition.Tests
                 AtmospheresSettings.YearLengthFactor = 0.25f;
                 AtmospheresSettings.SetNumber("coverStrength", 0.5);
                 AtmospheresSettings.SetNumber("heavyShare", 1.5);
-                AtmospheresSettings.SetNumber("cloudSource", (double)CloudSourceKind.Ours);
+                AtmospheresSettings.SetNumber("cloudSource", (double)CloudSourceKind.ReDefinition);
                 AtmospheresSettings.SetText("alertSites", "Pad");
                 AtmospheresSettings.Write(file);
                 Defaults();
@@ -56,7 +56,7 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(0.25f, AtmospheresSettings.YearLengthFactor);
                 Assert.AreEqual(0.5f, AtmospheresSettings.CoverStrength);
                 Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
-                Assert.AreEqual(CloudSourceKind.Ours, AtmospheresSettings.CloudSource);
+                Assert.AreEqual(CloudSourceKind.ReDefinition, AtmospheresSettings.CloudSource);
                 Assert.AreEqual("Pad", AtmospheresSettings.AlertSites);
             }
             finally

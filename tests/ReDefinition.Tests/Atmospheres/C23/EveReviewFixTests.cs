@@ -14,10 +14,10 @@ namespace ReDefinition.Tests.Atmospheres.C23
         {
             bool eve, own;
             // cloudSource x EVE available -> eveMode, ownMode
-            CloudModeModel.Decide(CloudSourceKind.Ours, true, out eve, out own);
+            CloudModeModel.Decide(CloudSourceKind.ReDefinition, true, out eve, out own);
             Assert.IsFalse(eve);
             Assert.IsTrue(own);
-            CloudModeModel.Decide(CloudSourceKind.Ours, false, out eve, out own);
+            CloudModeModel.Decide(CloudSourceKind.ReDefinition, false, out eve, out own);
             Assert.IsFalse(eve);
             Assert.IsTrue(own);
             CloudModeModel.Decide(CloudSourceKind.Eve, true, out eve, out own);
@@ -43,8 +43,8 @@ namespace ReDefinition.Tests.Atmospheres.C23
         [TestMethod]
         public void TheShellStandsInWhereEveHasNoPicture()
         {
-            Assert.IsTrue(CloudModeModel.ShellWanted(CloudSourceKind.Ours, true));
-            Assert.IsTrue(CloudModeModel.ShellWanted(CloudSourceKind.Ours, false));
+            Assert.IsTrue(CloudModeModel.ShellWanted(CloudSourceKind.ReDefinition, true));
+            Assert.IsTrue(CloudModeModel.ShellWanted(CloudSourceKind.ReDefinition, false));
             Assert.IsFalse(CloudModeModel.ShellWanted(CloudSourceKind.None, false));
             Assert.IsTrue(CloudModeModel.ShellWanted(CloudSourceKind.Eve, false), "a body with no EVE 2D layer, or no EVE layer at all");
             Assert.IsFalse(CloudModeModel.ShellWanted(CloudSourceKind.Eve, true));

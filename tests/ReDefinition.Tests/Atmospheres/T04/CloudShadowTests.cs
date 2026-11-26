@@ -197,7 +197,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void OneRendererCastsTheShadowOfACloudLayerWhateverTheCloudSource()
         {
-            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Ours, false));
+            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.ReDefinition, false));
             Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Eve, false));
             Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Both, false));
             // Where EVE cannot render, the source in force is Ours and so is the caster.
@@ -205,7 +205,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Both, true));
             Assert.AreEqual(CloudShadowSwitches.Caster.None, CloudShadowSwitches.WhoCasts(CloudSourceKind.None, false));
             // The own shadow is drawn exactly where Ours casts: LayerSwitches.Active admits only the source Ours.
-            foreach (CloudSourceKind source in new[] { CloudSourceKind.Ours, CloudSourceKind.Eve, CloudSourceKind.Both, CloudSourceKind.None })
+            foreach (CloudSourceKind source in new[] { CloudSourceKind.ReDefinition, CloudSourceKind.Eve, CloudSourceKind.Both, CloudSourceKind.None })
                 foreach (bool blocked in new[] { false, true })
                 {
                     CloudSourceKind inForce = CloudModeModel.Effective(source, blocked);

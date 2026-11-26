@@ -70,9 +70,9 @@ namespace ReDefinition.Tests.Atmospheres.C23
         [TestMethod]
         public void WhereEveCannotRenderEveAndBothBecomeOursAndTheOthersStay()
         {
-            Assert.AreEqual(CloudSourceKind.Ours, CloudModeModel.Effective(CloudSourceKind.Eve, true));
-            Assert.AreEqual(CloudSourceKind.Ours, CloudModeModel.Effective(CloudSourceKind.Both, true));
-            Assert.AreEqual(CloudSourceKind.Ours, CloudModeModel.Effective(CloudSourceKind.Ours, true));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, CloudModeModel.Effective(CloudSourceKind.Eve, true));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, CloudModeModel.Effective(CloudSourceKind.Both, true));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, CloudModeModel.Effective(CloudSourceKind.ReDefinition, true));
             Assert.AreEqual(CloudSourceKind.None, CloudModeModel.Effective(CloudSourceKind.None, true));
             Assert.AreEqual(CloudSourceKind.Eve, CloudModeModel.Effective(CloudSourceKind.Eve, false));
             Assert.AreEqual(CloudSourceKind.Both, CloudModeModel.Effective(CloudSourceKind.Both, false));

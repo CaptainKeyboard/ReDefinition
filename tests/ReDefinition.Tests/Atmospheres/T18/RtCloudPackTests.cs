@@ -310,7 +310,7 @@ namespace ReDefinition.Tests.Atmospheres.T18
             Assert.IsFalse(RtOwnCloudsPlan.Wanted(true, true, ours, true, 0), "no layer");
             Assert.IsFalse(RtOwnCloudsPlan.Wanted(true, true, CloudShadowSwitches.Caster.Eve, true, 3), "Volumetric or Both: TVC's layer is the rays' cloud");
             Assert.IsFalse(RtOwnCloudsPlan.Wanted(true, true, CloudShadowSwitches.Caster.None, true, 3));
-            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.Ours, false));
+            Assert.AreEqual(CloudShadowSwitches.Caster.Ours, CloudShadowSwitches.WhoCasts(CloudSourceKind.ReDefinition, false));
             Assert.AreEqual(CloudShadowSwitches.Caster.Eve, CloudShadowSwitches.WhoCasts(CloudSourceKind.Both, false));
         }
     }

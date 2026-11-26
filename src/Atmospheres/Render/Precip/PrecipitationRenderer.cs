@@ -137,7 +137,7 @@ namespace ReDefinition.Atmospheres
         // Eve or Both only while precipDensity is on.
         internal static bool SuppressEveFields(CloudSourceKind source, float precipDensity)
         {
-            if (source == CloudSourceKind.Ours || source == CloudSourceKind.None) return true;
+            if (source == CloudSourceKind.ReDefinition || source == CloudSourceKind.None) return true;
             return precipDensity > 0f;
         }
 

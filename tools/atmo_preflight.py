@@ -827,7 +827,7 @@ def selftest(check):
               'SettingDef.Choice("cloudSource", typeof(CloudSourceKind), CloudSourceKind.Eve, CL, "Cloud Source"),\n')
         write(os.path.join(repo, "src", "A", "SetsProbe.cs"), "SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);\nSetSetting(AtmospheresSettings.Keys.CloudSource, 3.0);")
         write(os.path.join(repo, "src", "A", "LazyProbe.cs"), "// sets nothing")
-        sw_start = {"id": "s", "probeArgs": ["-atmoProbe", "SetsProbe"], "productSwitches": {"cloudSource": "Ours"}}
+        sw_start = {"id": "s", "probeArgs": ["-atmoProbe", "SetsProbe"], "productSwitches": {"cloudSource": "ReDefinition"}}
         sw_defn = {"productSwitches": {"enabled": 1, "weatherEffects": 1}}
         r = pf_product_switches(repo, ksp, sw_defn, sw_start)
         check("preflight product switches: a switch that is off by default and set by the probe PASSes and shows current -> wanted",

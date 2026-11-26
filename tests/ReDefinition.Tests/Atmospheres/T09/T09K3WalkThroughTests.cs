@@ -72,7 +72,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Assert.AreEqual(2.0, seen["sigma2_g"][CloudLookTuning.TuneSigma], 1e-6, "the tuning key is on in its window");
             Assert.AreEqual(-99.0, seen["noise_off_g"][CloudLookTuning.TuneSigma], 1e-6, "and gone in the others");
             Assert.AreEqual((double)(int)CloudSourceKind.None, seen["off_g"][AtmospheresSettings.Keys.CloudSource], "the off window has no clouds");
-            Assert.AreEqual((double)(int)CloudSourceKind.Ours, seen["plain_g"][AtmospheresSettings.Keys.CloudSource]);
+            Assert.AreEqual((double)(int)CloudSourceKind.ReDefinition, seen["plain_g"][AtmospheresSettings.Keys.CloudSource]);
 
             // Each window: the K-T2 lines the evaluator reads, the numeric frame, the aid frame (drawn variants), unique picture names.
             foreach (string id in ids)

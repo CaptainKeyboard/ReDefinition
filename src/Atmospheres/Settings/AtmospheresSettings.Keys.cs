@@ -246,7 +246,8 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Choice("qualityTier", typeof(ReDefinition.Core.QualityTier), ReDefinition.Core.QualityTier.Auto, G, "Quality Tier", "", RQ),
 
                 // Clouds and frequency
-                SettingDef.Choice("cloudSource", typeof(CloudSourceKind), CloudSourceKind.Eve, CL, "Cloud Source", MASTER, RV),
+                // Our own clouds are the standard of a new install (the owner 2026-11-26; it was Eve).
+                SettingDef.Choice("cloudSource", typeof(CloudSourceKind), CloudSourceKind.ReDefinition, CL, "Cloud Source", MASTER, RV),
                 SettingDef.Choice("weatherCompose", typeof(WeatherCompose), WeatherCompose.Auto, CL, "Weather Composition", MASTER, RV),
                 SettingDef.Bool("useEveWeather", true, CL, "Use EVE Weather", EVE),
                 SettingDef.Int("eveLayerCap", 4, 1, 8, CL, "EVE Layer Cap", EVE, RV),

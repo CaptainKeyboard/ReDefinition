@@ -127,10 +127,10 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         // The -atmoSet of each start as the series file has it.
         private static string PairsOf(string start)
         {
-            return start == SurfaceGroundProbe.StartOff ? "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
-                 : start == SurfaceGroundProbe.StartCaptureAb ? "enabled=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
-                 : start == SurfaceGroundProbe.StartNoCover ? "groundCover=0,weatherEffects=1,cloudSource=Ours,ownClouds=1"
-                 : "weatherEffects=1,cloudSource=Ours,ownClouds=1";
+            return start == SurfaceGroundProbe.StartOff ? "enabled=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"
+                 : start == SurfaceGroundProbe.StartCaptureAb ? "enabled=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"
+                 : start == SurfaceGroundProbe.StartNoCover ? "groundCover=0,weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"
+                 : "weatherEffects=1,cloudSource=ReDefinition,ownClouds=1";
         }
 
         // The cover as the start leaves it: quads and bodies where it is on, none where it is off from load.
@@ -242,7 +242,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.IsTrue(AtmospheresSettings.GroundCover && AtmospheresSettings.WeatherEffects && AtmospheresSettings.OwnClouds, "the others as given");
             Run nocover = Start(SurfaceGroundProbe.StartNoCover);
             Assert.IsTrue(AtmospheresSettings.Enabled && !AtmospheresSettings.GroundCover, "groundCover=0");
-            Assert.AreEqual(CloudSourceKind.Ours, AtmospheresSettings.CloudSource);
+            Assert.AreEqual(CloudSourceKind.ReDefinition, AtmospheresSettings.CloudSource);
             Assert.IsNotNull(off);
             Assert.IsNotNull(nocover);
         }

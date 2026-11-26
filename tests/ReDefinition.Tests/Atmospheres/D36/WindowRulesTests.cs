@@ -206,17 +206,17 @@ namespace ReDefinition.Tests.Atmospheres.D36
             WindowEnvironment none = WindowEnvironment.Full();
             none.EveInstalled = false;
             SettingDef def = Def("cloudSource");
-            Assert.IsNull(Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.Ours, none));
+            Assert.IsNull(Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.ReDefinition, none));
             Assert.IsNull(Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.None, none));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsEve, Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.Eve, none));
             Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsEve, Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.Both, none));
             Assert.IsNull(Dependencies.ChoiceUnavailable(def, (int)CloudSourceKind.Eve, WindowEnvironment.Full()));
-            // The default is Eve: the row stays open and tells the truth.
-            RowState state = Dependencies.Evaluate(def, On(), none);
+            // A file that holds Eve without EVE installed: the row stays open and tells the truth. (The default is ReDefinition since 2026-11-26.)
+            RowState state = Dependencies.Evaluate(def, On("cloudSource", (int)CloudSourceKind.Eve), none);
             Assert.IsTrue(state.Enabled);
             StringAssert.Contains(state.Note, "own volume pass");
-            Assert.AreEqual("", Dependencies.Evaluate(def, On(), WindowEnvironment.Full()).Note);
-            Assert.AreEqual("", Dependencies.Evaluate(def, On("cloudSource", (int)CloudSourceKind.Ours), none).Note);
+            Assert.AreEqual("", Dependencies.Evaluate(def, On("cloudSource", (int)CloudSourceKind.Eve), WindowEnvironment.Full()).Note);
+            Assert.AreEqual("", Dependencies.Evaluate(def, On("cloudSource", (int)CloudSourceKind.ReDefinition), none).Note);
         }
 
         [TestMethod]
@@ -372,8 +372,8 @@ namespace ReDefinition.Tests.Atmospheres.D36
         {
             Assert.AreEqual("Wind: FAR owns the base wind, ours adds the storm wind on top.", WindStatus.Text(WindSourceMode.Auto, "FAR"));
             Assert.AreEqual("Wind: ours, base wind and storms.", WindStatus.Text(WindSourceMode.Auto, ""));
-            Assert.AreEqual("Wind: ours replaces KWP's where it can; see the log.", WindStatus.Text(WindSourceMode.Ours, "KWP"));
-            Assert.AreEqual("Wind: ours, base wind and storms.", WindStatus.Text(WindSourceMode.Ours, null));
+            Assert.AreEqual("Wind: ours replaces KWP's where it can; see the log.", WindStatus.Text(WindSourceMode.ReDefinition, "KWP"));
+            Assert.AreEqual("Wind: ours, base wind and storms.", WindStatus.Text(WindSourceMode.ReDefinition, null));
             Assert.AreEqual("Wind: FAR's only, ours draws the visuals.", WindStatus.Text(WindSourceMode.Foreign, "FAR"));
             Assert.AreEqual("Wind: no other wind mod found, so no wind forces; visuals only.", WindStatus.Text(WindSourceMode.Foreign, ""));
             Assert.AreEqual("Wind: off, ours draws the visuals.", WindStatus.Text(WindSourceMode.Off, "FAR"));
@@ -510,7 +510,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.IsFalse(model.Set(Def("windInjection"), (double)(int)WindInjection.Aero));
             Assert.IsTrue(model.Set(Def("windInjection"), (double)(int)WindInjection.Force));
             Assert.IsFalse(model.Set(Def("cloudSource"), (double)(int)CloudSourceKind.Both));
-            Assert.IsTrue(model.Set(Def("cloudSource"), (double)(int)CloudSourceKind.Ours));
+            Assert.IsTrue(model.Set(Def("cloudSource"), (double)(int)CloudSourceKind.ReDefinition));
             Assert.IsTrue(model.Dirty);
             model.Flush();
             CollectionAssert.AreEqual(new[] { "settings" }, written);

@@ -230,8 +230,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSystemIsOffByDefaultAndDrawsOnlyUnderTheOursSource()
         {
-            Assert.IsTrue(LayerSwitches.Active(true, CloudSourceKind.Ours));
-            Assert.IsFalse(LayerSwitches.Active(false, CloudSourceKind.Ours));
+            Assert.IsTrue(LayerSwitches.Active(true, CloudSourceKind.ReDefinition));
+            Assert.IsFalse(LayerSwitches.Active(false, CloudSourceKind.ReDefinition));
             Assert.IsFalse(LayerSwitches.Active(true, CloudSourceKind.Eve));
             Assert.IsFalse(LayerSwitches.Active(true, CloudSourceKind.None));
         }

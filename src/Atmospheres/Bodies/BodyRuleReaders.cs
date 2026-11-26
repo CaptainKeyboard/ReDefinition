@@ -146,7 +146,7 @@ namespace ReDefinition.Atmospheres
         internal static CloudRules Clouds(BodyNodeReader r, CloudLayerContext ctx = null)
         {
             CloudSourceKind? source = null;
-            if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.Ours);
+            if (r.Has("cloudSource")) source = r.Enum("cloudSource", CloudSourceKind.ReDefinition);
             string layerSet;
             double metreScale, scaledDepthM, horizontalScale;
             List<CloudLayerSpec> layers = CloudLayerTemplate.Choose(r, ctx, out layerSet, out metreScale, out scaledDepthM, out horizontalScale);

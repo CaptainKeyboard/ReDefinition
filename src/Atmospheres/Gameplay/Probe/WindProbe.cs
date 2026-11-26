@@ -128,10 +128,10 @@ namespace ReDefinition.Atmospheres
             double reference = 0.0;
             var cells = new[]
             {
-                new { Name = "ours_absent", Mode = WindSourceMode.Ours, Stub = false, Expect = 1.0 },
+                new { Name = "ours_absent", Mode = WindSourceMode.ReDefinition, Stub = false, Expect = 1.0 },
                 new { Name = "auto_absent", Mode = WindSourceMode.Auto, Stub = false, Expect = 1.0 },
                 new { Name = "auto_present", Mode = WindSourceMode.Auto, Stub = true, Expect = WindCompose.StormShare(0.2) },
-                new { Name = "ours_present", Mode = WindSourceMode.Ours, Stub = true, Expect = 1.0 },
+                new { Name = "ours_present", Mode = WindSourceMode.ReDefinition, Stub = true, Expect = 1.0 },
                 new { Name = "foreign_absent", Mode = WindSourceMode.Foreign, Stub = false, Expect = 0.0 },
                 new { Name = "foreign_present", Mode = WindSourceMode.Foreign, Stub = true, Expect = 0.0 },
                 new { Name = "off_absent", Mode = WindSourceMode.Off, Stub = false, Expect = 0.0 }

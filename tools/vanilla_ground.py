@@ -123,15 +123,15 @@ HOVER_M = {"ours-hover": 300.0, "vanilla-hover": 300.0, "ours-hover-lowfly": 60.
 VARIANTS = VANILLA_VARIANTS + ("ours",) + BISECT_VARIANTS + ("ours-hover", "ours-hover-lowfly", "ours+flags", "ours-direct")
 # Launch arguments of a K-S2 start (the 'Args: KSP_x64.exe ...' line of its KSP.log: -popupwindow -atmoSeries K-S2 -atmoStart ground_on -redefinitionProbe
 # -redefinitionProbeStay -redefinitionProbeClouds -screen-width 2560 -screen-height 1440 -screen-fullscreen 0 -atmoProbe SurfaceGroundProbe -atmoSet
-# weatherEffects=1,cloudSource=Ours,ownClouds=1; tests/series/K-S2.json). The window's are always passed. -atmoSeries/-atmoStart/-atmoProbe are not in a preset: they start
+# weatherEffects=1,cloudSource=ReDefinition,ownClouds=1; tests/series/K-S2.json). The window's are always passed. -atmoSeries/-atmoStart/-atmoProbe are not in a preset: they start
 # K-S2's own probe, which would drive the scene and the camera against ProbeLite; --extra-args passes them anyway. -redefinitionProbe alone is not the stay mode: ReDefinition's
 # probe then measures a camera path and quits the game when it is done, possibly before ProbeLite's last picture (the pictures taken are kept).
 FLAG_PRESETS = {
     "probe": ["-redefinitionProbe"],
     "probe+stay": ["-redefinitionProbe", "-redefinitionProbeStay"],
     "probe+stay+clouds": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds"],
-    "atmoset": ["-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"],
-    "probe+stay+clouds+atmoset": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"],
+    "atmoset": ["-atmoSet", "weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"],
+    "probe+stay+clouds+atmoset": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoSet", "weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"],
 }
 # The order `flagbisect` adds the flags in.
 FLAG_ORDER = ("probe", "probe+stay", "probe+stay+clouds", "probe+stay+clouds+atmoset")

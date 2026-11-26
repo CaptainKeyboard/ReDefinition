@@ -471,7 +471,7 @@ class FlagVariantTests(Base):
 
     def test_flags_without_a_probe_argument_leave_the_loading_to_the_plugin(self):
         self.run_variant("ours", flags="atmoset")
-        self.assertEqual(self.seen["args"], vg.WINDOW_ARGS + ["-atmoSet", "weatherEffects=1,cloudSource=Ours,ownClouds=1"])
+        self.assertEqual(self.seen["args"], vg.WINDOW_ARGS + ["-atmoSet", "weatherEffects=1,cloudSource=ReDefinition,ownClouds=1"])
         self.assertIn("menuLoad=1\n", self.seen["config"])
         self.assertIn("spaceCentre=1\n", self.seen["config"])
 

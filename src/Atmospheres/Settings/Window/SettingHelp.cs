@@ -40,7 +40,7 @@ namespace ReDefinition.Atmospheres
                 { "lightWeatherFrequency", "How often light weather forms: 0 none, 1 the body's own rate, 2 twice as often." },
                 { "heavyShare", "How large a share of the weather is heavy: 0 none, 1 the body's own share, 2 twice as much." },
                 { "typeByTemperature", "Lets the air temperature decide whether it snows, sleets or rains. Off, the type is the body's usual one." },
-                { "ownClouds", "Draws the clouds with the mod's own volumetric cloud system: a planet-wide stack of layers marched from the ground, from inside and from above. It runs where Cloud Source is Ours, or where EVE is not installed." },
+                { "ownClouds", "Draws the clouds with the mod's own volumetric cloud system: a planet-wide stack of layers marched from the ground, from inside and from above. It runs where Cloud Source is ReDefinition, or where EVE is not installed." },
                 { "layerCap", "The most cloud layers one picture draws, from 1 to 4. The lowest layers are kept first. Fewer layers cost less." },
                 { "layerStepQuality", "How finely the own clouds are marched: Low takes 32 steps per layer (scaled by Cloud Samples) and a shortest step of 24 m, Medium 48 and 12 m, High 64 and 6 m. The quality profile sets High from High up and Medium below. Finer steps show sharper near detail and cost more." },
                 { "layerStepGrowth", "How fast the march steps grow inside a cloud as the light dies out. 0 keeps the step fixed, 2 is the measured value, higher is cheaper and softer in thick cloud." },

@@ -50,7 +50,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             SetSetting(AtmospheresSettings.Keys.GenEnabled, 1.0);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
-            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.ReDefinition);
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.25);
             EmitText("WB.gates", CloudGates.Describe(AtmospheresSettings.Number));
             Check("the weather field's gate is open (enabled, weatherEffects, genEnabled)", CloudGates.GeneratorInstalled(AtmospheresSettings.Number),

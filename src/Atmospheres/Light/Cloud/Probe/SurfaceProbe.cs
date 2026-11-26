@@ -291,7 +291,7 @@ namespace ReDefinition.Atmospheres
         {
             SetSetting(AtmospheresSettings.Keys.Enabled, 1.0);
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
-            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.ReDefinition);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             SetSetting(AtmospheresSettings.Keys.CloudBasePhysics, 0.0);
             SetSetting(AtmospheresSettings.Keys.CloudBaseVariation, 0.0);

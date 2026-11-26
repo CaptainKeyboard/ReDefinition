@@ -197,7 +197,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             SettingDef rt = AtmospheresSettings.Definition(AtmospheresSettings.Keys.RtOwnClouds);
             values[AtmospheresSettings.Keys.Enabled] = 1.0;
             values[AtmospheresSettings.Keys.WeatherEffects] = 1.0;
-            values[AtmospheresSettings.Keys.CloudSource] = (double)(int)CloudSourceKind.Ours;
+            values[AtmospheresSettings.Keys.CloudSource] = (double)(int)CloudSourceKind.ReDefinition;
             values[AtmospheresSettings.Keys.OwnClouds] = 1.0;
             Assert.IsNull(ViewerModes.GreyReason(rt, value, env, false), "with the own clouds on the row is open");
             values[AtmospheresSettings.Keys.OwnClouds] = 0.0;

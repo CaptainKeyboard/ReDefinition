@@ -79,14 +79,22 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The index of a choice name, ignoring case; -1 where it is not one.
+        // The index of a choice name, ignoring case; -1 where it is not one. A file written before 2026-11-26 names our own choice "Ours" (the owner
+        // renamed it to ReDefinition): read as that choice, and written back under the new name at the next save.
         internal int ChoiceIndex(string name)
         {
+            name = CurrentChoiceName(name);
             for (int i = 0; i < Choices.Length; i++)
             {
                 if (string.Equals(Choices[i], name, StringComparison.OrdinalIgnoreCase)) return i;
             }
             return -1;
+        }
+
+        // The name a choice has now for the name a file may still hold.
+        internal static string CurrentChoiceName(string name)
+        {
+            return string.Equals(name, "Ours", StringComparison.OrdinalIgnoreCase) ? "ReDefinition" : name;
         }
 
         internal static SettingDef Bool(string key, bool defaultValue, string category, string tooltip, string grey = "", string row = "")

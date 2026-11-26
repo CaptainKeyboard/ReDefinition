@@ -30,7 +30,7 @@ namespace ReDefinition.Atmospheres
         // leaves the drawing to the renderer it names; Both draws ours as the base and TVC's layers on top is T09's decision).
         internal static bool Active(bool ownClouds, CloudSourceKind source)
         {
-            return ownClouds && source == CloudSourceKind.Ours;
+            return ownClouds && source == CloudSourceKind.ReDefinition;
         }
 
         // The layers a pass draws: the cap clamped to 1 to MaxLayers, and no more than the stack holds.

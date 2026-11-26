@@ -316,7 +316,7 @@ namespace ReDefinition.Tests.Atmospheres.C22
         [TestMethod]
         public void EveFieldsAreSuppressedByTheCloudSourceRule()
         {
-            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Ours, 0f), "Ours: always");
+            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.ReDefinition, 0f), "Ours: always");
             Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.None, 0f), "None: always");
             Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Eve, 1f));
             Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Both, 0.5f));

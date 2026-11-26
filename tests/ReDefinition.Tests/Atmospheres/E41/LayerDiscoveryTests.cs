@@ -125,7 +125,7 @@ namespace ReDefinition.Tests.Atmospheres.E41
         {
             LayerDiscovery d = LayerRoleDiscovery.Discover(Stock(), "Duna", CloudRules.Default, 0);
             Assert.IsTrue(d.None, d.Summary());
-            Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Eve));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, d.EffectiveSource(CloudSourceKind.Eve));
         }
 
         [TestMethod]
@@ -181,9 +181,9 @@ namespace ReDefinition.Tests.Atmospheres.E41
         {
             LayerDiscovery d = LayerRoleDiscovery.Discover(new List<PackLayerInfo>(), "Kerbin", CloudRules.Default, 0);
             Assert.IsTrue(d.None);
-            Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Eve));
-            Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Both));
-            Assert.AreEqual(CloudSourceKind.Ours, d.EffectiveSource(CloudSourceKind.Ours));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, d.EffectiveSource(CloudSourceKind.Eve));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, d.EffectiveSource(CloudSourceKind.Both));
+            Assert.AreEqual(CloudSourceKind.ReDefinition, d.EffectiveSource(CloudSourceKind.ReDefinition));
             Assert.AreEqual(CloudSourceKind.None, d.EffectiveSource(CloudSourceKind.None));
             Assert.IsTrue(d.Summary().Contains("0 taken"));
             Assert.AreEqual(0.0, d.MapMegabytes(2048, 1024));

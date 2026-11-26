@@ -66,7 +66,7 @@ namespace ReDefinition.Tests
         [DataRow("weatherEffects", "0", "False")]
         [DataRow("weatherEffects", "True", "True")]
         [DataRow("audioDistantStorm", "True", "True")]
-        [DataRow("cloudSource", "nonsense", "Eve")]
+        [DataRow("cloudSource", "nonsense", "ReDefinition")]
         [DataRow("cloudSource", "Both", "Both")]
         [DataRow("cloudSource", "none", "None")]
         [DataRow("weatherCompose", "Host", "Host")]
@@ -252,7 +252,13 @@ namespace ReDefinition.Tests
                 Array values = Enum.GetValues(pair.Value);
                 for (int i = 0; i < values.Length; i++) Assert.AreEqual(i, Convert.ToInt32(values.GetValue(i)), pair.Key + " is numbered from 0 in order");
             }
-            Assert.AreEqual(CloudSourceKind.Eve, AtmospheresSettings.CloudSource);
+            // Our own clouds are the standard of a new install (the owner 2026-11-26; it was Eve).
+            Assert.AreEqual(CloudSourceKind.ReDefinition, AtmospheresSettings.CloudSource);
+            // A file from before the rename names the choice "Ours": still read as it.
+            Assert.AreEqual((int)CloudSourceKind.ReDefinition, AtmospheresSettings.Definition("cloudSource").ChoiceIndex("Ours"));
+            Assert.AreEqual((int)WindSourceMode.ReDefinition, AtmospheresSettings.Definition("windSource").ChoiceIndex("ours"));
+            Assert.AreEqual((int)EveSoundPolicy.ReDefinition, AtmospheresSettings.Definition("eveSound").ChoiceIndex("Ours"));
+            Assert.AreEqual("ReDefinition", AtmospheresSettings.Definition("cloudSource").Format((int)CloudSourceKind.ReDefinition), "written back under the new name");
         }
 
         [TestMethod]

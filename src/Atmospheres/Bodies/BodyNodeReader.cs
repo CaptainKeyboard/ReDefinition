@@ -219,6 +219,8 @@ namespace ReDefinition.Atmospheres
             if (text == null) return fallback;
             T value;
             if (System.Enum.TryParse(text, true, out value) && System.Enum.IsDefined(typeof(T), value)) return value;
+            // A body cfg written before 2026-11-26 names our own choice "Ours" (now ReDefinition): still read.
+            if (System.Enum.TryParse(SettingDef.CurrentChoiceName(text), true, out value) && System.Enum.IsDefined(typeof(T), value)) return value;
             Warn(key, "'" + text + "' is not one of " + string.Join(", ", System.Enum.GetNames(typeof(T))) + "; " + fallback + " is used");
             return fallback;
         }

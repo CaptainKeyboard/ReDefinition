@@ -46,7 +46,7 @@ namespace ReDefinition.Atmospheres.Audio
                     d.HissFactor = 0f;
                     d.EveCarriesBed = clipAudible;
                     break;
-                case EveSoundPolicy.Ours:
+                case EveSoundPolicy.ReDefinition:
                     d.SilenceEve = true;
                     break;
                 default:

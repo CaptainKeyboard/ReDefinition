@@ -62,8 +62,8 @@ namespace ReDefinition.Atmospheres
             Emit("C23.render_status_code", (int)EveRenderCompat.Status);
             EmitText("C23.render_status", EveRenderCompat.Status + ": " + EveRenderCompat.Reason);
             Emit("C23.render_blocked", EveRenderCompat.Blocked);
-            Emit("C23.effective_source_is_ours", EveRenderCompat.EffectiveSource(CloudSourceKind.Eve) == CloudSourceKind.Ours
-                && EveRenderCompat.EffectiveSource(CloudSourceKind.Both) == CloudSourceKind.Ours);
+            Emit("C23.effective_source_is_ours", EveRenderCompat.EffectiveSource(CloudSourceKind.Eve) == CloudSourceKind.ReDefinition
+                && EveRenderCompat.EffectiveSource(CloudSourceKind.Both) == CloudSourceKind.ReDefinition);
             if (EveRenderCompat.Blocked)
             {
                 // Nothing is bound to EVE while it cannot render; the frame is frozen by EVE itself in that set, so no frame is read.

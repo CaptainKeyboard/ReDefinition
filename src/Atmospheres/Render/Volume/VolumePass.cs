@@ -138,7 +138,7 @@ namespace ReDefinition.Atmospheres
             }
             WeatherView view = WeatherHooks.View;
             VolumeLook look = VolumeLook.Read(Tuning.Get);
-            bool slab = EveRenderCompat.EffectiveSource(AtmospheresSettings.CloudSource) == CloudSourceKind.Ours && view.Active;
+            bool slab = EveRenderCompat.EffectiveSource(AtmospheresSettings.CloudSource) == CloudSourceKind.ReDefinition && view.Active;
 
             AnchorMath(cam);
             double ut = Planetarium.GetUniversalTime();

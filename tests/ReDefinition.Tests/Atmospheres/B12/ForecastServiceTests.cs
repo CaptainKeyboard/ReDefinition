@@ -503,7 +503,7 @@ namespace ReDefinition.Tests.Atmospheres.B12
             Assert.AreEqual(18f, auto.Steps[2].GustMs, 1e-5f);
             Assert.AreEqual(0.8f, auto.Steps[2].Confidence01, 1e-6f);
 
-            ForecastReport ours = ForecastEngine.Compute(site, 0.0, 6.0, Context(sources: new IWeatherSource[] { provider }, mode: WindSourceMode.Ours, geometry: false), field);
+            ForecastReport ours = ForecastEngine.Compute(site, 0.0, 6.0, Context(sources: new IWeatherSource[] { provider }, mode: WindSourceMode.ReDefinition, geometry: false), field);
             Assert.AreEqual("Ours", ours.Wind.ToString());
             Assert.AreEqual(5f, ours.Steps[2].WindMs, 1e-5f);
 

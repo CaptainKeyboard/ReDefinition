@@ -228,7 +228,7 @@ namespace ReDefinition.Atmospheres.Viewer
         {
             SetSetting(AtmospheresSettings.Keys.Enabled, 1.0);
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
-            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.Ours);
+            SetSetting(AtmospheresSettings.Keys.CloudSource, (double)(int)CloudSourceKind.ReDefinition);
             SetSetting(AtmospheresSettings.Keys.OwnClouds, 1.0);
             // The layers' bases are the cfg's: no humidity physics, no variation, no ragged boundary (a low stratiform layer's base would move by up to 500 m and the camera could stand inside it).
             SetSetting(AtmospheresSettings.Keys.CloudBasePhysics, 0.0);

@@ -109,7 +109,7 @@ namespace ReDefinition.Atmospheres
         private static string OwnCloudReason(SettingDef def, Func<string, double> value, WindowEnvironment env)
         {
             var source = (CloudSourceKind)(int)value(AtmospheresSettings.Keys.CloudSource);
-            bool ours = CloudModeModel.Effective(source, !env.EveInstalled) == CloudSourceKind.Ours;
+            bool ours = CloudModeModel.Effective(source, !env.EveInstalled) == CloudSourceKind.ReDefinition;
             if (!ours) return AtmospheresSettings.GreyReasons.NeedsOwnSource;
             if (def.GreyReason == AtmospheresSettings.GreyReasons.NeedsOwnSource) return null;
             if (value(AtmospheresSettings.Keys.OwnClouds) == 0.0) return AtmospheresSettings.GreyReasons.NeedsOwnClouds;
@@ -147,7 +147,7 @@ namespace ReDefinition.Atmospheres
                 case AtmospheresSettings.Keys.Aurora:
                     return index == (int)AuroraMode.Volumetric && !env.EveInstalled ? AtmospheresSettings.GreyReasons.NeedsEve : null;
                 case AtmospheresSettings.Keys.EveSound:
-                    return index != (int)EveSoundPolicy.Auto && index != (int)EveSoundPolicy.Ours && !env.EveInstalled
+                    return index != (int)EveSoundPolicy.Auto && index != (int)EveSoundPolicy.ReDefinition && !env.EveInstalled
                         ? AtmospheresSettings.GreyReasons.NeedsEve : null;
                 case AtmospheresSettings.Keys.WindSource:
                     // Foreign means a wind mod's wind: with none installed there is nothing to hand the wind to.

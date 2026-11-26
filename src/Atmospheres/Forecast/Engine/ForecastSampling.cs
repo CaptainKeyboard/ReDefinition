@@ -118,7 +118,7 @@ namespace ReDefinition.Atmospheres.Forecast
 
         private static IWeatherSource[] Candidates(ForecastContext ctx)
         {
-            if (ctx.WindSource == WindSourceMode.Ours || ctx.WindSource == WindSourceMode.Off) return new IWeatherSource[0];
+            if (ctx.WindSource == WindSourceMode.ReDefinition || ctx.WindSource == WindSourceMode.Off) return new IWeatherSource[0];
             IWeatherSource[] all = ctx.WindSources;
             if (ctx.WindSource == WindSourceMode.Foreign || all.Length == 0) return all;
             // Auto: only a provider above the field's own priority (0) owns the wind.

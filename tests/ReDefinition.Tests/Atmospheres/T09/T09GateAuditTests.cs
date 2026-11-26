@@ -255,8 +255,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Run fixedRun = Start(new[] { "plain" }, x => AtmospheresSettings.SetNumber(AtmospheresSettings.Keys.WeatherEffects, 0.0));
             Drive(fixedRun);
             Assert.IsTrue(fixedRun.Probe.Passed, Dump(fixedRun));
-            Assert.IsTrue(fixedRun.Log.Any(l => l == "T09 gates: enabled 1, weatherEffects 1, genEnabled 1, cloudSource Eve, ownClouds 0"), Dump(fixedRun));
-            Assert.IsTrue(fixedRun.Log.Any(l => l.StartsWith("T09 gates (plain): enabled 1, weatherEffects 1, genEnabled 1, cloudSource Ours, ownClouds 1")), Dump(fixedRun));
+            // The settings' own defaults are the own clouds since 2026-11-26 (it was cloudSource Eve, ownClouds 0); the choice is named ReDefinition.
+            Assert.IsTrue(fixedRun.Log.Any(l => l == "T09 gates: enabled 1, weatherEffects 1, genEnabled 1, cloudSource ReDefinition, ownClouds 1"), Dump(fixedRun));
+            Assert.IsTrue(fixedRun.Log.Any(l => l.StartsWith("T09 gates (plain): enabled 1, weatherEffects 1, genEnabled 1, cloudSource ReDefinition, ownClouds 1")), Dump(fixedRun));
         }
 
         [TestMethod]

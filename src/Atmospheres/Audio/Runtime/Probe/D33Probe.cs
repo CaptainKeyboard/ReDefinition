@@ -616,14 +616,14 @@ namespace ReDefinition.Atmospheres.Audio
             {
                 AudioOverrides.Inputs = Weather(0.95f, 22f, 0.5f);
                 double[] rms = new double[3];
-                EveSoundPolicy[] policies = { EveSoundPolicy.Auto, EveSoundPolicy.Ours, EveSoundPolicy.Eve };
+                EveSoundPolicy[] policies = { EveSoundPolicy.Auto, EveSoundPolicy.ReDefinition, EveSoundPolicy.Eve };
                 for (int i = 0; i < policies.Length; i++)
                 {
                     AudioOverrides.Switches = Switches(solo: false, eve: policies[i]);
                     foreach (ProbeWait w in Measure(4.0, 3.0)) yield return w;
                     rms[i] = last.RmsDb;
                     Emit("D33.eve_rms_" + policies[i].ToString().ToLowerInvariant() + "_db", last.RmsDb);
-                    if (policies[i] == EveSoundPolicy.Ours) Emit("D33.eve_ours_volume", EveSoundAccess.VolumeNow());
+                    if (policies[i] == EveSoundPolicy.ReDefinition) Emit("D33.eve_ours_volume", EveSoundAccess.VolumeNow());
                 }
                 Emit("D33.eve_sum_vs_larger_db", rms[0] - Math.Max(rms[1], rms[2]));
                 AudioOverrides.Switches = Switches();

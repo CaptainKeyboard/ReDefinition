@@ -4,7 +4,7 @@ namespace ReDefinition.Atmospheres
     internal enum CloudSourceKind
     {
         // Our own volume pass draws the cloud layers; EVE's weather layers on the body are off.
-        Ours,
+        ReDefinition,
         // EVE draws the cloud layers from the maps our field paints.
         Eve,
         // As Eve, plus EVE's native weather on the layers we do not paint.
@@ -44,7 +44,7 @@ namespace ReDefinition.Atmospheres
     {
         // A foreign provider owns the wind where one is installed, else ours.
         Auto,
-        Ours,
+        ReDefinition,
         Foreign,
         Off
     }
@@ -91,7 +91,7 @@ namespace ReDefinition.Atmospheres
     {
         Auto,
         Eve,
-        Ours,
+        ReDefinition,
         Both
     }
 

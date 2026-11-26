@@ -37,7 +37,7 @@ namespace ReDefinition.Atmospheres
         {
             switch (CloudModeModel.Effective(source, eveBlocked))
             {
-                case CloudSourceKind.Ours: return Caster.Ours;
+                case CloudSourceKind.ReDefinition: return Caster.Ours;
                 case CloudSourceKind.Eve:
                 case CloudSourceKind.Both: return Caster.Eve;
                 default: return Caster.None;
