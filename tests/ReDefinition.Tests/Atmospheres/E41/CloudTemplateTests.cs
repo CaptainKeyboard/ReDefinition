@@ -122,8 +122,10 @@ namespace ReDefinition.Tests.Atmospheres.E41
                 Assert.AreEqual(300.0, Num(storm.GetValue("minAltitude")));
                 Assert.AreEqual(2300.0, Num(storm.GetValue("maxAltitude")));
                 Assert.IsTrue(Num(storm.GetValue("density")) >= 0.012 && Num(storm.GetValue("density")) <= 0.016);
-                Assert.IsTrue(Num(storm.GetValue("multipleScatteringBrightness")) < Num(stratus.GetValue("multipleScatteringBrightness")));
-                Assert.IsTrue(Num(stratus.GetValue("multipleScatteringBrightness")) < Num(light.GetValue("multipleScatteringBrightness")));
+                // Master plan 46.3 (the owner 2026-11-26): keys the installed EVE shader does not read are not written; the storm is the darkest by its density.
+                foreach (ConfigNode item in items) Assert.IsNull(item.GetValue("multipleScatteringBrightness"), body);
+                Assert.IsNull(Volume(VolumeObject(body)).GetNode("phaseFunctions"), body);
+                Assert.IsTrue(Num(storm.GetValue("density")) > Num(stratus.GetValue("density")) && Num(stratus.GetValue("density")) > Num(light.GetValue("density")));
                 // The layer colour is the light grey of the lightest type.
                 string[] colour = Volume(VolumeObject(body)).GetValue("color").Split(',');
                 CollectionAssert.AreEqual(new[] { 190.0, 192.0, 196.0 }, colour.Take(3).Select(c => Num(c.Trim())).ToArray());
@@ -188,15 +190,16 @@ namespace ReDefinition.Tests.Atmospheres.E41
         [TestMethod]
         public void TheScaledFadeFollowsTheRadiusOfTheBody()
         {
-            var radius = new Dictionary<string, double> { { "Kerbin", 600000 }, { "Duna", 320000 }, { "Laythe", 500000 } };
+            // Master plan 46.3: the fade is derived per body (the layer's parallax, the atmosphere's top), no longer scaled from the pack's numbers.
+            var top = new Dictionary<string, double> { { "Kerbin", 70000 }, { "Duna", 50000 }, { "Laythe", 50000 } };
             foreach (string body in Bodies)
             {
                 ConfigNode v = Volume(VolumeObject(body));
-                Assert.AreEqual(radius[body] / 3.0, Num(v.GetValue("scaledFadeStartAltitude")), 1.0, body);
-                Assert.IsTrue(Num(v.GetValue("scaledFadeEndAltitude")) > Num(v.GetValue("scaledFadeStartAltitude")));
+                double start = Num(v.GetValue("scaledFadeStartAltitude")), end = Num(v.GetValue("scaledFadeEndAltitude"));
+                Assert.IsTrue(start >= 20000 && end > start && end <= top[body], body);
             }
-            Assert.AreEqual(200000.0, Num(Volume(VolumeObject("Kerbin")).GetValue("scaledFadeStartAltitude")), 1.0, "Kerbin keeps the numbers of the cell layer it replaces");
-            Assert.AreEqual(260000.0, Num(Volume(VolumeObject("Kerbin")).GetValue("scaledFadeEndAltitude")), 1.0);
+            Assert.AreEqual(30000.0, Num(Volume(VolumeObject("Kerbin")).GetValue("scaledFadeStartAltitude")), 1.0, "Kerbin's own storm layer has the same fade");
+            Assert.AreEqual(60000.0, Num(Volume(VolumeObject("Kerbin")).GetValue("scaledFadeEndAltitude")), 1.0);
         }
 
         [TestMethod]

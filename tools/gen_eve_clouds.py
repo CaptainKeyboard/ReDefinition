@@ -12,13 +12,13 @@ placeholder maps. The pack's own layers keep the particle fields (rain, snow, du
 The cloud types per level are the table of src/Atmospheres/CONTRACT.md, section 5 ("Cloud types per level"). The names of the types
 are the defaults of the role lists of the body's CLOUDS node (snowTypeNames = Polar-snow, Snow; stratusTypeNames = Stratus; a name
 with "storm" in it is the storm type; dustTypeNames is set by Duna.cfg), so the roles are found without a body key. EVE's cloud type
-has no colour key: the lightness of a type is its density and its multipleScatteringBrightness, and the layer's `color` is the light
-grey of the lightest type [VERIFY the look of the storm base in the game].
+has no colour key: the lightness of a type is its density, and the layer's `color` is the light grey of the lightest type [VERIFY the look of
+the storm base in the game].
 
-The numbers of the phase functions, the worley noise, the raymarching settings and the scaled fade of Kerbin are those of
-AtmospheresStormLayer.cfg (credited in docs/credits-and-licences.md under StockVolumetricClouds). The scaled fade altitudes of the other
-bodies scale that file's 200 km and 260 km (Kerbin, radius 600 km) with the radius of the body [VERIFY: the fade is meant for the
-atmosphere height; the layer is invisible to the volume pass above the end altitude either way].
+Every number is ours (master plan 46.3, the owner 2026-11-26: nothing of another author's pack): the noise, the march, the fade and the
+noise feature sizes are derived in .local/work/eve-values-derivation.md, each key's action read in EVE's compiled shader
+(.local/work/eve-shader-semantics.md). Keys the installed EVE shader does not read are not written (phase functions,
+multipleScatteringBrightness, erosionDepth, skylightTintMultiplier, _Lambertian, _DetailDist without a detail texture).
 
 Kerbin's body node names its EVE layers (CLOUDS.weatherLayers); the file of Kerbin ends with a ModuleManager patch that adds our layer
 to that list [VERIFY the patch syntax in the game's ModuleManager log].
@@ -55,23 +55,38 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 # the flat parts the cover covers is the same to a few hundred metres [VERIFY on Duna and Laythe with the terrain height].
 #   Snow (SnowLight): the table says "600 to 1500 m, 300 m thick". It is read as a cloud layer 300 m thick with its base at 600 m; the
 #   stratus type raises the top to 1500 m and beyond through the blend of the type map. The density 0.002 to 0.003 takes the middle.
+#   tiling: the noise's largest feature (EVE's baseNoiseTiling, metres) = the type's mesoscale cell width: closed stratiform cells are 10 to 30
+#   layer depths wide (Wood & Hartmann 2006: a 300-600 m stratus 3-18 km; 4 km taken), a cumulonimbus cell 5-15 km (Houze: 8 km), a uniform
+#   snow-bearing sheet 8-12 km (10 km), Duna's dust fronts 20 km (.local/work/eve-values-derivation.md section 2).
 TYPES = {
-    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=2600, edge=0.5, msb=1.0,
+    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.5,
                  cover=[(0, 0, 0, 3), (0.2, 0.7, 0, 0), (1, 0.9, 0, 0)]),
-    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=2600, edge=0.7, msb=0.85,
+    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.7,
                     cover=[(0, 0, 0, 3), (0.15, 0.8, 0, 0), (1, 0.95, 0, 0)]),
-    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=2600, edge=0.85, msb=0.55,
+    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.85,
                   cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)]),
-    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=3400, edge=0.4, msb=1.0,
+    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.4,
                  cover=[(0, 0, 0, 2), (0.1, 0.6, 0, 0), (0.6, 0.95, 0, 0), (1, 1, 0, 0)]),
 }
 
 # The bodies. radius_m: the body's radius (scaled fade). altitude: the radius of the 2D sphere above the body (the layer2D).
 # weather_patch: Kerbin's body node names its layers, so the file adds ours to that list.
+# fade: EVE's switch to the 2D layer by the camera's altitude (metres; EVE's C# only, .local/work/eve-values-derivation.md section 3): it starts
+# where the layer still shows depth (a 1 km layer subtends about 1 degree at 57 km; the start at about half that so the 2D layer takes over in
+# time) and ends below the atmosphere's top (Kerbin 70 km, Duna and Laythe 50 km).
+# march (metres; EVE's step = min(base + factor x distance, max)): the base step resolves the smallest noise tile (tile / 128) and stays below half
+# a mean free path of the densest type (0.5 / density); the factor keeps one step per pixel footprint (60 degrees / 1080 px = 1e-3); the cap is the
+# smallest tile / 32; the light march covers three mean free paths of the middle type (3 / density) in 4 steps (the shader doubles them where its
+# reprojection fails).
+#   Kerbin, Laythe (Snow 0.0025, Stratus 0.0065, Storm 0.014 per m; smallest tile 4 km): base min(31, 36) = 30, cap 125, light 3 / 0.0065 = 460.
+#   Duna (Dust 0.006 per m; tile 20 km): base min(156, 83) = 80, cap 625, light 3 / 0.006 = 500.
 BODIES = [
-    dict(name="Kerbin", radius_m=600000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=True),
-    dict(name="Duna", radius_m=320000, altitude=2700, types=["Dust"], layer_colour=(196, 150, 110), weather_patch=False),
-    dict(name="Laythe", radius_m=500000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=False),
+    dict(name="Kerbin", radius_m=600000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=True,
+         fade=(30000, 60000), march=dict(base=30, factor=0.001, cap=125, light=460)),
+    dict(name="Duna", radius_m=320000, altitude=2700, types=["Dust"], layer_colour=(196, 150, 110), weather_patch=False,
+         fade=(25000, 45000), march=dict(base=80, factor=0.001, cap=625, light=500)),
+    dict(name="Laythe", radius_m=500000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=False,
+         fade=(25000, 50000), march=dict(base=30, factor=0.001, cap=125, light=460)),
 ]
 
 BLANK_W, BLANK_H = 16, 8
@@ -82,8 +97,7 @@ def layer_name(body):
 
 
 def fade(body):
-    # Kerbin: 200000 m to 260000 m at radius 600000 m.
-    return int(round(body["radius_m"] / 3.0)), int(round(body["radius_m"] * 13.0 / 30.0))
+    return body["fade"]
 
 
 def curve_lines(keys, indent):
@@ -94,12 +108,11 @@ def type_item(name, t, indent):
     i = indent
     j = i + "\t"
     s = i + "Item\n" + i + "{\n"
-    s += "%s// %s: %d to %d m, density %g, multipleScatteringBrightness %g\n" % (j, t["role"], t["min"], t["max"], t["density"], t["msb"])
+    s += "%s// %s: %d to %d m, density %g per m, largest noise feature %d m\n" % (j, t["role"], t["min"], t["max"], t["density"], t["tiling"])
     s += "%stypeName = %s\n" % (j, name)
     s += "%sminAltitude = %d\n%smaxAltitude = %d\n" % (j, t["min"], j, t["max"])
     s += "%sinterpolateCloudHeights = true\n" % j
     s += "%sdensity = %g\n%sbaseNoiseTiling = %d\n%snoiseEdgeHardness = %g\n" % (j, t["density"], j, t["tiling"], j, t["edge"])
-    s += "%smultipleScatteringBrightness = %g\n" % (j, t["msb"])
     s += "%sparticleFieldDensity = 0\n%sdropletsDensity = 0\n%swetSurfacesIntensity = 0\n%slightningFrequency = 0\n%sambientVolume = 0\n" % ((j,) * 5)
     s += j + "coverageCurve\n" + j + "{\n" + curve_lines(t["cover"], j + "\t") + j + "}\n"
     s += j + "densityCurve\n" + j + "{\n" + j + "\tkey = 0 1\n" + j + "}\n"
@@ -119,14 +132,20 @@ def volume_object(body):
     s = "\tOBJECT\n\t{\n"
     s += "\t\tname = %s\n\t\tbody = %s\n\t\taltitude = %d\n" % (layer_name(body), body["name"], body["altitude"])
     s += "\t\tspeed = 0,0,0\n\t\tdetailSpeed = 0,0,0\n\t\tspeedMode = LinearSurface\n"
-    s += "\t\tlayer2D\n\t\t{\n\t\t\tmacroCloudMaterial\n\t\t\t{\n\t\t\t\t_DetailDist = 2E-06\n\t\t\t}\n\t\t}\n"
+    # No _DetailDist: the 2D layer has no detail texture, so the detail fade has nothing to fade.
+    s += "\t\tlayer2D\n\t\t{\n\t\t\tmacroCloudMaterial\n\t\t\t{\n\t\t\t}\n\t\t}\n"
     s += "\t\tlayerRaymarchedVolumeV5\n\t\t{\n"
     s += "\t\t\tcolor = %d, %d, %d, 255\n" % (r, g, b)
     s += "\t\t\tupwardsCloudSpeed = 2\n\t\t\tscaledFadeStartAltitude = %d\n\t\t\tscaledFadeEndAltitude = %d\n" % (fs, fe)
-    s += "\t\t\tskylightMultiplier = 1.0\n\t\t\tskylightTintMultiplier = 0.5\n"
-    s += ("\t\t\traymarchingSettings\n\t\t\t{\n\t\t\t\tlightMarchSteps = 4\n\t\t\t\tlightMarchDistance = 1900\n\t\t\t\tbaseStepSize = 120\n"
-          "\t\t\t\tadaptiveStepSizeFactor = 0.006\n\t\t\t\tmaxStepSize = 1200\n\t\t\t\toverlapRenderOrder = 3\n\t\t\t}\n")
-    s += "\t\t\tnoise\n\t\t\t{\n\t\t\t\terosionDepth = 0.65\n\t\t\t\tworley\n\t\t\t\t{\n\t\t\t\t\tspherical = 1\n\t\t\t\t\tpersistence = 0.57\n\t\t\t\t}\n\t\t\t}\n"
+    s += "\t\t\tskylightMultiplier = 1.0\n"
+    m = body["march"]
+    s += ("\t\t\traymarchingSettings\n\t\t\t{\n\t\t\t\tlightMarchSteps = 4\n\t\t\t\tlightMarchDistance = %d\n\t\t\t\tbaseStepSize = %d\n"
+          "\t\t\t\tadaptiveStepSizeFactor = %g\n\t\t\t\tmaxStepSize = %d\n\t\t\t\toverlapRenderOrder = 3\n\t\t\t}\n"
+          % (m["light"], m["base"], m["factor"], m["cap"]))
+    # The Worley noise (EVE/CloudNoiseGen): 6 octaves fill the 128-voxel texture to its Nyquist limit at lacunarity 2 with one period per tile;
+    # persistence 2^(-1/3) = 0.79 from the k^(-5/3) spectrum of cloud liquid water (Davis et al. 1994); spherical 0 keeps Worley's plain F1 distance.
+    s += ("\t\t\tnoise\n\t\t\t{\n\t\t\t\tworley\n\t\t\t\t{\n\t\t\t\t\toctaves = 6\n\t\t\t\t\tperiods = 1\n\t\t\t\t\tlacunarity = 2\n"
+          "\t\t\t\t\tpersistence = 0.79\n\t\t\t\t\tspherical = 0\n\t\t\t\t}\n\t\t\t}\n")
     s += "\t\t\t// Placeholders: the cloud-map painter binds its own render textures to both maps at run time.\n"
     s += texture_node("coverageMap", "\t\t\t")
     s += texture_node("cloudTypeMap", "\t\t\t")
@@ -135,10 +154,8 @@ def volume_object(body):
         s += type_item(name, TYPES[name], "\t\t\t\t")
     s += "\t\t\t}\n"
     s += "\t\t\tlightVolumeSettings\n\t\t\t{\n\t\t\t\tuseLightVolume = False\n\t\t\t}\n"
-    s += ("\t\t\tphaseFunctions\n\t\t\t{\n\t\t\t\tsingleScattering1 = 0.95, 0.01\n\t\t\t\tsingleScattering2 = 0.8, 0.05\n"
-          "\t\t\t\tmultipleScattering1 = 0.2, 1.5\n\t\t\t\tmultipleScattering2 = -0.4, 0.2\n\t\t\t}\n")
     s += "\t\t}\n"
-    s += ("\t\tsettings\n\t\t{\n\t\t\t_Color = 255,255,255,255\n\t\t\t_Lambertian = 0.75\n\t\t\t_UVNoiseStrength = 0\n"
+    s += ("\t\tsettings\n\t\t{\n\t\t\t_Color = 255,255,255,255\n\t\t\t_UVNoiseStrength = 0\n"
           "\t\t\t_MainTex\n\t\t\t{\n\t\t\t\tvalue = %s/StormSwirl\n\t\t\t\tisClamped = True\n\t\t\t}\n\t\t\t_FlowMap\n\t\t\t{\n\t\t\t}\n\t\t}\n" % TEX)
     s += "\t}\n"
     return s
