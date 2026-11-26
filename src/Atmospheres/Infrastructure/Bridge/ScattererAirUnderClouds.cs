@@ -22,6 +22,8 @@ namespace ReDefinition.Atmospheres
                 .Type("Scatterer.SkyNode").Type("Scatterer.ConfigPoint")
                 .Field("Scatterer.SkyNode", "interpolatedSettings", "Scatterer.ConfigPoint")
                 .Field("Scatterer.ConfigPoint", "scatteringExposure", "System.Single")
+                .Field("Scatterer.SkyNode", "prolandManager", "Scatterer.ProlandManager")
+                .Field("Scatterer.ProlandManager", "parentCelestialBody", "CelestialBody")
                 .Calls("Scatterer.SkyNode", "InterpolateVariables")
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "Scatterer's air in-scatters the clear sun's light under the own clouds");
@@ -31,7 +33,7 @@ namespace ReDefinition.Atmospheres
     {
         private const float RescanSeconds = 1f;
         private static Type nodeType;
-        private static FieldInfo settingsField, exposureField;
+        private static FieldInfo settingsField, exposureField, managerField, bodyField;
         private static UnityEngine.Object[] nodes = new UnityEngine.Object[0];
         private static float rescanAt = -1f;
         private static bool failed, logged;
@@ -49,13 +51,16 @@ namespace ReDefinition.Atmospheres
         private static float publishedShare = 1f;
         private static int publishedFrame = -10;
         private static bool everPublished;
+        // The body the own clouds stand on: only its sky node is scaled (the idea check 299: one SkyNode per body).
+        private static CelestialBody publishedBody;
 
         // Whether Drive has anything to do: published once, or still holding a write.
         internal static bool Wanted { get { return everPublished || state.Count > 0; } }
 
         // The air's diffuse share under the own clouds, from their frame (they publish while drawn).
-        internal static void Publish(float share)
+        internal static void Publish(float share, CelestialBody body)
         {
+            publishedBody = body;
             publishedShare = Mathf.Clamp01(share);
             publishedFrame = Time.frameCount;
             everPublished = true;
@@ -85,9 +90,11 @@ namespace ReDefinition.Atmospheres
                     nodeType = TypeLookup.Find("Scatterer.SkyNode");
                     settingsField = nodeType?.GetField("interpolatedSettings", TypeLookup.Any);
                     exposureField = settingsField?.FieldType.GetField("scatteringExposure", TypeLookup.Any);
-                    if (exposureField == null)
+                    managerField = nodeType?.GetField("prolandManager", TypeLookup.Any);
+                    bodyField = managerField?.FieldType.GetField("parentCelestialBody", TypeLookup.Any);
+                    if (exposureField == null || bodyField == null)
                     {
-                        Fail("SkyNode.interpolatedSettings.scatteringExposure not found");
+                        Fail("SkyNode.interpolatedSettings.scatteringExposure or prolandManager.parentCelestialBody not found");
                         return;
                     }
                 }
@@ -95,11 +102,13 @@ namespace ReDefinition.Atmospheres
                 {
                     rescanAt = Time.realtimeSinceStartup + RescanSeconds;
                     nodes = UnityEngine.Object.FindObjectsOfType(nodeType);
+                    // Entries of nodes that are gone (a scene or body switch) are dropped.
+                    if (state.Count > 0) Prune();
                 }
                 float share = Mathf.Max(0f, factor);
                 foreach (UnityEngine.Object n in nodes)
                 {
-                    if (n == null) continue;
+                    if (n == null || !OfBody(n, publishedBody)) continue;
                     object settings = settingsField.GetValue(n);
                     if (settings == null) continue;
                     float current = (float)exposureField.GetValue(settings);
@@ -128,14 +137,38 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Scatterer's own value back until its next interpolation.
+        // Whether a sky node belongs to the body (no body known: every node, as for the measurement key outside the own clouds).
+        private static bool OfBody(UnityEngine.Object node, CelestialBody body)
+        {
+            if (body == null) return true;
+            object manager = managerField.GetValue(node);
+            return manager != null && ReferenceEquals(bodyField.GetValue(manager), body);
+        }
+
+        // Drops the entries whose settings object no node holds any more.
+        private static void Prune()
+        {
+            HashSet<object> live = new HashSet<object>();
+            foreach (UnityEngine.Object n in nodes)
+                if (n != null)
+                {
+                    object s = settingsField.GetValue(n);
+                    if (s != null) live.Add(s);
+                }
+            List<object> gone = new List<object>();
+            foreach (object k in state.Keys)
+                if (!live.Contains(k)) gone.Add(k);
+            foreach (object k in gone) state.Remove(k);
+        }
+
+        // Scatterer's own value back until its next interpolation: only where the value is still the one written (a fresh interpolation is kept).
         internal static void Release()
         {
             if (failed || exposureField == null) return;
             try
             {
                 foreach (KeyValuePair<object, float[]> kv in state)
-                    exposureField.SetValue(kv.Key, kv.Value[0]);
+                    if ((float)exposureField.GetValue(kv.Key) == kv.Value[1]) exposureField.SetValue(kv.Key, kv.Value[0]);
             }
             catch (Exception)
             {
