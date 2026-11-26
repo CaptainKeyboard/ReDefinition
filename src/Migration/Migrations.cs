@@ -48,6 +48,11 @@ namespace ReDefinition.Migration
             // player's own "off", who switches it off again in the settings.
             new ChangedDefaultInModFiles("scatterer-cloud-light-shafts-on", "scatterer.useRaymarchedCloudGodrays", "False", "True",
                 "Light shafts through clouds are on now, as Volumetric Clouds ships them. Switch them off again under Scatterer if you had chosen that."),
+            // Scatterer's screen-space reflections on the ocean were off in the Low and Medium profiles; Medium keeps them now (owner 2026-11-26): the sea
+            // mirrors the own clouds through them (OwnCloudSeaMirror). Scatterer keeps the value in its own config; where it holds the old False it takes True.
+            // At Low Deferred's own reflections are off, so the ocean's switch does nothing there (Scatterer registers the ocean only with them).
+            new ChangedDefaultInModFiles("scatterer-ocean-ssr-medium", "scatterer.oceanScreenSpaceReflections", "False", "True",
+                "Screen-space reflections on the ocean are on from Medium up now: the sea mirrors the clouds through them. Switch them off again under Scatterer if you had chosen that."),
             // unreleased-bundled-end
         };
 

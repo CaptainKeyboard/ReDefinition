@@ -1405,7 +1405,6 @@ mod.MOD_SETTINGS[scatterer]#2.PROFILE[max].m_fourierGridSize = 256
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[medium].@exists = True
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[medium].build = volumetric
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[medium].m_fourierGridSize = 128
-mod.MOD_SETTINGS[scatterer]#2.PROFILE[medium].oceanScreenSpaceReflections = False
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[ultra].@exists = True
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[ultra].build = volumetric
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[ultra].useRaymarchedTerrainGodrays = True
