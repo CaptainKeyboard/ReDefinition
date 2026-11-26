@@ -232,6 +232,27 @@ namespace ReDefinition.Atmospheres
             e = erosion[type];
         }
 
+        // The profile's column above each sample (master plan 43 step 4, PRUEFPROTOKOLL 273, 307): for each type and sample i the integral of the profile from the sample's height
+        // share h_i = i / (n - 1) to the type's top, in units of the type's height (trapezoids: exact for the profile, which is linear between its samples). Times the layer's
+        // extinction and the type's height in m it is the optical depth straight up through a plane-parallel deck of that type (the shader's _TypeColumn).
+        internal static float[] Column(float[] profile, int count)
+        {
+            var column = new float[count * ProfileSamples];
+            double dh = 1.0 / (ProfileSamples - 1);
+            for (int t = 0; t < count; t++)
+            {
+                int o = t * ProfileSamples;
+                double sum = 0.0;
+                column[o + ProfileSamples - 1] = 0f;
+                for (int i = ProfileSamples - 2; i >= 0; i--)
+                {
+                    sum += 0.5 * (profile[o + i] + profile[o + i + 1]) * dh;
+                    column[o + i] = (float)sum;
+                }
+            }
+            return column;
+        }
+
         // The profile of one type at a height share 0 to 1, linear between the samples (what the texture's bilinear filter does).
         internal float ProfileAt(int type, double h)
         {

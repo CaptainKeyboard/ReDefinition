@@ -160,6 +160,9 @@ namespace ReDefinition.Atmospheres
                 light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskBuffer);
                 light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskDisplayBuffer);
                 attachedLight = light;
+                // Without the sun's own shadows (shadows off, strength 0, shadow distance 0) Unity draws no screen-space mask and the buffer never runs: the shadow carries
+                // nothing, so the weather's sun dimming stays (the bug hunt 309).
+                if (light.shadows == LightShadows.None || light.shadowStrength <= 0f || QualitySettings.shadowDistance <= 0f) return;
             }
             else
             {

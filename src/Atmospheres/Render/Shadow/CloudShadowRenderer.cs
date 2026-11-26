@@ -265,8 +265,10 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdNoiseD, noise ? noiseD : noiseOff);
             m.SetFloat(IdPlanetR, (float)(f.RadiusUnits * f.MetresPerUnit));
             m.SetVector(IdForced, new Vector4(Tuning.Get(TuneTestFactor, -1f), 0f, 0f, 0f));
-            // The test switches' variant (CloudDevVariant): the noise's switches are on this material only while the noise is bound; without it the noise is not read.
-            if (noise) CloudDevVariant.Apply(m, CloudDevVariant.Shadow);
+            // The test switches' variant (CloudDevVariant): the noise's switches are on this material only while the noise is bound; without it the noise is not read. The forced
+            // factor (shadow.testFactor) needs the variant with or without the noise (the bug hunt 309: it had no effect without the noise; the noise's amounts are 0 then).
+            bool forced = Tuning.Get(TuneTestFactor, -1f) >= 0f;
+            if (noise || forced) CloudDevVariant.Apply(m, CloudDevVariant.Shadow);
             else if (m.IsKeywordEnabled(CloudDevVariant.Keyword)) m.DisableKeyword(CloudDevVariant.Keyword);
         }
 

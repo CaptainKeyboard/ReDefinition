@@ -113,6 +113,8 @@ namespace ReDefinition.Atmospheres
                 ApplySun();
                 tufx.Apply(level);
                 if (testing && TestLightTerms.Wanted) testTerms.Apply();
+                // A key set back to 1 while the weather writes on: the scaled values go back now, not when the weather ends (the bug hunt 309).
+                else if (testTerms.Active) testTerms.Restore();
             }
             catch (Exception e)
             {

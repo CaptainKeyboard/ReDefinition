@@ -21,6 +21,9 @@
         float4 _LayerD[4];   // noise amount, noise scale (1 / m), erosion, map shift (degrees)
         float4 _LayerE[4];   // rgb: emission colour (kind 3); w: the largest extra noise amount of the layer's types (master plan 43, FORM AMOUNT; 0: none)
         sampler2D _TypeProfile;
+        // The profile's integral from each height share to the type's top, in type heights (LayerTypeTable.Column; PRUEFPROTOKOLL 307). Read by Load without a sampler: the test variant
+        // (CLOUD_DEV) has all 16 sampler registers taken.
+        Texture2D<float> _TypeColumn;
         sampler2D _TypeInfo;   // MAXL rows of the types' base, top, erosion and smoothing, then MAXL rows (CLOUDR1) of x the type's cumuliform preset (0: none), y the exponent of its density rim (0: the layer's), z its cavity strength (0: off)
         UNITY_DECLARE_TEX2DARRAY(_CovMaps);
         UNITY_DECLARE_TEX2DARRAY(_TypeMaps);
@@ -207,6 +210,14 @@
             return tex2Dlod(_TypeProfile, float4(u, v, 0, 0));
         }
 
+        // The profile's column above the height share h of the type (in type heights; 0 at the top).
+        float TypeColumn(int li, int type, float h)
+        {
+            float x = saturate(h) * (PROFILE_SAMPLES - 1);
+            int i = min((int)x, PROFILE_SAMPLES - 2), row = li * MAXT + type;
+            return lerp(_TypeColumn.Load(int3(i, row, 0)), _TypeColumn.Load(int3(i + 1, row, 0)), x - i);
+        }
+
         float4 TypeInfo(int li, int type)
         {
             return tex2Dlod(_TypeInfo, float4((type + 0.5) / MAXT, (li + 0.5) / (2.0 * MAXL), 0, 0));
@@ -245,6 +256,9 @@
             bool bodyRead;
             float cellOther;
             float shellGap;
+            // The optical depth straight up to the type's top through a plane-parallel deck of the type at the point (PRUEFPROTOKOLL 273, 307): the layer's extinction times
+            // the type's height in m times the profile's column above the point (TypeColumn), faded like the density. 0 where the read ended before the shape (and for the light march).
+            float column;
         };
 
         // The empty reach at a map point (EmptyReachMath.ReachMetres is its CPU twin): the texels to the nearest texel that can hold cloud as an angle on the planet (a texel is pi / height across
@@ -484,6 +498,7 @@
             dr.bodyRead = false;
             dr.cellOther = 1e9;
             dr.shellGap = 0;
+            dr.column = 0;
             gCellX = -1.0;
             gCellW = 1.0;
             gBodyRead = false;
@@ -522,6 +537,15 @@
             float h;
             float s = ShapeShare(li, pc, share, m.cov, m.slice, m.uvRaw, inner, outer, light, ty, pf, h);
             if (s <= 0) return 0;
+            // The column above for the lit sample's sky light (the light march's reads skip it): read only where the layer is a deck (_LightM[li].w, its cell width, at least
+            // four times the type's height; LightSource weighs it by the same plane share).
+            // The column is the closed deck's: at the deck's edge and in a gap of its map the deck above thins too, so the map's coverage shape without the noise (1 inside a closed
+            // map, where the pannus' shreds still get the whole deck above them; falling to 0 over the edge band) weighs it (the idea check 308).
+            [branch] if (light == 0 && _LightM[li].w > 4.0 * (ty.tp - ty.b) * (outer - inner))
+            {
+                float mapShape = saturate((m.cov + _LayerB[li].y - 1.0) / max(_LayerB[li].z, 1e-4) + 0.5);
+                dr.column = _LayerB[li].x * (ty.tp - ty.b) * (outer - inner) * lerp(TypeColumn(li, ty.ta, h), TypeColumn(li, ty.tb, h), ty.f) * fade * mapShape;
+            }
             float pw = ty.waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             return _LayerB[li].x * s * pf.x * fade;
@@ -836,7 +860,7 @@
                             upReuse = upTau;
                             if (_LightT.w > 2.5) upReuse = max(upTau - dot(d, normalize(pc)) * tauSince, 0.0);
                         }
-                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dirPart, ambPart, taps, tauUsed, upUsed);
+                        src = LightSource(pc, d, dens, share, li, t - dts, reuse, upReuse, topAlt, dr.column * spanF, dirPart, ambPart, taps, tauUsed, upUsed);
                         if (reuse < 0.0) { sunTau = tauUsed; upTau = upUsed; haveSun = true; sinceLight = 0.0; tauSince = 0.0; }
                     }
                     else
