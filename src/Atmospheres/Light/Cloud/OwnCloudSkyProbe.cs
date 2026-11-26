@@ -47,8 +47,10 @@ namespace ReDefinition.Atmospheres
 
         internal bool Active { get { return own != null && own.enabled; } }
 
-        // From the own clouds' frame, after the layer pass's material holds the frame's values: draws one face and keeps the own probe on KSP's.
-        internal void Update(Material layers)
+        // From the own clouds' frame, after the layer pass's material holds the frame's values: keeps the own probe on KSP's and draws one face every second frame
+        // (the cube fresh after twelve frames: a face a frame cost about 3 fps, PRUEFPROTOKOLL 316). skyShare: the diffuse share under the clouds at the camera
+        // (OwnCloudModule's), which the copied clear scene is darkened to before the clouds go over it.
+        internal void Update(Material layers, float skyShare)
         {
             if (ksp == null && Time.realtimeSinceStartup >= nextScan)
             {
@@ -62,9 +64,24 @@ namespace ReDefinition.Atmospheres
                 Off();
                 return;
             }
+            // CopyTexture needs the same size and format (KSP's probe is LDR ARGB32).
+            if (source is RenderTexture && ((RenderTexture)source).format != RenderTextureFormat.ARGB32)
+            {
+                if (!said)
+                {
+                    said = true;
+                    AtmospheresLog.WarnOnce("own clouds: KSP's flight probe is " + ((RenderTexture)source).format + ", not ARGB32: the sky probe stays off");
+                }
+                Off();
+                return;
+            }
             if (cube == null || cube.width != source.width)
             {
-                if (cube != null) cube.Release();
+                if (cube != null)
+                {
+                    cube.Release();
+                    Object.Destroy(cube);
+                }
                 cube = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default)
                 {
                     name = "ReDefinition own sky probe", dimension = TextureDimension.Cube, useMipMap = true, autoGenerateMips = false
@@ -88,10 +105,11 @@ namespace ReDefinition.Atmospheres
             own.enabled = true;
             holder.transform.position = ksp.transform.position;
 
+            if ((Time.frameCount & 1) == 1) return;
             if (cb == null) cb = new CommandBuffer { name = "ReDefinition own sky probe" };
             if (block == null) block = new MaterialPropertyBlock();
             cb.Clear();
-            DrawFace(cb, layers, source, face, holder.transform.position, Tuning.Get(TuneCubeDirs, 0f) > 0.5f);
+            DrawFace(cb, layers, source, face, holder.transform.position, Tuning.Get(TuneCubeDirs, 0f) > 0.5f, skyShare);
             if (face == 5) cb.GenerateMips(cube);
             Graphics.ExecuteCommandBuffer(cb);
             face = (face + 1) % 6;
@@ -102,10 +120,16 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        private void DrawFace(CommandBuffer c, Material layers, Texture source, int f, Vector3 at, bool testDirs)
+        private void DrawFace(CommandBuffer c, Material layers, Texture source, int f, Vector3 at, bool testDirs, float skyShare)
         {
             c.CopyTexture(source, f, 0, cube, f, 0);
             c.SetRenderTarget(cube, 0, (CubemapFace)f);
+            // KSP's face holds a clear, sunlit scene; under the clouds it is lit by the diffuse share they pass on (the idea check 316): darkened first, the clouds
+            // (their own radiance) over it after.
+            if (block == null) block = new MaterialPropertyBlock();
+            block.Clear();
+            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), 0f));
+            c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
             int n = cube.width;
             if (noDepth == null)
             {
@@ -145,7 +169,11 @@ namespace ReDefinition.Atmospheres
             if (holder != null) Object.Destroy(holder);
             holder = null;
             own = null;
-            if (cube != null) cube.Release();
+            if (cube != null)
+            {
+                cube.Release();
+                Object.Destroy(cube);
+            }
             cube = null;
             if (noDepth != null) Object.Destroy(noDepth);
             noDepth = null;

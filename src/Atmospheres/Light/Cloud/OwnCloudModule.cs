@@ -207,6 +207,7 @@ namespace ReDefinition.Atmospheres
         private readonly float[] worldToMapRows = new float[9];
         // The own clouds in KSP's reflection probe's place (master plan 46.1 part 4).
         private readonly OwnCloudSkyProbe skyProbe = new OwnCloudSkyProbe();
+        private float lastSkyShare = 1f;
         // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): the camera's point and the ring's, one read per frame in turn; -1 not read yet.
         private readonly float[] skyPointShare = new float[OwnCloudProbeLight.RingPoints + 1];
         private int skyShareNext;
@@ -501,7 +502,9 @@ namespace ReDefinition.Atmospheres
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
                 // The own clouds in what the sea and the land mirror: one face of the own sky probe a frame (master plan 46.1 part 4, PRUEFPROTOKOLL 315).
-                skyProbe.Update(renderer.Material);
+                skyProbe.Update(renderer.Material, lastSkyShare);
+                // Scatterer's ocean mirrors that probe instead of its own clear sky while it runs (stage C, PRUEFPROTOKOLL 317).
+                ScattererOceanSkyMirror.Apply(skyProbe.Active);
                 if (FrameOrigin != 0) PinLogFrame(cam);
                 recordedFrame = Time.frameCount;
                 if (motionFrame == recordedFrame) DrawMotion();
@@ -751,6 +754,7 @@ namespace ReDefinition.Atmospheres
             ScattererFlareClouds.Release();
             OwnCloudProbeLight.Release();
             skyProbe.Off();
+            ScattererOceanSkyMirror.Release();
             if (dropStack) RtOwnClouds.Release();
             if (dropStack && stack != null) DropStack("the pass is off: " + Stats.Why);
         }
@@ -1638,7 +1642,9 @@ namespace ReDefinition.Atmospheres
                 }
                 if (n > 0) skyShare = (float)(sum / n);
             }
+            // KSP's probe scaled by the share: the fallback while the own sky probe cannot run (it replaces KSP's probe while it does, PRUEFPROTOKOLL 314-316).
             OwnCloudProbeLight.Apply(skyShare);
+            lastSkyShare = skyShare;
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
             ScattererAirUnderClouds.Publish(skyShare, b);
             // The own aerial perspective under the clouds takes the same diffuse share as Scatterer's air and KSP's probe (PRUEFPROTOKOLL 302; the review 284:
