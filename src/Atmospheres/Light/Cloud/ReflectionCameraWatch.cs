@@ -5,11 +5,11 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // Measurement (master plan 46.1 part 4, PRUEFPROTOKOLL 313): which cameras render KSP's reflection probe, so that the own clouds can be drawn into its faces.
-    // probe.logReflectionCameras 1 logs, at most every 5 s, every camera of type Reflection seen in Camera.onPreCull: name, size, target, path, mask, position.
+    // light.logReflectionCameras 1 logs, at most every 5 s, every camera of type Reflection seen in Camera.onPreCull: name, size, target, path, mask, position.
     // 0 (the default): nothing is hooked.
     internal static class ReflectionCameraWatch
     {
-        internal const string TuneLog = "probe.logReflectionCameras";
+        internal const string TuneLog = "light.logReflectionCameras";
         private static bool hooked;
         private static float nextLog;
         private static readonly Dictionary<string, int> seen = new Dictionary<string, int>();
