@@ -114,6 +114,16 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis8c7":
                 case "nolayers":
                 case "plain2":
+                case "fshort":
+                case "faerial":
+                case "ffarmean":
+                case "ffarpolicy":
+                case "ffarfade":
+                case "rain":
+                case "fwet":
+                case "fdrops":
+                case "fbolt":
+                case "rain2":
                 case "res66":
                 case "res2":
                 case "res3":
@@ -182,6 +192,28 @@ namespace ReDefinition.Atmospheres
             baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
             baseCloudRotation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudRotation);
             baseShadowQuality = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality);
+            foreach (string key in FeatureKeys) baseFeatures[key] = AtmospheresSettings.Number(key);
+        }
+
+        // Master plan 46.2: the eight default-off player features the f* variants switch on, put back at every variant.
+        private static readonly string[] FeatureKeys =
+        {
+            AtmospheresSettings.Keys.CloudShortSunMarch, AtmospheresSettings.Keys.CloudAerialPerspective, AtmospheresSettings.Keys.CloudFarShapeMean,
+            AtmospheresSettings.Keys.CloudFarPolicy, AtmospheresSettings.Keys.CloudFarMapFade, AtmospheresSettings.Keys.WetSurfaces,
+            AtmospheresSettings.Keys.WindowDroplets, AtmospheresSettings.Keys.Lightning
+        };
+
+        private readonly Dictionary<string, double> baseFeatures = new Dictionary<string, double>();
+
+        // Heavy rain on a 30 km disc around the active vessel for the next two hours (the field's test forcing), so that the wet ground, the window drops and the
+        // storm's lightning have weather to act on. Taken back by the field's own end time; the rain variants come last in a start.
+        private void PerfRainAtVessel()
+        {
+            Vessel v = FlightGlobals.ActiveVessel;
+            if (v == null || v.mainBody == null) return;
+            double now = Planetarium.GetUniversalTime();
+            bool forced = ForcePrecipitation(v.mainBody.flightGlobalsIndex, v.latitude, v.longitude, 30.0, 8f, PrecipType.Rain, now, now + 7200.0);
+            Emit("T09.perf.rain_forced", forced ? 1 : 0);
         }
 
         private void PerfRestoreBase()
@@ -199,6 +231,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
             SetSetting(AtmospheresSettings.Keys.CloudRotation, baseCloudRotation);
             SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, baseShadowQuality);
+            foreach (KeyValuePair<string, double> f in baseFeatures) SetSetting(f.Key, f.Value);
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -344,6 +377,29 @@ namespace ReDefinition.Atmospheres
                 // path off each (CloudFastPath): fpnorot the 4 x 4 rotation (recon.rotate 0: the setting's own), fpnohist the march's distance history (trueDistance, age,
                 // distanceReject, clipSigma back to their full-path values), fpnosg the points by distance, fpshfull the full cloud shadow.
                 case "fpnorot": ForceTuning(OwnCloudOptions.TuneReconRotate, 0f); break;
+                // Master plan 46.2 (the eight default-off player features, each to become the default with pictures and fps): one feature on each. rain / rain2 force
+                // rain at the vessel (the control); fwet, fdrops, fbolt the same rain with the feature on (lightning needs a storm, PrecipType.Rain at a storm's rate).
+                case "fshort": SetSetting(AtmospheresSettings.Keys.CloudShortSunMarch, 1.0); break;
+                case "faerial": SetSetting(AtmospheresSettings.Keys.CloudAerialPerspective, 1.0); break;
+                case "ffarmean": SetSetting(AtmospheresSettings.Keys.CloudFarShapeMean, 1.0); break;
+                case "ffarpolicy": SetSetting(AtmospheresSettings.Keys.CloudFarPolicy, 1.0); break;
+                case "ffarfade": SetSetting(AtmospheresSettings.Keys.CloudFarMapFade, 1.0); break;
+                case "rain":
+                case "rain2":
+                    PerfRainAtVessel();
+                    break;
+                case "fwet":
+                    PerfRainAtVessel();
+                    SetSetting(AtmospheresSettings.Keys.WetSurfaces, 1.0);
+                    break;
+                case "fdrops":
+                    PerfRainAtVessel();
+                    SetSetting(AtmospheresSettings.Keys.WindowDroplets, 1.0);
+                    break;
+                case "fbolt":
+                    PerfRainAtVessel();
+                    SetSetting(AtmospheresSettings.Keys.Lightning, 1.0);
+                    break;
                 case "fpnohist":
                     ForceTuning(OwnCloudOptions.TuneTrueDistance, OwnCloudOptions.TrueDistanceDefault ? 1f : 0f);
                     ForceTuning(OwnCloudOptions.TuneAge, OwnCloudOptions.AgeDefault ? 1f : 0f);
