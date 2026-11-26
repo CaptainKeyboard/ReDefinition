@@ -80,6 +80,9 @@ namespace ReDefinition.Atmospheres
 
         internal bool Active { get { return own != null && own.enabled; } }
 
+        // The cube the sea mirror reads (stage D, OwnCloudSeaMirror): null while the probe is off.
+        internal RenderTexture Cube { get { return Active ? cube : null; } }
+
         // From the own clouds' frame, after the layer pass's material holds the frame's values: keeps the own probe on KSP's and draws one face every second frame
         // (the cube fresh after twelve frames: a face a frame cost about 3 fps, PRUEFPROTOKOLL 316). skyShare: the diffuse share under the clouds at the camera
         // (OwnCloudModule's), which the copied clear scene is darkened to before the clouds go over it.
