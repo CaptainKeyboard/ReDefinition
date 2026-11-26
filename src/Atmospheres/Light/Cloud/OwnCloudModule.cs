@@ -551,6 +551,10 @@ namespace ReDefinition.Atmospheres
                     AtmospheresLog.WarnOnce("own clouds: " + r.Problem + "; the own clouds are not drawn");
                     return false;
                 }
+                // The tools' lattice shader (cloud.field off, master plan 45.3); without it the lattice is not drawn and the product's field draws instead.
+                string latticeError;
+                r.LatticeShader = AtmosphereShaders.Get(LayerRenderer.LatticeShaderName, out latticeError);
+                if (r.LatticeShader == null) AtmospheresLog.Say("own clouds: the lattice shader is not loaded (" + latticeError + "); cloud.field 0 draws the field");
                 depthMat = new Material(depth) { hideFlags = HideFlags.HideAndDontSave };
                 depthCb = new CommandBuffer { name = "ReDefinition layer depth" };
                 // The reconstruction and its edge mode need their shaders; without them the plain pass draws (the setting stays off in effect).
