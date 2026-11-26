@@ -42,7 +42,7 @@ namespace ReDefinition.Atmospheres
         internal const string Series = "K-S2";
         internal const string Prefix = "SURF.";
         // K-S1's cb_far pose and cell, and the universal time of its pictures (the field's weather at the vessel is the one K-S1 saw).
-        internal const string TypeName = "Cumulonimbus incus";
+        internal const string TypeName = "Cumulonimbus capillatus";
         internal const double AglM = 300.0, ElevationDeg = 5.0, HeadingToward = 90.0, HeadingAway = 270.0, CameraDistM = 100.0, CellAheadKm = 60.0, K1Ut = 1470283.6;
         // A frame's camera stands within this of the first frame's aim of its pose, the sun within this of its first reading; the two headings differ by at least this angle to the sun.
         internal const double AimToleranceDeg = 0.5, SunDriftDeg = 1.0, PosesApartDeg = 60.0;

@@ -62,10 +62,10 @@ TYPES = [
     ("fog", "fog", "Kerbin-weather-rain", "Fog", 0.8, (20.0, ABOVE_LAYER), (4.0, -25.0)),
     # The cumulonimbus layer's clear-sky rule (K 0.687) lets a map value of 0.85 close the whole sky into one wall; 0.78 leaves gaps between the towers.
     ("cumulonimbus", "calvus", "Kerbin-cumulonimbus", "Cumulonimbus calvus", 0.78, (GROUND, 13500.0), (6.0, -30.0)),
-    ("cumulonimbus", "incus", "Kerbin-cumulonimbus", "Cumulonimbus incus", 0.78, (GROUND, 13500.0), (6.0, -30.0)),
+    ("cumulonimbus", "capillatus", "Kerbin-cumulonimbus", "Cumulonimbus capillatus", 0.78, (GROUND, 13500.0), (6.0, -30.0)),
     # The same types where the map stands high, a strong cell: the height-shaped threshold (LIFT) is in map units, so the stronger the cell the higher the tower stands (E40 L5 shape).
     ("cumulonimbus", "calvus-strong", "Kerbin-cumulonimbus", "Cumulonimbus calvus", 0.9, (GROUND, 13500.0), (6.0, -30.0)),
-    ("cumulonimbus", "incus-strong", "Kerbin-cumulonimbus", "Cumulonimbus incus", 0.9, (GROUND, 13500.0), (6.0, -30.0)),
+    ("cumulonimbus", "capillatus-strong", "Kerbin-cumulonimbus", "Cumulonimbus capillatus", 0.9, (GROUND, 13500.0), (6.0, -30.0)),
     ("cirrus", "cirrus", "Kerbin-cirrus", "Cirrus", 0.65, (GROUND, 12500.0), (35.0, -35.0)),
     ("cirrus", "cirrostratus", "Kerbin-cirrus", "Cirrostratus", 0.8, (GROUND, 12500.0), (35.0, -35.0)),
 ]
@@ -209,7 +209,7 @@ def jid(key, view, aux=False):
 # --------------------------------------------------------------------------------------------------------------------------------
 CB_LAYER = "Kerbin-cumulonimbus"
 # (key, the type of the whole cell, or None: the type follows the cell's strength as the precipitation level does in the game, calvus at its edge, incus at its core)
-CB_TOWERS = (("calvus-tower", "Cumulonimbus calvus"), ("incus-tower", "Cumulonimbus incus"), ("cell-tower", None))
+CB_TOWERS = (("calvus-tower", "Cumulonimbus calvus"), ("capillatus-tower", "Cumulonimbus capillatus"), ("cell-tower", None))
 CB_VIEWS = ("side", "top", "flat")                       # flat: the side view without the updraft's top term (the type table's own top)
 CB_MAP = (512, 256)                                      # the equirectangular map of the cell: about 7.4 km per texel at the equator
 CB_CELL_KM = 12.0                                      # the e-folding radius of the cell's strength

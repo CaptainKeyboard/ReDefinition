@@ -45,14 +45,14 @@ namespace ReDefinition.Tests.Atmospheres.T09
             foreach (var range in new[]
             {
                 // ISCCP low class "stratus" and middle class "nimbostratus": 23 to 379; low class "stratocumulus": 3.6 to 23; high class "cirrus": below 3.6.
-                new { Name = "Stratus", Lo = 23.0, Hi = 379.0 }, new { Name = "Snow stratus", Lo = 23.0, Hi = 379.0 },
-                new { Name = "Nimbostratus", Lo = 23.0, Hi = 379.0 }, new { Name = "Snow nimbostratus", Lo = 23.0, Hi = 379.0 },
+                new { Name = "Stratus", Lo = 23.0, Hi = 379.0 }, new { Name = "Stratus (snow)", Lo = 23.0, Hi = 379.0 },
+                new { Name = "Nimbostratus", Lo = 23.0, Hi = 379.0 }, new { Name = "Nimbostratus (snow)", Lo = 23.0, Hi = 379.0 },
                 new { Name = "Stratocumulus", Lo = 3.6, Hi = 23.0 }, new { Name = "Cirrus", Lo = 0.0, Hi = 3.6 }
             })
                 Assert.IsTrue(tau[range.Name] >= range.Lo && tau[range.Name] <= range.Hi, range.Name + " has the full-column optical depth " + tau[range.Name].ToString("0.00") + ", wanted " + range.Lo + " to " + range.Hi);
             // The heaped family grows with the cloud's depth; the stratus is not part of it (ISCCP: thicker than stratocumulus).
             Assert.IsTrue(tau["Stratocumulus"] < tau["Cumulus humilis"] && tau["Cumulus humilis"] < tau["Cumulus congestus"]
-                          && tau["Cumulus congestus"] < tau["Cumulonimbus incus"], "the family grows with the cloud's depth");
+                          && tau["Cumulus congestus"] < tau["Cumulonimbus capillatus"], "the family grows with the cloud's depth");
             Assert.IsTrue(tau["Stratus"] > tau["Stratocumulus"], "ISCCP's stratus is thicker than its stratocumulus");
         }
 
