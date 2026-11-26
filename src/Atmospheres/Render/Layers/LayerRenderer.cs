@@ -130,8 +130,11 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
-        // The test lattice's variant (cloud.field off): the product's passes hold none of its code.
-        internal const string LatticeKeyword = "CLOUD_LATTICE";
+        // The test lattice (cloud.field off) is a shader of its own (master plan 45.3: ReDefinitionAtmospheresLayersLattice.shader, the same passes with CLOUD_LATTICE
+        // defined): the product's shader holds none of its code. The material switches to it while the lattice is on (LatticeShader; null: no lattice, the product draws).
+        internal const string LatticeShaderName = "ReDefinition/AtmospheresLayersLattice";
+        internal Shader LatticeShader { get; set; }
+        private Shader productShader;
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
@@ -192,6 +195,7 @@ namespace ReDefinition.Atmospheres
                 Problem = "the layer shader is missing";
                 return false;
             }
+            productShader = shader;
             material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             if (material.passCount < 3)
             {
@@ -211,16 +215,35 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
+            SetStatic();
+            commands = new CommandBuffer { name = "ReDefinition layer pass" };
+            Heights.Ensure(2, 2);
+            Noise.StartGeneration();
+            return true;
+        }
+
+        // What Init sets once: the type tables' textures and the blue-noise tile. Set again after the material's shader changed (SyncShader).
+        private void SetStatic()
+        {
             material.SetTexture(IdTypeProfile, profileTexture);
             var blue = new Vector4[DitherMatrix.Count / 4];
             float[] tile = DitherMatrix.Values();
             for (int i = 0; i < tile.Length; i++) blue[i >> 2][i & 3] = tile[i];
             material.SetVectorArray(Shader.PropertyToID("_DitherM"), blue);
             material.SetTexture(IdTypeInfo, infoTexture);
-            commands = new CommandBuffer { name = "ReDefinition layer pass" };
-            Heights.Ensure(2, 2);
-            Noise.StartGeneration();
-            return true;
+        }
+
+        // The material's shader for the frame: the lattice shader while the lattice is on and loaded, else the product's. The same material object (the command buffers keep
+        // it); after a change everything is uploaded again (a shader change need not keep array values), the frame's own uploads follow in Upload.
+        private void SyncShader(bool lattice)
+        {
+            Shader want = lattice && LatticeShader != null ? LatticeShader : productShader;
+            if (want == null || material.shader == want) return;
+            material.shader = want;
+            SetStatic();
+            uploadedVersion = -1;
+            uploadedShift = -1;
+            uploadedSource = null;
         }
 
         // The pinned capture (master plan phase 0 item 3): a hash of the type table textures as uploaded (the profile, then the info texture; their CPU copies stay
@@ -290,6 +313,8 @@ namespace ReDefinition.Atmospheres
         internal void Upload(LayerStackSource source)
         {
             if (!Ready || source == null) return;
+            // The lattice's shader first (cloud.field off): a change makes the upload below run in full.
+            SyncShader(!CloudLookTuning.Field);
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
@@ -404,6 +429,8 @@ namespace ReDefinition.Atmospheres
         // Writes the frame's numbers (not the camera) into the material.
         internal void Apply(LayerFrame f)
         {
+            // The lattice's shader (cloud.field off; Upload switched it already where it ran this frame).
+            SyncShader(!CloudLookTuning.Field);
             Material m = material;
             m.SetFloat(IdPlanetR, (float)radius);
             m.SetVector(IdPlanetCenter, f.PlanetCenter);
@@ -471,13 +498,6 @@ namespace ReDefinition.Atmospheres
             // The map-driven sky's connected stratiform types (MapSkyRegions.StratiformTypes).
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.StratiformTypes(cellLayer[l]) : Vector4.zero;
             m.SetVectorArray(IdCellS, cellS);
-            // The test lattice (cloud.field off) is the variant CLOUD_LATTICE; the product (the field) draws without its code.
-            bool lattice = !CloudLookTuning.Field;
-            if (lattice != m.IsKeywordEnabled(LatticeKeyword))
-            {
-                if (lattice) m.EnableKeyword(LatticeKeyword);
-                else m.DisableKeyword(LatticeKeyword);
-            }
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

@@ -434,7 +434,12 @@ namespace ReDefinition.Atmospheres
             if (edgeOn)
             {
                 // The edge draw is the layer material's copy with the edge pattern's numbers.
-                if (edgeLayers == null || edgeLayers.shader != layers.shader) edgeLayers = new Material(layers.shader) { hideFlags = HideFlags.HideAndDontSave };
+                if (edgeLayers == null || edgeLayers.shader != layers.shader)
+                {
+                    // The layer material changes its shader with the lattice (master plan 45.3): the old copy goes.
+                    if (edgeLayers != null) UnityEngine.Object.Destroy(edgeLayers);
+                    edgeLayers = new Material(layers.shader) { hideFlags = HideFlags.HideAndDontSave };
+                }
                 edgeLayers.CopyPropertiesFromMaterial(layers);
             }
 

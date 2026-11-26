@@ -35,8 +35,8 @@ namespace ReDefinition.Atmospheres
             "_NoiseColour", "_LightCache", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
         };
 
-        // The local keywords the layer shader declares (multi_compile_local; LayerRenderer.LatticeKeyword, CloudDevVariant.Keyword): the readout says for each whether the
-        // material has it on.
+        // The variants of the layer pass: the lattice (its own shader since master plan 45.3, LayerRenderer.LatticeShaderName) and the test switches (multi_compile_local,
+        // CloudDevVariant.Keyword): the readout says for each whether the material has it on.
         internal static readonly string[] Keywords = { "CLOUD_LATTICE", "CLOUD_DEV" };
 
         // Where the numbers come from: a material in the game and in the player, a stand-in in the tests.
@@ -66,7 +66,12 @@ namespace ReDefinition.Atmospheres
             public Vector4 Vector(string name) { return m.GetVector(name); }
             public Vector4[] Array(string name) { return m.GetVectorArray(name); }
             public Matrix4x4 Matrix(string name) { return m.GetMatrix(name); }
-            public bool KeywordOn(string name) { return m.IsKeywordEnabled(name); }
+            // CLOUD_LATTICE is the lattice shader's define, not a keyword (master plan 45.3): on while the material carries that shader.
+            public bool KeywordOn(string name)
+            {
+                if (name == "CLOUD_LATTICE") return m.shader != null && m.shader.name == LayerRenderer.LatticeShaderName;
+                return m.IsKeywordEnabled(name);
+            }
             public string[] KeywordsOn() { return m.shaderKeywords; }
 
             public string Texture(string name)

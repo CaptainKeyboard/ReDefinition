@@ -34,3 +34,5 @@ src/Common/**/WeatherSample.cs
 src/Common/**/PrecipScale.cs
 src/Common/**/Forecast.cs
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayers.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayersCore.cginc
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayersLattice.shader

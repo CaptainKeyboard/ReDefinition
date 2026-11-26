@@ -16,7 +16,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
     {
         private static readonly string[] Files =
         {
-            "ReDefinitionAtmospheresLayers.shader", "ReDefinitionAtmospheresNoise.cginc", "ReDefinitionAtmospheresCloudLight.cginc", "ReDefinitionAtmospheresFarView.cginc",
+            "ReDefinitionAtmospheresLayers.shader", "ReDefinitionAtmospheresLayersCore.cginc", "ReDefinitionAtmospheresNoise.cginc", "ReDefinitionAtmospheresCloudLight.cginc", "ReDefinitionAtmospheresFarView.cginc",
             "ReDefinitionAtmospheresBaseHeight.cginc", "CloudCull.cginc", "MarchStep.cginc", "CloudCells.cginc"
         };
 
