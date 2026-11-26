@@ -58,24 +58,40 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 #   tiling: the noise's largest feature (EVE's baseNoiseTiling, metres) = the type's mesoscale cell width: closed stratiform cells are 10 to 30
 #   layer depths wide (Wood & Hartmann 2006: a 300-600 m stratus 3-18 km; 4 km taken), a cumulonimbus cell 5-15 km (Houze: 8 km), a uniform
 #   snow-bearing sheet 8-12 km (10 km), Duna's dust fronts 20 km (.local/work/eve-values-derivation.md section 2).
-#   edge: EVE erodes the density by its detail noise with the strength w = 1 - noiseEdgeHardness (f' = (f - w (1 - detail)) / (1 - w (1 - detail)),
-#   eve-shader-semantics.md 1.3): w is the share of the density's fluctuation at scales finer than the base noise resolves (below tile / 64);
-#   under the k^(-5/3) spectrum of turbulent clouds and dust (Davis et al. 1994) the variance between k and k_max goes as k^(-2/3), so that share
-#   is (64^(-2/3) - 1000^(-2/3)) / (1 - 1000^(-2/3)) = 0.05 (detail down to a thousandth of the tile): hardness 0.95 for every type. (The first
-#   version read the key as a threshold window, PRUEFPROTOKOLL 330.)
-#   cover: a type's density over the weather's coverage map. The weather sets the coverage (light and broken at a low value, a closed deck at a
-#   high one, changing with the weather: the owner 2026-11-26), and the drawn cloud must follow it, not saturate: the density rises in proportion
-#   to the coverage (a grid cell's mean condensate is the cloud fraction times the in-cloud condensate), so a thin coverage is a thin, see-through
-#   cloud and a full one the type's full density. (The first version took the full density from 0.1 and drew every sky as a closed deck,
-#   PRUEFPROTOKOLL 330.) The storm keeps the curve of the storm cell's layer (ours, d35a07c0: a core, a falloff and a ragged rim). Densities,
-#   heights and the light grey colour are CONTRACT.md's table (ours).
-COVER_PROPORTIONAL = [(0, 0, 1, 1), (1, 1, 1, 1)]
+#   edge: EVE erodes the density by its detail noise, subtracting up to w = 1 - noiseEdgeHardness of it (f' = (f - w (1 - detail)) /
+#   (1 - w (1 - detail)), eve-shader-semantics.md 1.3): w is the relative AMPLITUDE of the density's fluctuation at scales finer than the base
+#   noise resolves (below tile / 64). Under the k^(-5/3) spectrum of turbulent clouds and dust (Davis et al. 1994) the variance between k and
+#   k_max goes as k^(-2/3): that share is (64^(-2/3) - 1000^(-2/3)) / (1 - 1000^(-2/3)) = 0.053 (detail down to a thousandth of the tile), its
+#   amplitude sqrt(0.053) = 0.23: hardness 0.77 for every type (PRUEFPROTOKOLL 332; 330 took the variance for the amplitude).
+#   profile: EVE's density chain is f = c' dc window(noise) with dc = densityCurve(height): coverage (the weather's map, passed through as it is)
+#   and the height profile set both the noise window and the amplitude. In a water cloud the liquid water rises adiabatically with the height
+#   above the base (LWC ~ z), and at a fixed droplet number the extinction goes as LWC^(2/3) (Stephens 1978): dc = h^(2/3), with the top cut
+#   within the last 3 % (the inversion, entrainment). So the base and the top become uneven where the noise is weak and the thickness varies:
+#   the light and dark patches of a real deck seen from below. Dust in a convective boundary layer is well mixed: constant, falling off in the
+#   top 15 %. The weather's coverage acts through the window (fewer, thinner clouds at a low value, a closed deck at a high one: the owner
+#   2026-11-26). The types' coverageCurve is not in the shader's density chain and has no derivation: not written for these types (EVE's
+#   default); the storm keeps the curve of the storm cell's layer (ours, d35a07c0). Densities, heights and the light grey colour are
+#   CONTRACT.md's table (ours).
+
+
+def adiabatic_profile():
+    keys = []
+    for h in (0.0, 0.05, 0.15, 0.3, 0.5, 0.7, 0.9, 0.97):
+        v = h ** (2.0 / 3.0)
+        slope = 5.0 if h == 0 else (2.0 / 3.0) * h ** (-1.0 / 3.0)
+        keys.append((h, round(v, 3), round(slope, 3), round(slope, 3)))
+    keys.append((1.0, 0.0, -32.0, -32.0))
+    return keys
+
+
+PROFILE_WATER = adiabatic_profile()
+PROFILE_DUST = [(0.0, 1.0, 0.0, 0.0), (0.85, 1.0, 0.0, 0.0), (1.0, 0.0, -6.7, -6.7)]
 TYPES = {
-    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.95, cover=COVER_PROPORTIONAL),
-    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.95, cover=COVER_PROPORTIONAL),
-    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.95,
-                  cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)]),
-    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.95, cover=COVER_PROPORTIONAL),
+    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.77, cover=None, profile=PROFILE_WATER),
+    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.77, cover=None, profile=PROFILE_WATER),
+    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.77,
+                  cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)], profile=PROFILE_WATER),
+    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.77, cover=None, profile=PROFILE_DUST),
 }
 
 # The bodies. radius_m: the body's radius (scaled fade). altitude: the radius of the 2D sphere above the body (the layer2D).
@@ -123,8 +139,9 @@ def type_item(name, t, indent):
     s += "%sinterpolateCloudHeights = true\n" % j
     s += "%sdensity = %g\n%sbaseNoiseTiling = %d\n%snoiseEdgeHardness = %g\n" % (j, t["density"], j, t["tiling"], j, t["edge"])
     s += "%sparticleFieldDensity = 0\n%sdropletsDensity = 0\n%swetSurfacesIntensity = 0\n%slightningFrequency = 0\n%sambientVolume = 0\n" % ((j,) * 5)
-    s += j + "coverageCurve\n" + j + "{\n" + curve_lines(t["cover"], j + "\t") + j + "}\n"
-    s += j + "densityCurve\n" + j + "{\n" + j + "\tkey = 0 1\n" + j + "}\n"
+    if t["cover"] is not None:
+        s += j + "coverageCurve\n" + j + "{\n" + curve_lines(t["cover"], j + "\t") + j + "}\n"
+    s += j + "densityCurve\n" + j + "{\n" + curve_lines(t["profile"], j + "\t") + j + "}\n"
     s += i + "}\n"
     return s
 
