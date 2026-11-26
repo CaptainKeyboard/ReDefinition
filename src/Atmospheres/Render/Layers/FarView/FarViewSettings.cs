@@ -28,7 +28,8 @@ namespace ReDefinition.Atmospheres
         // saturated horizon colour above is what a cloud far away fades into. The pass blends the two by the blue channel's extinction along the ray (the aerial perspective at the end of the layer shader's march). Null: the same as
         // Inscatter, so a caller that knows only one colour sees the pass as it was.
         public Color? InscatterNear;
-        // The share of the sun's flux at the camera that the clouds above it pass on (AerialPerspectivePlan.LitShare; 1: clear sky): the air under a deck lies in its shadow (PRUEFPROTOKOLL 272).
+        // The diffuse share the clouds overhead pass on to the air at the camera (OwnCloudProbeLight.DiffuseShare of the vertical depth over the camera and a ring; 1: clear sky):
+        // the air under a deck lies in its shadow (PRUEFPROTOKOLL 272, 302).
         public float CameraLitShare = 1f;
 
         // The distance LOD of the shape noise: where the march's sample spacing exceeds the noise's feature size the shape is replaced by its
