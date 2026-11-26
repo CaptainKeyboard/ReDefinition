@@ -28,6 +28,7 @@ namespace ReDefinition.Atmospheres
         private readonly AmbientTracker sunIntensity = new AmbientTracker();
         private readonly AmbientTracker sunShadow = new AmbientTracker();
         private readonly TufxHook tufx = new TufxHook();
+        private readonly TestLightTerms testTerms = new TestLightTerms();
         private Light sun;
         private bool hooked;
         private bool sunScaling;
@@ -76,7 +77,7 @@ namespace ReDefinition.Atmospheres
             level = view.Active ? view.Level : 0f;
             // The measurement keys (PRUEFPROTOKOLL 287: which light terms reach the land): 1 in the product.
             float testSun = Mathf.Max(0f, Tuning.Get(TuneTestSunScale, 1f)), testAmbient = Mathf.Max(0f, Tuning.Get(TuneTestAmbientScale, 1f));
-            testing = testSun != 1f || testAmbient != 1f;
+            testing = testSun != 1f || testAmbient != 1f || TestLightTerms.Wanted;
             if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;
@@ -105,6 +106,7 @@ namespace ReDefinition.Atmospheres
                 ambient.Apply(ambientFactor);
                 ApplySun();
                 tufx.Apply(level);
+                if (testing && TestLightTerms.Wanted) testTerms.Apply();
             }
             catch (Exception e)
             {
@@ -145,6 +147,7 @@ namespace ReDefinition.Atmospheres
             // The calls that reach the engine are guarded and kept in their own methods, so that an idle writer runs outside the game.
             if (ambient.Scaling) ambient.Restore();
             if (sunScaling) RestoreSun();
+            if (testTerms.Active) testTerms.Restore();
             sunFrame = -1;
             tufx.Restore();
         }
