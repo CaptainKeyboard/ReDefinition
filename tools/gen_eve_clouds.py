@@ -58,15 +58,18 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 #   tiling: the noise's largest feature (EVE's baseNoiseTiling, metres) = the type's mesoscale cell width: closed stratiform cells are 10 to 30
 #   layer depths wide (Wood & Hartmann 2006: a 300-600 m stratus 3-18 km; 4 km taken), a cumulonimbus cell 5-15 km (Houze: 8 km), a uniform
 #   snow-bearing sheet 8-12 km (10 km), Duna's dust fronts 20 km (.local/work/eve-values-derivation.md section 2).
+#   edge: EVE softens the noise threshold over a window of 1 - noiseEdgeHardness (noise units): a water cloud's edge mixing zone is about a tenth
+#   of a cloud element (entrainment at the edge, Wood 2012 review): 0.9; dust has no condensation edge, its concentration falls off smoothly: 0.5.
+#   cover: a type's density over the map's coverage. Inside a cloud the condensate does not follow the cloud fraction (the two are only weakly
+#   correlated, Wood 2012): no cloud at 0, the full density from a coverage of 0.1. The storm keeps the curve of the storm cell's layer (ours,
+#   d35a07c0: a core, a falloff and a ragged rim). Densities, heights and the light grey colour are CONTRACT.md's table (ours).
+COVER_STEP = [(0, 0, 0, 0), (0.1, 1, 0, 0), (1, 1, 0, 0)]
 TYPES = {
-    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.5,
-                 cover=[(0, 0, 0, 3), (0.2, 0.7, 0, 0), (1, 0.9, 0, 0)]),
-    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.7,
-                    cover=[(0, 0, 0, 3), (0.15, 0.8, 0, 0), (1, 0.95, 0, 0)]),
-    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.85,
+    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.9, cover=COVER_STEP),
+    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.9, cover=COVER_STEP),
+    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.9,
                   cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)]),
-    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.4,
-                 cover=[(0, 0, 0, 2), (0.1, 0.6, 0, 0), (0.6, 0.95, 0, 0), (1, 1, 0, 0)]),
+    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.5, cover=COVER_STEP),
 }
 
 # The bodies. radius_m: the body's radius (scaled fade). altitude: the radius of the 2D sphere above the body (the layer2D).
@@ -76,17 +79,17 @@ TYPES = {
 # time) and ends below the atmosphere's top (Kerbin 70 km, Duna and Laythe 50 km).
 # march (metres; EVE's step = min(base + factor x distance, max)): the base step resolves the smallest noise tile (tile / 128) and stays below half
 # a mean free path of the densest type (0.5 / density); the factor keeps one step per pixel footprint (60 degrees / 1080 px = 1e-3); the cap is the
-# smallest tile / 32; the light march covers three mean free paths of the middle type (3 / density) in 4 steps (the shader doubles them where its
-# reprojection fails).
+# smallest tile / 32; the light march covers three mean free paths of the middle type (3 / density) in steps of an optical depth of 0.5 (the
+# midpoint rule's error near 1 %): 6 steps. altitude: the 2D sphere stands in for the volume from orbit, at the volume's top.
 #   Kerbin, Laythe (Snow 0.0025, Stratus 0.0065, Storm 0.014 per m; smallest tile 4 km): base min(31, 36) = 30, cap 125, light 3 / 0.0065 = 460.
 #   Duna (Dust 0.006 per m; tile 20 km): base min(156, 83) = 80, cap 625, light 3 / 0.006 = 500.
 BODIES = [
-    dict(name="Kerbin", radius_m=600000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=True,
+    dict(name="Kerbin", radius_m=600000, altitude=2300, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=True,
          fade=(30000, 60000), march=dict(base=30, factor=0.001, cap=125, light=460)),
-    dict(name="Duna", radius_m=320000, altitude=2700, types=["Dust"], layer_colour=(196, 150, 110), weather_patch=False,
+    dict(name="Duna", radius_m=320000, altitude=6000, types=["Dust"], layer_colour=(196, 150, 110), weather_patch=False,
          fade=(25000, 45000), march=dict(base=80, factor=0.001, cap=625, light=500)),
-    dict(name="Laythe", radius_m=500000, altitude=2700, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=False,
-         fade=(25000, 50000), march=dict(base=30, factor=0.001, cap=125, light=460)),
+    dict(name="Laythe", radius_m=500000, altitude=2300, types=["Snow", "Stratus", "Storm"], layer_colour=(190, 192, 196), weather_patch=False,
+         fade=(25000, 48000), march=dict(base=30, factor=0.001, cap=125, light=460)),
 ]
 
 BLANK_W, BLANK_H = 16, 8
@@ -136,15 +139,16 @@ def volume_object(body):
     s += "\t\tlayer2D\n\t\t{\n\t\t\tmacroCloudMaterial\n\t\t\t{\n\t\t\t}\n\t\t}\n"
     s += "\t\tlayerRaymarchedVolumeV5\n\t\t{\n"
     s += "\t\t\tcolor = %d, %d, %d, 255\n" % (r, g, b)
-    s += "\t\t\tupwardsCloudSpeed = 2\n\t\t\tscaledFadeStartAltitude = %d\n\t\t\tscaledFadeEndAltitude = %d\n" % (fs, fe)
-    s += "\t\t\tskylightMultiplier = 1.0\n"
+    # No upward drift, sky light multiplier or render order: we have no derivation for them, so EVE's own defaults apply.
+    s += "\t\t\tscaledFadeStartAltitude = %d\n\t\t\tscaledFadeEndAltitude = %d\n" % (fs, fe)
     m = body["march"]
-    s += ("\t\t\traymarchingSettings\n\t\t\t{\n\t\t\t\tlightMarchSteps = 4\n\t\t\t\tlightMarchDistance = %d\n\t\t\t\tbaseStepSize = %d\n"
-          "\t\t\t\tadaptiveStepSizeFactor = %g\n\t\t\t\tmaxStepSize = %d\n\t\t\t\toverlapRenderOrder = 3\n\t\t\t}\n"
+    s += ("\t\t\traymarchingSettings\n\t\t\t{\n\t\t\t\tlightMarchSteps = 6\n\t\t\t\tlightMarchDistance = %d\n\t\t\t\tbaseStepSize = %d\n"
+          "\t\t\t\tadaptiveStepSizeFactor = %g\n\t\t\t\tmaxStepSize = %d\n\t\t\t}\n"
           % (m["light"], m["base"], m["factor"], m["cap"]))
-    # The Worley noise (EVE/CloudNoiseGen): 6 octaves fill the 128-voxel texture to its Nyquist limit at lacunarity 2 with one period per tile;
-    # persistence 2^(-1/3) = 0.79 from the k^(-5/3) spectrum of cloud liquid water (Davis et al. 1994); spherical 0 keeps Worley's plain F1 distance.
-    s += ("\t\t\tnoise\n\t\t\t{\n\t\t\t\tworley\n\t\t\t\t{\n\t\t\t\t\toctaves = 6\n\t\t\t\t\tperiods = 1\n\t\t\t\t\tlacunarity = 2\n"
+    # The Worley noise (EVE/CloudNoiseGen): octaves k = 0..6 halve the wavelength from the tile to tile / 64, two voxels of the 128-voxel texture
+    # (its Nyquist limit) at lacunarity 2 with one period per tile: 7 octaves; persistence 2^(-1/3) = 0.79 from the k^(-5/3) spectrum of cloud
+    # liquid water (Davis et al. 1994); spherical 0 keeps Worley's plain F1 distance.
+    s += ("\t\t\tnoise\n\t\t\t{\n\t\t\t\tworley\n\t\t\t\t{\n\t\t\t\t\toctaves = 7\n\t\t\t\t\tperiods = 1\n\t\t\t\t\tlacunarity = 2\n"
           "\t\t\t\t\tpersistence = 0.79\n\t\t\t\t\tspherical = 0\n\t\t\t\t}\n\t\t\t}\n")
     s += "\t\t\t// Placeholders: the cloud-map painter binds its own render textures to both maps at run time.\n"
     s += texture_node("coverageMap", "\t\t\t")

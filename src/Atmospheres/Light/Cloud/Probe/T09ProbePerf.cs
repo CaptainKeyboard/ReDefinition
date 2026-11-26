@@ -209,10 +209,20 @@ namespace ReDefinition.Atmospheres
         // storm's lightning have weather to act on. Taken back by the field's own end time; the rain variants come last in a start.
         private void PerfRainAtVessel()
         {
-            Vessel v = FlightGlobals.ActiveVessel;
-            if (v == null || v.mainBody == null) return;
-            double now = Planetarium.GetUniversalTime();
-            bool forced = ForcePrecipitation(v.mainBody.flightGlobalsIndex, v.latitude, v.longitude, 30.0, 8f, PrecipType.Rain, now, now + 7200.0);
+            bool forced = false;
+            try
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                if (v != null && v.mainBody != null)
+                {
+                    double now = Planetarium.GetUniversalTime();
+                    forced = ForcePrecipitation(v.mainBody.flightGlobalsIndex, v.latitude, v.longitude, 30.0, 8f, PrecipType.Rain, now, now + 7200.0);
+                }
+            }
+            catch (TypeInitializationException)
+            {
+                // Outside the game (the series' gate audit runs the starts without KSP): no vessel, no rain.
+            }
             Emit("T09.perf.rain_forced", forced ? 1 : 0);
         }
 
