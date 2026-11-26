@@ -14,6 +14,9 @@ namespace ReDefinition.Atmospheres
                 .Type("Scatterer.OceanCommandBuffer").Type("Scatterer.ShaderProperties")
                 .Literal("Scatterer.OceanCommandBuffer", "oceanGbufferDepth", "oceanGbufferNormalsAndSigma", "useOceanSSR")
                 .Literal("Scatterer.ShaderProperties", "_VarianceMax")
+                .Method("Scatterer.Scatterer", "get_Instance")
+                .Field("Scatterer.Scatterer", "mainSettings", "Scatterer.MainSettingsReadWrite")
+                .Field("Scatterer.MainSettingsReadWrite", "oceanScreenSpaceReflections", "System.Boolean")
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "the sea shows the own clouds' mean colour, not their image");
 
@@ -40,8 +43,8 @@ namespace ReDefinition.Atmospheres
     {
         internal const string ShaderName = "ReDefinition/AtmospheresSeaMirror";
         private const float RescanSeconds = 1f;
-        private static readonly int IdCube = Shader.PropertyToID("_SmCube"), IdForward = Shader.PropertyToID("_SmForward"), IdRight = Shader.PropertyToID("_SmRight"),
-            IdUp = Shader.PropertyToID("_SmUp"), IdZenith = Shader.PropertyToID("_SmZenith"), IdP = Shader.PropertyToID("_SmP"),
+        private static readonly int IdCube = Shader.PropertyToID("_SmCube"), IdScreenToWorld = Shader.PropertyToID("_SmScreenToWorld"),
+            IdZenith = Shader.PropertyToID("_SmZenith"), IdP = Shader.PropertyToID("_SmP"),
             IdSsrOutput = Shader.PropertyToID("ssrOutput"), IdCopy = Shader.PropertyToID("ReDefinitionSeaMirrorSsr");
 
         private Material material;
@@ -49,10 +52,11 @@ namespace ReDefinition.Atmospheres
         private Vector3 planetCentre;
         private Type deferredSsr, oceanBuffer;
         private float rescanAt = -1f;
-        private bool failed, said, orderSaid;
+        private bool failed, said, orderSaid, oceanSsr;
 
-        // Whether the hooks draw this frame: the own sky probe's cube is there and the contracts hold.
-        internal bool Active { get { return cube != null && material != null && !failed; } }
+        // Whether the hooks draw this frame: the own sky probe's cube is there, the contracts hold and Scatterer's ocean reads the screen-space reflections
+        // (its setting oceanScreenSpaceReflections; off, it sets useOceanSSR 0 and the pass would be work without effect: run 324 A drew it).
+        internal bool Active { get { return cube != null && material != null && !failed && oceanSsr; } }
 
         // From the own clouds' frame, after the sky probe's update: cube null (the probe off) stops the mirror.
         internal void Update(RenderTexture skyCube, Vector3 planet)
@@ -83,6 +87,8 @@ namespace ReDefinition.Atmospheres
                 if (deferredSsr == null) deferredSsr = TypeLookup.Find("Deferred.ScreenSpaceReflections");
                 if (oceanBuffer == null) oceanBuffer = TypeLookup.Find("Scatterer.OceanCommandBuffer");
                 if (deferredSsr == null || oceanBuffer == null) return;
+                oceanSsr = ScattererOceanSsr();
+                if (!oceanSsr) return;
                 foreach (UnityEngine.Object o in UnityEngine.Object.FindObjectsOfType(oceanBuffer))
                 {
                     var c = o as Component;
@@ -97,6 +103,16 @@ namespace ReDefinition.Atmospheres
             {
                 Fail(e.Message);
             }
+        }
+
+        // Scatterer's own setting oceanScreenSpaceReflections (Scatterer.Instance.mainSettings), read once a second.
+        private static bool ScattererOceanSsr()
+        {
+            Type scatterer = TypeLookup.Find("Scatterer.Scatterer");
+            object instance = scatterer?.GetProperty("Instance", TypeLookup.Any)?.GetValue(null, null);
+            object settings = instance == null ? null : scatterer.GetField("mainSettings", TypeLookup.Any)?.GetValue(instance);
+            object on = settings?.GetType().GetField("oceanScreenSpaceReflections", TypeLookup.Any)?.GetValue(settings);
+            return on is bool && (bool)on;
         }
 
         // The hook after Deferred's component on the camera's object (its OnPreRender then runs after Deferred's, which adds Deferred's buffer).
@@ -125,13 +141,13 @@ namespace ReDefinition.Atmospheres
         internal void Record(CommandBuffer cb, Camera cam)
         {
             cb.Clear();
-            Transform t = cam.transform;
-            float ty = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad), tx = ty * cam.aspect;
-            Vector3 zenith = (t.position - planetCentre).normalized;
+            // Screen to world directions from the camera's own projection (jitter and any projection change included), as Scatterer's ocean unprojects
+            // its G-buffer (the code check 324: the field of view alone misses a changed projection).
+            Matrix4x4 view = cam.worldToCameraMatrix;
+            view.SetColumn(3, new Vector4(0f, 0f, 0f, 1f));
+            Vector3 zenith = (cam.transform.position - planetCentre).normalized;
             cb.SetGlobalTexture(IdCube, cube);
-            cb.SetGlobalVector(IdForward, t.forward);
-            cb.SetGlobalVector(IdRight, t.right * tx);
-            cb.SetGlobalVector(IdUp, t.up * ty);
+            cb.SetGlobalMatrix(IdScreenToWorld, (cam.projectionMatrix * view).inverse);
             cb.SetGlobalVector(IdZenith, zenith);
             // The ocean G-buffer's depth is cleared to black on a reversed depth buffer, else to white (OceanCommandBuffer.RecreateCommandBuffers).
             cb.SetGlobalVector(IdP, new Vector4(SystemInfo.usesReversedZBuffer ? 0f : 1f, Mathf.Max(0, cube.mipmapCount - 1), 0f, 0f));

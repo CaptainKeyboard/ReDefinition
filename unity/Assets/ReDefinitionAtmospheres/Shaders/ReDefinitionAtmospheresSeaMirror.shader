@@ -29,9 +29,7 @@ Shader "ReDefinition/AtmospheresSeaMirror"
             sampler2D oceanGbufferNormalsAndSigma;
             float4 _VarianceMax;
             samplerCUBE _SmCube;
-            float4 _SmForward;  // xyz: the camera's forward (world)
-            float4 _SmRight;    // xyz: its right times tan(half fov) x aspect
-            float4 _SmUp;       // xyz: its up times tan(half fov)
+            float4x4 _SmScreenToWorld; // the camera's projection x view without its position, inverted: screen to world directions (as Scatterer unprojects)
             float4 _SmZenith;   // xyz: the local up at the camera (world)
             float4 _SmP;        // x: the ocean depth's clear value (no ocean), y: the cube's last mip
 
@@ -44,7 +42,8 @@ Shader "ReDefinition/AtmospheresSeaMirror"
                 float2 nxy = ns.xy * 2.0 - 1.0;
                 float nz = sqrt(1.0 - min(dot(nxy, nxy), 1.0));
                 float3 n = normalize(float3(nxy, ns.w > 0.0 ? nz : -nz));
-                float3 v = normalize(_SmForward.xyz + (i.uv.x * 2.0 - 1.0) * _SmRight.xyz + (i.uv.y * 2.0 - 1.0) * _SmUp.xyz);
+                float4 p = mul(_SmScreenToWorld, float4(i.uv * 2.0 - 1.0, 0.0, 1.0));
+                float3 v = normalize(p.xyz / p.w);
                 float3 r = reflect(v, n);
                 // A ray the waves send below the horizon mirrors the sky just above it (the sea's own surface is not in the cube's lower half).
                 float h = dot(r, _SmZenith.xyz);

@@ -1397,7 +1397,6 @@ mod.MOD_SETTINGS[scatterer]#2.DEFAULTS.useRaymarchedTerrainGodrays = False
 mod.MOD_SETTINGS[scatterer]#2.DEFAULTS.version = 0.908.0.0
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[low].@exists = True
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[low].build = volumetric
-mod.MOD_SETTINGS[scatterer]#2.PROFILE[low].oceanScreenSpaceReflections = False
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[low].oceanTransparencyAndRefractions = False
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[max].@exists = True
 mod.MOD_SETTINGS[scatterer]#2.PROFILE[max].build = public
