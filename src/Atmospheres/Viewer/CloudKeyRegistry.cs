@@ -374,6 +374,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(TestLightTerms.TuneProbeScale, 1f, note: "measurement: the reflection probes' intensity times this"),
             N(TestLightTerms.TuneDefaultReflection, 1f, note: "measurement: 0 makes the default reflection a black cube"),
             N(ReflectionCameraWatch.TuneLog, 0f, note: "measurement: 1 logs the cameras that render the reflection probes"),
+            N(OwnProbeTest.TuneOn, 0f, note: "measurement: 1 puts a red own probe on KSP's flight probe"),
             N(CloudShadowRenderer.TuneTestFactor, -1f, note: "measurement: the cloud shadow's factor forced everywhere (below 0: none)"),
             // The culling (OwnCloudOptions.Apply(CullSettings)).
             N(OwnCloudOptions.TuneFootScale, Cull.FootScale),
