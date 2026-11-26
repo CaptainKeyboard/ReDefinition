@@ -6,11 +6,22 @@ namespace ReDefinition.Atmospheres
     // light comes from KSP's one flight reflection probe (FlightReflectionProbe: realtime, rendered by script, layers Water, Local Scenery and Scaled Scenery,
     // cleared to a solid sky colour); RenderSettings' flat ambient and the SH ambient probe give nothing. The probe never sees the own clouds or their shadow:
     // under a closed deck it keeps lighting the scene with a clear, sunlit sky and land. Below the clouds the sky and the land the probe holds are lit by the
-    // share of the flux the clouds pass on (AerialPerspectivePlan.LitShare, the same share the air under them gets), so the probe's intensity is scaled by it.
+    // diffuse share the clouds overhead pass on, so the probe's intensity is scaled by it: the diffuse share of the vertical optical depth over the camera and a
+    // ring round it (the idea check 295: the sky light follows the depth overhead; the sun path's share fails at a low sun and at a cloud's edge). Known limit:
+    // the probe's colour stays the clear sky's; the cause fix, the own clouds in the probe, goes with the band on the sea (master plan 46.1).
     // A value someone else writes is the new baseline; everything is put back when the own clouds are not drawn.
     internal static class OwnCloudProbeLight
     {
-        private const float RescanSeconds = 10f;
+        private const float RescanSeconds = 1f;
+        // The air round the camera whose sky is meant: the camera and RingPoints points RingM away, averaged.
+        internal const double RingM = 3000.0;
+        internal const int RingPoints = 8;
+
+        // The share of the diffuse flux a non-absorbing layer of vertical optical depth tau passes on (two-stream, AerialPerspectivePlan.TwoStreamDecay).
+        internal static double DiffuseShare(float tau)
+        {
+            return CloudLightMath.OtherLayersTransmission(Mathf.Max(0f, tau), AerialPerspectivePlan.TwoStreamDecay);
+        }
 
         private static ReflectionProbe probe;
         private static float nextScan = -1f;

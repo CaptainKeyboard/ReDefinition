@@ -1591,8 +1591,27 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(sunTransmission);
             ScattererFlareClouds.Apply(sunTransmission);
-            // KSP's reflection probe, the scene's environment light, by the same share (PRUEFPROTOKOLL 294).
-            OwnCloudProbeLight.Apply(f.Far.CameraLitShare);
+            // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
+            // a ring round it (the sky light follows the depth overhead, not the sun's path).
+            float skyShare = 1f;
+            if (OwnCloudOpticalDepth.Bound)
+            {
+                Vector3d camAt = camPos;
+                double ala = b.GetLatitude(camAt), alo = b.GetLongitude(camAt);
+                double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI, sum = 0.0;
+                int n = 0;
+                for (int k = -1; k < OwnCloudProbeLight.RingPoints; k++)
+                {
+                    double a = 2.0 * Math.PI * Math.Max(k, 0) / OwnCloudProbeLight.RingPoints, r = k < 0 ? 0.0 : ringDeg;
+                    double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
+                    float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
+                    if (tau < 0f) continue;
+                    sum += OwnCloudProbeLight.DiffuseShare(tau);
+                    n++;
+                }
+                if (n > 0) skyShare = (float)(sum / n);
+            }
+            OwnCloudProbeLight.Apply(skyShare);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
