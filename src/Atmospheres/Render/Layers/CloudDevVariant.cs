@@ -49,6 +49,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly Entry[] Shadow =
         {
             new Entry("_BlendP", 0, 1f),
+            new Entry("_CsForced", 0, -1f), // a forced shadow factor (shadow.testFactor, PRUEFPROTOKOLL 289)
         };
 
         // Whether a material with these values needs the variant (read: the material's vector of a uniform).
