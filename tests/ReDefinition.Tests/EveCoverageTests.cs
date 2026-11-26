@@ -271,7 +271,11 @@ namespace ReDefinition.Tests
             // The snow layer: no cloud, the field and the sound, from below sea level (a volume gives no coverage under its lowest altitude).
             StringAssert.Contains(snowText, "fxOnlyLayer = True");
             StringAssert.Contains(snowText, "particleFieldConfig = ReDefinition-Atmospheres-snow");
-            StringAssert.Contains(snowText, "soundName = StockVolumetricClouds/Clouds/Sounds/SnowStormLoopedFreeAudio");
+            // Our own storm sound and flake sheet (master plan 46.3 E4): nothing of the pack's is referenced.
+            StringAssert.Contains(snowText, "soundName = ReDefinition/Atmospheres/Clouds/Sounds/ReDefinitionStormWind");
+            Assert.IsTrue(File.Exists(Path.Combine(folder, "Sounds", "ReDefinitionStormWind.wav")), "the synthesised storm sound");
+            Assert.IsTrue(File.Exists(Path.Combine(folder, "Textures", "PluginData", "ReDefinitionSnowFlakes.png")), "the generated flake sheet");
+            Assert.IsFalse(cfg.Contains("StockVolumetricClouds/"), "no asset of the pack is referenced");
             StringAssert.Contains(snowText, "minAltitude = -1");
             StringAssert.Contains(snowText, "particleFieldDensity = 1");
             Assert.IsFalse(snowText.Contains("layer2D"), "the snow layer has no 2D layer");
