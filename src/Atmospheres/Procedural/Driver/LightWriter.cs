@@ -123,6 +123,9 @@ namespace ReDefinition.Atmospheres
             sunScaling = true;
             sun.intensity = sunIntensity.Scale(new Color(sun.intensity, 0f, 0f, 1f), sunFactor).r;
             sun.shadowStrength = sunShadow.Scale(new Color(sun.shadowStrength, 0f, 0f, 1f), shadowFactor).r;
+            // The measurement keys' runs (PRUEFPROTOKOLL 293): the sun as written, about once a second.
+            if (testing && sunFrame % 60 == 0)
+                AtmospheresLog.Say("light measurement: sun " + sun.name + " intensity " + sun.intensity.ToString("0.000") + " (factor " + sunFactor.ToString("0.00") + ", enabled " + sun.enabled + ")");
         }
 
         // The sun Light's intensity without this writer's weather dimming (ApplySun's scale): what the sun gives above the weather. The dimming imitates for the SCENE the cloud
