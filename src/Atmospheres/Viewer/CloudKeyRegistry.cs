@@ -369,6 +369,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(LightWriter.TuneSunDimWeightEve, LightWriter.SunDimWeightEveDefault, note: "the same with an EVE layer"),
             N(LightWriter.TuneTestSunScale, 1f, note: "measurement: the scene's sun under the own clouds times this"),
             N(LightWriter.TuneTestAmbientScale, 1f, note: "measurement: the scene's ambient under the own clouds times this"),
+            N(CloudShadowRenderer.TuneTestFactor, -1f, note: "measurement: the cloud shadow's factor forced everywhere (below 0: none)"),
             // The culling (OwnCloudOptions.Apply(CullSettings)).
             N(OwnCloudOptions.TuneFootScale, Cull.FootScale),
             N(OwnCloudOptions.TuneCapKeep, Cull.CapKeepSpans),

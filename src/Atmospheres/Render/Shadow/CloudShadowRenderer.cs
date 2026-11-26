@@ -60,6 +60,9 @@ namespace ReDefinition.Atmospheres
         internal const string OceanShadowsName = "ScattererOceanShadowsTexture";
         internal const string OceanDepthName = "ScattererDownscaledOceanDepthTexture";
         private static readonly int IdDepthSource = Shader.PropertyToID("_CsDepthSource");
+        // Measurement (PRUEFPROTOKOLL 289): shadow.testFactor >= 0 forces the shadow factor everywhere (the CLOUD_DEV variant); -1 in the product.
+        internal const string TuneTestFactor = "shadow.testFactor";
+        private static readonly int IdForced = Shader.PropertyToID("_CsForced");
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
@@ -260,6 +263,7 @@ namespace ReDefinition.Atmospheres
             if (noise) Noise.Bind(m, layerCount);
             m.SetVectorArray(IdNoiseD, noise ? noiseD : noiseOff);
             m.SetFloat(IdPlanetR, (float)(f.RadiusUnits * f.MetresPerUnit));
+            m.SetVector(IdForced, new Vector4(Tuning.Get(TuneTestFactor, -1f), 0f, 0f, 0f));
             // The test switches' variant (CloudDevVariant): the noise's switches are on this material only while the noise is bound; without it the noise is not read.
             if (noise) CloudDevVariant.Apply(m, CloudDevVariant.Shadow);
             else if (m.IsKeywordEnabled(CloudDevVariant.Keyword)) m.DisableKeyword(CloudDevVariant.Keyword);

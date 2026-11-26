@@ -102,7 +102,7 @@ namespace ReDefinition.Atmospheres.Viewer
                 OwnCloudOptions.TuneSkyTint, OwnCloudOptions.TuneAmbientFloor, OwnCloudOptions.TuneAmbientColumnTop, OwnCloudOptions.TuneCellGain, OwnCloudOptions.TuneCellBeta,
                 OwnCloudOptions.TuneCellExtrapolation, OwnCloudOptions.TuneCellSide, OwnCloudOptions.TuneCellOctaves, OwnCloudOptions.TuneCellIncidencePower,
                 OwnCloudOptions.TuneCellIncidenceRef, OwnCloudOptions.TuneCellIncidenceEps, LightWriter.TuneSunDimWeight, LightWriter.TuneSunDimWeightEve,
-                LightWriter.TuneTestSunScale, LightWriter.TuneTestAmbientScale,
+                LightWriter.TuneTestSunScale, LightWriter.TuneTestAmbientScale, CloudShadowRenderer.TuneTestFactor,
                 CloudShadowStepPolicy.TuneKey, CloudShadowShapeNoise.TuneKey, OwnCloudOptions.TuneShadowResolution, OwnCloudOptions.TuneShadowTaps);
             Put(map, KeySection.Quality,
                 OwnCloudModule.TuneAfterScatterer, OwnCloudModule.TuneCameraEvent,

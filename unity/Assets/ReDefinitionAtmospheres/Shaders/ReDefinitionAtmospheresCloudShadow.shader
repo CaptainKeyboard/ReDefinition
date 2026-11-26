@@ -38,6 +38,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4x4 _CsWorldToMap;  // rotation from that space into the map frame (x towards longitude 0, y towards 90 east, z north)
         float4 _CsSun;           // towards the sun (unit), w: metres per unit of the space (1 in the scene, 6000 in scaled space)
         float4 _CsParams;        // steps per span (the per-layer count is in _CsLayerD.x), sun disc taps, floor (share of the direct light that always remains), layer count
+        float4 _CsForced;        // x: a forced shadow factor for measurements (below 0: none; shadow.testFactor, read only in the CLOUD_DEV variant)
         float4 _CsParams2;       // x: weight of the diffuse floor in the mask (0: the pure direct beam), y: share of the lit colour that is the sun's direct light (forward path), z: 1 where the shadow reads the pass's shape (the types' LIFT with the shape noise), 0 for the map alone,
                                  // w: 1 where the march leaps over the empty reach (OPT2: the layer pass's empty-reach maps are bound and the body has a surface), 0 every midpoint is read
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
@@ -365,6 +366,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float cosZ = dot(normalize(pc), s);
             float diffuse = cosZ > 0.05 ? DiffuseShare(tauSum * cosZ) : 0.0;
             sum = max(sum, _CsParams2.x * diffuse);
+            // Measurement (shadow.testFactor, PRUEFPROTOKOLL 289): a forced factor everywhere shows which pixels the mask reaches; a constant in the product.
+            float forced = DEV(_CsForced.x, -1.0);
+            if (forced >= 0.0) return forced;
             return lerp(_CsParams.z, 1.0, saturate(sum));
         }
 
