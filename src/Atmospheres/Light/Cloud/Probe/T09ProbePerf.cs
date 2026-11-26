@@ -115,8 +115,10 @@ namespace ReDefinition.Atmospheres
                 case "nolayers":
                 case "plain2":
                 case "noshell":
+                case "noshell2":
                 case "nocloud":
                 case "nocloud2":
+                case "nodepth":
                 case "noprecip":
                 case "fshort":
                 case "faerial":
@@ -248,7 +250,15 @@ namespace ReDefinition.Atmospheres
             foreach (KeyValuePair<string, double> f in baseFeatures) SetSetting(f.Key, f.Value);
             OwnShell.ProbeHidden = false;
             ApiBridge.ProbeSkipOwners.Remove("precipitation");
+            if (perfNoDepth)
+            {
+                OwnCloudModule.ProbeNoSceneDepth = false;
+                perfNoDepth = false;
+            }
         }
+
+        // The variant nodepth switched the scene's depth limit off (put back with the base).
+        private bool perfNoDepth;
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
         private static string CumulusLayer()
@@ -397,11 +407,15 @@ namespace ReDefinition.Atmospheres
                 // rain at the vessel (the control); fwet, fdrops, fbolt the same rain with the feature on (lightning needs a storm, PrecipType.Rain at a storm's rate).
                 // Master plan 46.4 (the own clouds from orbit): noshell the 2D shell hidden (the near march alone), noprecip the precipitation's draw left out
                 // (what the pale diamonds are); the shell alone is nolayers (the pass runs and draws no layer).
-                case "noshell": OwnShell.ProbeHidden = true; break;
+                case "noshell":
+                case "noshell2": OwnShell.ProbeHidden = true; break;
                 // The distance views' reference: the same pass with no cloud of any kind on the screen (the shell hidden and no layer drawn), so that noshell minus nocloud
                 // is what the 3D clouds cost at a height.
                 case "nocloud":
                 case "nocloud2": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); break;
+                // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the
+                // tile then: the scene's depth cuts it there; none: something is drawn over the pass or the maps are empty there.
+                case "nodepth": OwnShell.ProbeHidden = true; OwnCloudModule.ProbeNoSceneDepth = true; perfNoDepth = true; break;
                 case "noprecip": ApiBridge.ProbeSkipOwners.Add("precipitation"); break;
                 case "fshort": SetSetting(AtmospheresSettings.Keys.CloudShortSunMarch, 1.0); break;
                 case "faerial": SetSetting(AtmospheresSettings.Keys.CloudAerialPerspective, 1.0); break;
