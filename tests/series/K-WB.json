@@ -6,7 +6,7 @@
   "profile": "Medium",
   "configuration": "Release",
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 4,
   "bundle": true,
   "settings": [

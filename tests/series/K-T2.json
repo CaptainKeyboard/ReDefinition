@@ -12,7 +12,7 @@
   "productSwitches": { "enabled": 1, "weatherEffects": 1, "genEnabled": 1 },
   "exclusive": true,
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 4,
   "judgesGround": false,
   "bundle": true,

@@ -5,7 +5,7 @@
   "description": "The reconnaissance series (premises P1-P12 of master plan 9.3): run1 with the full mod set, which is also the first real smoke; run2 with Scatterer absent.",
   "profile": "Medium",
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 2,
   "starts": [
     { "id": "run1", "description": "full mod set" },

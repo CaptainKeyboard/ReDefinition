@@ -5,7 +5,7 @@
   "description": "The integrated series of wave W1: EVE binding survival across 20 forced Applies, painted RT against EVE render correlation, history reset and depth hook sanity, the C24 transmission estimate against the light probe. Sanity rows of C21, C22 and C24 ride along.",
   "profile": "Medium",
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 2,
   "starts": [
     { "id": "run1", "description": "full mod set, EVE inside KSP" },

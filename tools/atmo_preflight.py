@@ -607,8 +607,8 @@ def run_preflight(repo, name, only_start, ksp, mainrepo, who, hooks=None, script
     results += pf_orphans(h.get("processes", list_processes)(), ksp)
     states = {n: h.get("vm_state", vm_state)(n) for n in VM_NAMES}
     results += pf_vms(states)
-    # --free-memory-gb of the runner overrides the series' freeMemoryGb (default 12) for one run; the series file stays as it is.
-    results += pf_ram(h.get("free_gb", free_memory_gb)(), need_free_gb if need_free_gb is not None else defn.get("freeMemoryGb", 12), states)
+    # --free-memory-gb of the runner overrides the series' freeMemoryGb (default 9, owner 2026-11-26) for one run; the series file stays as it is.
+    results += pf_ram(h.get("free_gb", free_memory_gb)(), need_free_gb if need_free_gb is not None else defn.get("freeMemoryGb", 9), states)
     readers = [("gpu", h.get("read_gpu", lambda: gpu_lock.read_lock(gpu_lock.lock_path("gpu")))()),
                ("unity", h.get("read_unity", lambda: gpu_lock.read_lock(gpu_lock.lock_path("unity")))())]
     results += pf_locks(who, readers)

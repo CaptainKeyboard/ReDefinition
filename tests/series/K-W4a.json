@@ -5,7 +5,7 @@
   "description": "Wave W4, the full stack: the rows of E41 first (EVE layer list per body, orientation check, Duna visibility and luma, body status table), then the rows of E43 (the layered window and the wind of the TVC layers: option A and B of the layer steering, the shear switch), then the rows of E40 (binding survival in the full stack, level ladder, reference-pair rendering table, RT follow time and RR onset repeated once).",
   "profile": "Medium",
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 1,
   "starts": [ { "id": "run1", "description": "the wind of the layers (E43): flies the launch-pad vessel of the probe save with the clouds on; the first probe that finishes ends the game, so this start runs E43Probe alone (the rows of E41 and E40 need their own start)", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "E43Probe"] } ],
   "sections": [

@@ -6,7 +6,7 @@
   "profile": "Medium",
   "configuration": "Release",
   "maxMinutes": 20,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 5,
   "starts": [
     { "id": "run1", "description": "forecast sites (B12) and the C25 game rows in the flight of the crewed vessel on the launch pad (Kerbal X with crew in the probe save's probe.sfs); the two probes share the start and the game quits after the last verdict", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "B12Probe,C25Probe"] },

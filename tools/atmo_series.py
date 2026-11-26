@@ -26,7 +26,7 @@ guard; any FAIL refuses the run. A run, inside the GPU lock (tools/gpu_lock.py, 
   3. snapshots the side files (every PluginData folder of ReDefinition, KSP's own PluginData and settings.cfg, the probe save, the files
      the Medium profile overwrites), applies the Medium profile from MAINREPO/.local/work/profile-cache, starts from an empty set of
      side files (settings.cfg stays), and puts everything back byte for byte in a finally;
-  4. stops the game-server VM before (when it runs) and starts it again after, also on failure; needs >= 12 GB free memory;
+  4. stops the game-server VM before (when it runs) and starts it again after, also on failure; needs >= 9 GB free memory by default (owner 2026-11-26; the series' freeMemoryGb);
   5. per start: moves the GameData folders of the mods the start disables out of GameData (and back in a finally), starts the game with
      -atmoSeries <name> -atmoStart <id> [-atmoVariants a,b], ends it on the probe's verdict line, after the time limit (at most 20
      minutes), or when it quits, and reads KSP.log;
@@ -1102,7 +1102,7 @@ class Runner:
                             self.log("pinned for %s: %s" % (st["id"], line))
                         modsets.disable(st.get("disableMods", []))
                         removed = clean_side_files(self.ksp)
-                        need = defn.get("freeMemoryGb", 12)
+                        need = defn.get("freeMemoryGb", 9)
                         free = self.free_gb()
                         if free < need:
                             raise Refusal("only %.1f GB of memory are free (%g needed); close Rider, OneDrive, Toolbox, Edge" % (free, need))
@@ -1281,7 +1281,7 @@ def cmd_run(args):
     # Before anything is touched (lock, build, deploy): the offline preflight; any FAIL refuses the run.
     import atmo_preflight
     t = time.time()
-    # --free-memory-gb: the free RAM the preflight and the run ask for, for this run only (the series' freeMemoryGb, default 12, otherwise; the file is not changed).
+    # --free-memory-gb: the free RAM the preflight and the run ask for, for this run only (the series' freeMemoryGb, default 9 (owner 2026-11-26), otherwise; the file is not changed).
     if args.free_memory_gb is not None:
         defn["freeMemoryGb"] = args.free_memory_gb
         print("free RAM limit for this run: %g GB (--free-memory-gb)" % args.free_memory_gb)
@@ -1805,7 +1805,7 @@ def main(argv):
     s.add_argument("--ksp")
     s.add_argument("--dry", action="store_true")
     s.add_argument("--log")
-    s.add_argument("--free-memory-gb", type=float, default=None, help="the free RAM the preflight and the run ask for, this run only (default: the series' freeMemoryGb, 12)")
+    s.add_argument("--free-memory-gb", type=float, default=None, help="the free RAM the preflight and the run ask for, this run only (default: the series' freeMemoryGb, 9)")
     s = sub.add_parser("preflight")
     s.add_argument("series")
     s.add_argument("--start")

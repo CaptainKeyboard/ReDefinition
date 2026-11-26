@@ -7,7 +7,7 @@
   "configuration": "Release",
   "exclusive": false,
   "maxMinutes": 17,
-  "freeMemoryGb": 12,
+  "freeMemoryGb": 9,
   "plannedStarts": 1,
   "judgesGround": false,
   "bundle": true,

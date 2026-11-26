@@ -14,7 +14,7 @@
     "configuration": { "enum": ["Debug", "Release"], "description": "The build configuration of the DLLs the runner builds and deploys (default Debug). A series whose rows are defined by the Release build (a CPU budget) says Release; the report records the configuration that ran." },
     "exclusive": { "type": "boolean", "description": "A timing series: the GPU lock is taken exclusive, builders and dotnet test wait." },
     "maxMinutes": { "type": "number", "minimum": 1, "maximum": 20, "description": "Per start; the runner ends the game after this long. Never above 20." },
-    "freeMemoryGb": { "type": "number", "minimum": 12, "description": "The free memory the start needs." },
+    "freeMemoryGb": { "type": "number", "minimum": 9, "description": "The free memory the start needs (owner 2026-11-26: 9 GB by default)." },
     "plannedStarts": { "type": "integer", "minimum": 1, "description": "The starts master plan 9.3 plans for this series (without repeats)." },
     "bundle": { "type": "boolean", "description": "The series needs the shader bundle: the runner builds build/atmospheres.shaders with Unity in batch mode inside the unity lock after the DLL build, and refuses when it is missing afterwards." },
     "settings": { "type": "array", "items": { "$ref": "#/definitions/settingsFile" }, "description": "Settings the series pins for every start: per file, keys that must already stand in it and the values they get. The runner writes them after the Medium profile is applied and the snapshot restores the files byte for byte afterwards (never edit the installed files by hand)." },
