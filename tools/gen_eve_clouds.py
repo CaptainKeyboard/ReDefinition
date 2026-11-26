@@ -58,18 +58,21 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 #   tiling: the noise's largest feature (EVE's baseNoiseTiling, metres) = the type's mesoscale cell width: closed stratiform cells are 10 to 30
 #   layer depths wide (Wood & Hartmann 2006: a 300-600 m stratus 3-18 km; 4 km taken), a cumulonimbus cell 5-15 km (Houze: 8 km), a uniform
 #   snow-bearing sheet 8-12 km (10 km), Duna's dust fronts 20 km (.local/work/eve-values-derivation.md section 2).
-#   edge: EVE softens the noise threshold over a window of 1 - noiseEdgeHardness (noise units): a water cloud's edge mixing zone is about a tenth
-#   of a cloud element (entrainment at the edge, Wood 2012 review): 0.9; dust has no condensation edge, its concentration falls off smoothly: 0.5.
+#   edge: EVE erodes the density by its detail noise with the strength w = 1 - noiseEdgeHardness (f' = (f - w (1 - detail)) / (1 - w (1 - detail)),
+#   eve-shader-semantics.md 1.3): w is the share of the density's fluctuation at scales finer than the base noise resolves (below tile / 64);
+#   under the k^(-5/3) spectrum of turbulent clouds and dust (Davis et al. 1994) the variance between k and k_max goes as k^(-2/3), so that share
+#   is (64^(-2/3) - 1000^(-2/3)) / (1 - 1000^(-2/3)) = 0.05 (detail down to a thousandth of the tile): hardness 0.95 for every type. (The first
+#   version read the key as a threshold window, PRUEFPROTOKOLL 330.)
 #   cover: a type's density over the map's coverage. Inside a cloud the condensate does not follow the cloud fraction (the two are only weakly
 #   correlated, Wood 2012): no cloud at 0, the full density from a coverage of 0.1. The storm keeps the curve of the storm cell's layer (ours,
 #   d35a07c0: a core, a falloff and a ragged rim). Densities, heights and the light grey colour are CONTRACT.md's table (ours).
 COVER_STEP = [(0, 0, 0, 0), (0.1, 1, 0, 0), (1, 1, 0, 0)]
 TYPES = {
-    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.9, cover=COVER_STEP),
-    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.9, cover=COVER_STEP),
-    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.9,
+    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.95, cover=COVER_STEP),
+    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.95, cover=COVER_STEP),
+    "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.95,
                   cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)]),
-    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.5, cover=COVER_STEP),
+    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.95, cover=COVER_STEP),
 }
 
 # The bodies. radius_m: the body's radius (scaled fade). altitude: the radius of the 2D sphere above the body (the layer2D).
