@@ -23,6 +23,8 @@ namespace ReDefinition.Atmospheres
         internal const float SunDimWeightDefault = 1f, SunDimWeightEveDefault = 0.5f;
         // Measurement keys of the scene's light under the own clouds (PRUEFPROTOKOLL 286): the sun's intensity and the ambient times these (1: none).
         internal const string TuneTestSunScale = "light.testSunScale", TuneTestAmbientScale = "light.testAmbientScale";
+        // Measurement key (PRUEFPROTOKOLL 297): Scatterer's interpolated scatteringExposure times this (1: none).
+        internal const string TuneTestScatterExposure = "light.testScatterExposure";
 
         private readonly StormAmbient ambient = new StormAmbient();
         private readonly AmbientTracker sunIntensity = new AmbientTracker();
@@ -78,6 +80,10 @@ namespace ReDefinition.Atmospheres
             // The measurement keys (PRUEFPROTOKOLL 287: which light terms reach the land): 1 in the product.
             float testSun = Mathf.Max(0f, Tuning.Get(TuneTestSunScale, 1f)), testAmbient = Mathf.Max(0f, Tuning.Get(TuneTestAmbientScale, 1f));
             testing = testSun != 1f || testAmbient != 1f || TestLightTerms.Wanted;
+            // Scatterer's air in-scatter under the own clouds (PRUEFPROTOKOLL 297, 298): written here, in LateUpdate, after Scatterer's interpolation and
+            // before any camera renders. Nothing published and no key: no engine call (the tests run the writer outside the game).
+            float testScatter = Tuning.Get(TuneTestScatterExposure, 1f);
+            if (testScatter != 1f || ScattererAirUnderClouds.Wanted) ScattererAirUnderClouds.Drive(testScatter);
             if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;

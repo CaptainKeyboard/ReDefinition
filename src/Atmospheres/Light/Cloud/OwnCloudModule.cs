@@ -1612,6 +1612,8 @@ namespace ReDefinition.Atmospheres
                 if (n > 0) skyShare = (float)(sum / n);
             }
             OwnCloudProbeLight.Apply(skyShare);
+            // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
+            ScattererAirUnderClouds.Publish(skyShare, b);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
