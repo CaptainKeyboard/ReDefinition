@@ -128,6 +128,7 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the soft density's and the cells' numbers (_CullL).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
+        private static readonly int IdSkyProbeP = Shader.PropertyToID("_SkyProbeP");
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
         // The test lattice (cloud.field off) is a shader of its own (master plan 45.3: ReDefinitionAtmospheresLayersLattice.shader, the same passes with CLOUD_LATTICE
@@ -525,6 +526,9 @@ namespace ReDefinition.Atmospheres
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
+            // The sky probe's vector lives in its faces' property blocks (OwnCloudSkyProbe); the material holds the product value, so that the variant's read below finds it
+            // (a vector the material never held made the engine log "Material doesn't have a color property '_SkyProbeP'" four times a frame, PRUEFPROTOKOLL 343).
+            m.SetVector(IdSkyProbeP, Vector4.zero);
             // The test switches' variant from the values just uploaded (the reconstruction sets it again after its own uploads and the edge draw).
             CloudDevVariant.Apply(m, CloudDevVariant.Layer);
         }
