@@ -15,7 +15,7 @@ namespace ReDefinition.Atmospheres
 
         private bool shActive, probeActive, defaultActive;
         private DefaultReflectionMode defaultModeBase;
-        private Texture defaultCubeBase;
+        private Cubemap defaultCubeBase;
         private Cubemap black;
         private SphericalHarmonicsL2 shBase;
         private float reflectionBase;
