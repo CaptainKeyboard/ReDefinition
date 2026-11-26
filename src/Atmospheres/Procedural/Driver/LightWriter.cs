@@ -28,6 +28,7 @@ namespace ReDefinition.Atmospheres
         private readonly AmbientTracker sunIntensity = new AmbientTracker();
         private readonly AmbientTracker sunShadow = new AmbientTracker();
         private readonly TufxHook tufx = new TufxHook();
+        private readonly TestLightTerms testTerms = new TestLightTerms();
         private Light sun;
         private bool hooked;
         private bool sunScaling;
@@ -76,7 +77,7 @@ namespace ReDefinition.Atmospheres
             level = view.Active ? view.Level : 0f;
             // The measurement keys (PRUEFPROTOKOLL 287: which light terms reach the land): 1 in the product.
             float testSun = Mathf.Max(0f, Tuning.Get(TuneTestSunScale, 1f)), testAmbient = Mathf.Max(0f, Tuning.Get(TuneTestAmbientScale, 1f));
-            testing = testSun != 1f || testAmbient != 1f;
+            testing = testSun != 1f || testAmbient != 1f || TestLightTerms.Wanted;
             if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;
@@ -105,6 +106,7 @@ namespace ReDefinition.Atmospheres
                 ambient.Apply(ambientFactor);
                 ApplySun();
                 tufx.Apply(level);
+                if (testing && TestLightTerms.Wanted) testTerms.Apply();
             }
             catch (Exception e)
             {
@@ -121,6 +123,9 @@ namespace ReDefinition.Atmospheres
             sunScaling = true;
             sun.intensity = sunIntensity.Scale(new Color(sun.intensity, 0f, 0f, 1f), sunFactor).r;
             sun.shadowStrength = sunShadow.Scale(new Color(sun.shadowStrength, 0f, 0f, 1f), shadowFactor).r;
+            // The measurement keys' runs (PRUEFPROTOKOLL 293): the sun as written, about once a second.
+            if (testing && sunFrame % 60 == 0)
+                AtmospheresLog.Say("light measurement: sun " + sun.name + " intensity " + sun.intensity.ToString("0.000") + " (factor " + sunFactor.ToString("0.00") + ", enabled " + sun.enabled + ")");
         }
 
         // The sun Light's intensity without this writer's weather dimming (ApplySun's scale): what the sun gives above the weather. The dimming imitates for the SCENE the cloud
@@ -145,6 +150,7 @@ namespace ReDefinition.Atmospheres
             // The calls that reach the engine are guarded and kept in their own methods, so that an idle writer runs outside the game.
             if (ambient.Scaling) ambient.Restore();
             if (sunScaling) RestoreSun();
+            if (testTerms.Active) testTerms.Restore();
             sunFrame = -1;
             tufx.Restore();
         }
