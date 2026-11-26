@@ -88,9 +88,9 @@ namespace ReDefinition.Atmospheres
             }
             LookValues look = PrecipitationLook.Evaluate(level);
             ambientFactor = (level < OffBelow ? 1f : view.AmbientFactor) * testAmbient;
-            // Under the own clouds the weather's global sun dimming and their per-pixel shadow both act on the land (a double count), but forward-rendered objects
-            // (the vessel's parts) get no cloud shadow in a deferred camera (PRUEFPROTOKOLL 288), so the global dimming stays until the shadow reaches them.
-            float weatherSun = level < OffBelow ? 1f : SunFactorOf(look.SunDirect, !string.IsNullOrEmpty(view.CloudLayerName));
+            // While the own cloud shadow carries the sun (OwnCloudSceneLight; its mask reaches every object, PRUEFPROTOKOLL 289) the weather does not dim it
+            // again: the clouds would count twice (PRUEFPROTOKOLL 290).
+            float weatherSun = level < OffBelow || OwnCloudSceneLight.ShadowCarriesSun ? 1f : SunFactorOf(look.SunDirect, !string.IsNullOrEmpty(view.CloudLayerName));
             sunFactor = weatherSun * testSun;
             shadowFactor = level < OffBelow ? 1f : look.ShadowStrength;
             SyncHook(true);
