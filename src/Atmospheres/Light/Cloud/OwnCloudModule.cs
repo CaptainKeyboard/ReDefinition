@@ -205,6 +205,12 @@ namespace ReDefinition.Atmospheres
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
         private readonly CloudShadowShapeNoise shadowNoise = new CloudShadowShapeNoise();
         private readonly float[] worldToMapRows = new float[9];
+        // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): read from the CPU field at most every SkyShareSeconds, sooner where the camera moved
+        // SkyShareMoveM or the body changed; between, the last value.
+        internal const float SkyShareSeconds = 0.25f, SkyShareMoveM = 250f;
+        private float skyShareAt = -1e9f, skyShareLast = 1f;
+        private CelestialBody skyShareBody;
+        private Vector3 skyShareCamPos;
         private Material depthMaterial;
         private CommandBuffer depthCommands;
         private RenderTexture depthTarget;
@@ -1596,9 +1602,17 @@ namespace ReDefinition.Atmospheres
             ScattererFlareClouds.Apply(sunTransmission);
             // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
             // a ring round it (the sky light follows the depth overhead, not the sun's path).
+            // The ring's nine reads of the CPU field cost about 5 ms of the main thread per frame (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
+            // fps loss); the share changes slowly, so it is read again at most every SkyShareSeconds, or sooner where the camera moved SkyShareMoveM or the body changed.
             float skyShare = 1f;
-            if (OwnCloudOpticalDepth.Bound)
+            bool skyFresh = OwnCloudOpticalDepth.Bound && (Time.unscaledTime - skyShareAt >= SkyShareSeconds || !ReferenceEquals(b, skyShareBody)
+                                                          || (camPos - skyShareCamPos).sqrMagnitude > SkyShareMoveM * SkyShareMoveM);
+            if (OwnCloudOpticalDepth.Bound && !skyFresh) skyShare = skyShareLast;
+            else if (OwnCloudOpticalDepth.Bound)
             {
+                skyShareAt = Time.unscaledTime;
+                skyShareBody = b;
+                skyShareCamPos = camPos;
                 Vector3d camAt = camPos;
                 double ala = b.GetLatitude(camAt), alo = b.GetLongitude(camAt);
                 double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI, sum = 0.0;
@@ -1613,6 +1627,7 @@ namespace ReDefinition.Atmospheres
                     n++;
                 }
                 if (n > 0) skyShare = (float)(sum / n);
+                skyShareLast = skyShare;
             }
             OwnCloudProbeLight.Apply(skyShare);
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
