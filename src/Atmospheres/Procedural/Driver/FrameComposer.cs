@@ -217,6 +217,16 @@ namespace ReDefinition.Atmospheres
             // driver.forcedLevelOwnsVisibility 0 keeps the field's visibility under a forced level (the behaviour before this rule, for the comparison).
             bool forcedOwns = input.LevelOverride >= 0f && Tuning.Flag("driver.forcedLevelOwnsVisibility", true);
             float fieldVisibility = forcedOwns || !(input.Sample.VisibilityM > 0f) ? PrecipitationLook.ClearVisibilityM : input.Sample.VisibilityM;
+            // The field's visibility is the air's at the weather's own level, under the camera: above the weather it fades out with the same height factor as the level
+            // (its extinction, 1 / visibility, by the factor). Without it a camera in orbit held the surface's visibility as scene fog, and the terrain 300 km below was
+            // drawn in the fog's colour (PRUEFPROTOKOLL 343, 344).
+            float heightFactor = HeightFactor(input.AltitudeM, fadeStart, fadeEnd);
+            if (heightFactor <= 0f) fieldVisibility = PrecipitationLook.ClearVisibilityM;
+            else if (heightFactor < 1f && fieldVisibility < PrecipitationLook.ClearVisibilityM)
+            {
+                float clearInverse = 1f / PrecipitationLook.ClearVisibilityM;
+                fieldVisibility = Math.Min(1f / (clearInverse + (1f / fieldVisibility - clearInverse) * heightFactor), PrecipitationLook.ClearVisibilityM);
+            }
             float visTarget = Math.Min(look.VisibilityM, fieldVisibility);
             visibility = jump ? visTarget : WindNoise.LimitVisibility(visibility, visTarget, input.DtReal);
             float extinctionDensity = visibility >= PrecipitationLook.ClearVisibilityM ? 0f : PrecipitationLook.VisibilityExtinctionDensity(visibility);

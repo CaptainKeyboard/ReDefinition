@@ -171,6 +171,35 @@ namespace ReDefinition.Tests.Atmospheres.C20
             Assert.AreEqual(0.5f, FrameComposer.HeightFactor(7000f, 4000f, 10000f), 1e-5f);
         }
 
+        // PRUEFPROTOKOLL 343, 344: a camera in orbit held the surface's visibility as scene fog (the terrain 300 km below was drawn in the fog's colour).
+        [TestMethod]
+        public void TheFieldsVisibilityFadesOutAboveTheWeatherToo()
+        {
+            DriverInput low = Input(0f, 280f, 1);
+            low.Sample.VisibilityM = 5000f;
+            low.AltitudeM = 3000f;
+            var below = new WeatherView();
+            new FrameComposer().Compose(ref low, below);
+            Assert.AreEqual(5000f, below.VisibilityM, 1f, "inside the weather the field's visibility stands");
+            Assert.IsTrue(below.VisibilityExtinctionDensity > 0f);
+
+            DriverInput orbit = Input(0f, 280f, 1);
+            orbit.Sample.VisibilityM = 5000f;
+            orbit.AltitudeM = 300000f;
+            var above = new WeatherView();
+            new FrameComposer().Compose(ref orbit, above);
+            Assert.AreEqual(PrecipitationLook.ClearVisibilityM, above.VisibilityM, 0f, "above the weather the air is clear");
+            Assert.AreEqual(0f, above.VisibilityExtinctionDensity, 0f, "and no scene fog is asked for");
+
+            DriverInput mid = Input(0f, 280f, 1);
+            mid.Sample.VisibilityM = 5000f;
+            mid.AltitudeM = 7000f;
+            var between = new WeatherView();
+            new FrameComposer().Compose(ref mid, between);
+            // Half the height factor: half the extinction above the clear air's, 1 / (1/20000 + 0.5 (1/5000 - 1/20000)) = 8000 m.
+            Assert.AreEqual(8000f, between.VisibilityM, 5f);
+        }
+
         [TestMethod]
         public void TheShowerPulseIsSmoothAndNeverTouchesTheFieldLevel()
         {
