@@ -36,6 +36,17 @@ namespace ReDefinition.Atmospheres
             new T09View { Name = "sky3", AglM = 200.0, PitchDeg = 38.0, HeadingDeg = 270.0, CameraDistM = 100.0 }
         };
 
+        // The distance views (master plan 46.4, the probe's -t09FarViews): the 3D clouds seen from 300, 1,000, 3,000 and 10,000 km over the site, each looking at the limb
+        // as the orbit view does (the planet's disc fills the lower half of the picture and shrinks with the height). The vessel may stand a kilometre off its point (the
+        // thing looked at is hundreds of kilometres away) and a view that cannot be placed costs two attempts.
+        internal static readonly T09View[] Far =
+        {
+            new T09View { Name = "far300", AglM = 300000.0, PitchDeg = double.NaN, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "far1000", AglM = 1000000.0, PitchDeg = double.NaN, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "far3000", AglM = 3000000.0, PitchDeg = double.NaN, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "far10000", AglM = 10000000.0, PitchDeg = double.NaN, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 }
+        };
+
         // The layer mask that draws no layer (a bit above every layer index).
         internal const int NoLayersMask = 1 << 20;
 

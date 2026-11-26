@@ -439,7 +439,8 @@ namespace ReDefinition.Atmospheres
                 }
                 else
                 {
-                    foreach (View baseView in Views)
+                    // -t09FarViews (master plan 46.4): the distance views (300 to 10,000 km) in the place of the series' five.
+                    foreach (View baseView in CommandLine.Has(Args(), "-t09FarViews", true) ? T09Views.Far : Views)
                     {
                         // -t09HeadingOffset / the drawn choice's heading turns every view (the orbit view looks at the limb whatever the heading).
                         View view = Turned(baseView);

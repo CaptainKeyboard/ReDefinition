@@ -115,6 +115,8 @@ namespace ReDefinition.Atmospheres
                 case "nolayers":
                 case "plain2":
                 case "noshell":
+                case "nocloud":
+                case "nocloud2":
                 case "noprecip":
                 case "fshort":
                 case "faerial":
@@ -396,6 +398,10 @@ namespace ReDefinition.Atmospheres
                 // Master plan 46.4 (the own clouds from orbit): noshell the 2D shell hidden (the near march alone), noprecip the precipitation's draw left out
                 // (what the pale diamonds are); the shell alone is nolayers (the pass runs and draws no layer).
                 case "noshell": OwnShell.ProbeHidden = true; break;
+                // The distance views' reference: the same pass with no cloud of any kind on the screen (the shell hidden and no layer drawn), so that noshell minus nocloud
+                // is what the 3D clouds cost at a height.
+                case "nocloud":
+                case "nocloud2": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); break;
                 case "noprecip": ApiBridge.ProbeSkipOwners.Add("precipitation"); break;
                 case "fshort": SetSetting(AtmospheresSettings.Keys.CloudShortSunMarch, 1.0); break;
                 case "faerial": SetSetting(AtmospheresSettings.Keys.CloudAerialPerspective, 1.0); break;
