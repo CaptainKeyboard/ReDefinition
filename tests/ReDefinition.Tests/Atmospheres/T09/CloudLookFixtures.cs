@@ -103,7 +103,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             CloudLayerDef cb = Layer("Kerbin-cumulonimbus", "", 1700f, 11000f, 0.08f, 0.12f, 0.1f, 0.4f, 5000f, LayerKind.Weather,
                 new CloudTypeDef("Cumulonimbus calvus", 0f, 0.85f, C(0f, 0.2f, 0.05f, 0.9f, 0.5f, 1f, 0.85f, 0.7f, 1f, 0f), 0.5f),
-                new CloudTypeDef("Cumulonimbus incus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f),
+                new CloudTypeDef("Cumulonimbus capillatus", 0f, 1f, C(0f, 0.2f, 0.05f, 0.8f, 0.4f, 0.9f, 0.7f, 1f, 0.88f, 0.8f, 1f, 0f), 0.5f),
                 new CloudTypeDef("Incus", 0f, 1f, C(0f, 0f, 0.72f, 0f, 0.8f, 1f, 0.9f, 0.9f, 1f, 0f), 0.7f));
             cb.LowStratiform = new WeatherLowStratiformRule { Fog = false, PrecipType = 0f };
             foreach (CloudTypeDef t in cb.Types) t.RiseShare = 0.3f;

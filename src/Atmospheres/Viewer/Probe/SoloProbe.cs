@@ -64,8 +64,8 @@ namespace ReDefinition.Atmospheres.Viewer
         // puts the layer across the frame; the cell ahead of the camera so that its tower and the anvil it spreads fill the frame (cb_near, 25 km) or stand on the horizon (cb_far, 40 km: the far end of the side view of RE section 1.2, CB-S 10-40 km).
         internal static readonly SoloView[] Views =
         {
-            Cell("cb_near", "Cumulonimbus incus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
-            Cell("cb_far", "Cumulonimbus incus", 40.0, 300.0, 5.0, 0.04, 0.85, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
+            Cell("cb_near", "Cumulonimbus capillatus", 25.0, 200.0, 15.0, 0.40, 0.90, 0.40, 1.0, "section 1 (CB-G, CB-S): tower flanks, flat dark base, anvil spreading overhead; checklist 1-4, 8"),
+            Cell("cb_far", "Cumulonimbus capillatus", 40.0, 300.0, 5.0, 0.04, 0.85, 0.20, 0.80, "section 1 (CB-S, side view 10-40 km): the whole cell on the horizon, anvil flat at the top; checklist 1-5, 8"),
             Field("sc", WeatherPresets.Role.Cumulus, "Stratocumulus", 0.8f, 200.0, 45.0, 0.35, 1.0, "section 2 (SC-G): lumps and gaps, dark parts, no filament"),
             Field("humilis", WeatherPresets.Role.Cumulus, "Cumulus humilis", 0.5f, 200.0, 35.0, 0.15, 0.90, "section 5 (CU-G): detached, flat dark base, sharp outline, flat and low"),
             Field("mediocris", WeatherPresets.Role.Cumulus, "Cumulus mediocris", 0.5f, 200.0, 35.0, 0.30, 0.97, "section 5 (CU-G): detached, cauliflower tops, about as tall as wide"),

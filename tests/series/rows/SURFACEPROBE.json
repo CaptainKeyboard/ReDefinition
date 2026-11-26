@@ -4,7 +4,7 @@
   "rows": [
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.window_opens_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: Toggle opens the viewer's window and session within 10 s." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.sun_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: K-S1's universal time (1470283.6) puts the sun within 6 degrees of 45, else one of 37 offsets does (K-S1's search)." },
-    { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Cumulonimbus incus is in the stack." },
+    { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.type_found_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the type Cumulonimbus capillatus is in the stack." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p1_empty_frame_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: pose 1 (heading 90, K-S1's): with the cell at strength 0 the solo layer's forced map reads 0 and the pass's layer mask is the layer's bit." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p1_drawn_alone_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: with strength 1 the forced map reads 1 and the pass's layer mask is the layer's bit." },
     { "series": "K-S2", "section": "SURFACEPROBE", "start": "surface", "metric": "SURF.p1_same_aim_ok", "equals": 1, "tolerance": 0, "note": "EXPECTED: the camera's azimuth and elevation after the seven frames are within 0.5 degrees of the pose's first frame." },

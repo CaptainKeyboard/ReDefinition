@@ -83,11 +83,11 @@ namespace ReDefinition.Tests.Atmospheres.T10
             foreach (CloudLayerSpec layer in Kerbin().Layers)
                 foreach (CloudTypeSpec type in layer.Types)
                 {
-                    bool stratus = type.Name == "Stratus" || type.Name == "Snow stratus";
+                    bool stratus = type.Name == "Stratus" || type.Name == "Stratus (snow)";
                     Assert.AreEqual(stratus ? 0.2f : 0f, type.UndulatusAmount, 1e-6f, layer.Name + " " + type.Name);
                     Assert.AreEqual(stratus ? 0.2f : 0f, type.Build().UndulatusAmount, 1e-6f, layer.Name + " " + type.Name + " built");
                     // Master plan 43: the stratus and nimbostratus types' tops have the short waves (the same absolute swing, about +-60 m), no other type.
-                    bool nimbostratus = type.Name == "Nimbostratus" || type.Name == "Snow nimbostratus";
+                    bool nimbostratus = type.Name == "Nimbostratus" || type.Name == "Nimbostratus (snow)";
                     Assert.AreEqual(stratus ? 0.15f : nimbostratus ? 0.06f : 0f, type.Build().TopRoughness, 1e-6f, layer.Name + " " + type.Name + " top roughness");
                 }
             Assert.AreEqual(1f, OwnCloudOptions.UndulatusDefault, "on: the types' own amount");
@@ -124,18 +124,18 @@ namespace ReDefinition.Tests.Atmospheres.T10
             var wmo = new Dictionary<string, float[]>(StringComparer.Ordinal)
             {
                 { "Fog", new[] { 0f, 100f, 50f, 400f } },
-                { "Polar fog", new[] { 0f, 100f, 50f, 400f } },
+                { "Freezing fog", new[] { 0f, 100f, 50f, 400f } },
                 { "Stratus", new[] { 0f, 2000f, 100f, 2500f } },
-                { "Snow stratus", new[] { 0f, 2000f, 100f, 2500f } },
+                { "Stratus (snow)", new[] { 0f, 2000f, 100f, 2500f } },
                 { "Nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
-                { "Snow nimbostratus", new[] { 0f, 2000f, 1000f, 4000f } },
+                { "Nimbostratus (snow)", new[] { 0f, 2000f, 1000f, 4000f } },
                 { "Stratocumulus", new[] { 300f, 2000f, 500f, 2500f } },
                 { "Cumulus humilis", new[] { 600f, 2000f, 2000f, 4000f } },
                 { "Cumulus mediocris", new[] { 600f, 2000f, 3000f, 5000f } },
                 { "Cumulus congestus", new[] { 600f, 2000f, 5000f, 8000f } },
                 { "Altocumulus", new[] { 2000f, 7000f, 2500f, 7500f } },
                 { "Cumulonimbus calvus", new[] { 600f, 2000f, 6000f, 12000f } },
-                { "Cumulonimbus incus", new[] { 600f, 2000f, 8000f, 16000f } },
+                { "Cumulonimbus capillatus", new[] { 600f, 2000f, 8000f, 16000f } },
                 // The anvil sheet of a cumulonimbus (its outflow): its type spans the layer like the towers' (so that the mix between them keeps one base); the sheet itself is where its
                 // LIFT opens, 8.6 km, and its top is the towers' (asserted below with the sheet's own band).
                 { "Incus", new[] { 600f, 2000f, 8000f, 16000f } },
@@ -167,8 +167,8 @@ namespace ReDefinition.Tests.Atmospheres.T10
             // classes (23 to 379), cirrus its thin high class (below 3.6). The other types have no primary source here (CloudOpacityTests says which).
             var tau = new Dictionary<string, float[]>(StringComparer.Ordinal)
             {
-                { "Stratus", new[] { 23f, 379f } }, { "Snow stratus", new[] { 23f, 379f } },
-                { "Nimbostratus", new[] { 23f, 379f } }, { "Snow nimbostratus", new[] { 23f, 379f } },
+                { "Stratus", new[] { 23f, 379f } }, { "Stratus (snow)", new[] { 23f, 379f } },
+                { "Nimbostratus", new[] { 23f, 379f } }, { "Nimbostratus (snow)", new[] { 23f, 379f } },
                 { "Cirrus", new[] { 0f, 3.6f } }
             };
             foreach (CloudLayerSpec layer in Kerbin().Layers)

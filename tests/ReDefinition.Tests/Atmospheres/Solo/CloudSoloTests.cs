@@ -216,7 +216,7 @@ namespace ReDefinition.Tests.Atmospheres.Solo
             Assert.AreEqual(0.5f, of(1, "mediocris"));
             Assert.AreEqual(0.4f, of(1, "congestus"));
             Assert.AreEqual(0.6f, of(1, "Altocumulus"));
-            Assert.AreEqual(1f, of(2, "incus"), "a cell at its strongest");
+            Assert.AreEqual(1f, of(2, "capillatus"), "a cell at its strongest");
             Assert.AreEqual(0.5f, of(3, "Cirrus"));
         }
 
@@ -282,7 +282,8 @@ namespace ReDefinition.Tests.Atmospheres.Solo
             CloudLayerDef cumulus = CloudLookFixtures.Cumulus(), cb = CloudLookFixtures.Cumulonimbus(), rain = CloudLookFixtures.Rain();
             Assert.AreEqual("Humilis", CloudSoloPlan.ShortLabel(cumulus, 1));
             Assert.AreEqual("Stratocumulus", CloudSoloPlan.ShortLabel(cumulus, 0));
-            Assert.AreEqual("Incus", CloudSoloPlan.ShortLabel(cb, 1));
+            Assert.AreEqual("Capillatus", CloudSoloPlan.ShortLabel(cb, 1));
+            Assert.AreEqual("Incus", CloudSoloPlan.ShortLabel(cb, 2), "the anvil sheet, WMO's supplementary feature, keeps its name");
             Assert.AreEqual("Nimbostratus", CloudSoloPlan.ShortLabel(rain, 2));
         }
 

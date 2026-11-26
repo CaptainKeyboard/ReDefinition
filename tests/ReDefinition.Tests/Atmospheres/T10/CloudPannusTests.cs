@@ -30,7 +30,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
                 CloudLayerDef layer = Layer(layerName);
                 foreach (CloudTypeDef type in layer.Types)
                 {
-                    bool nimbostratus = type.Name == "Nimbostratus" || type.Name == "Snow nimbostratus";
+                    bool nimbostratus = type.Name == "Nimbostratus" || type.Name == "Nimbostratus (snow)";
                     Assert.AreEqual(nimbostratus, type.PannusProfile != null, type.Name + " has a pannus profile only if it is a nimbostratus");
                     Assert.AreEqual(nimbostratus, type.PannusLift != null, type.Name + " has a pannus lift only if it is a nimbostratus");
                 }
