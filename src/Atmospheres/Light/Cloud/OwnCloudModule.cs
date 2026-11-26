@@ -205,12 +205,10 @@ namespace ReDefinition.Atmospheres
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
         private readonly CloudShadowShapeNoise shadowNoise = new CloudShadowShapeNoise();
         private readonly float[] worldToMapRows = new float[9];
-        // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): read from the CPU field at most every SkyShareSeconds, sooner where the camera moved
-        // SkyShareMoveM or the body changed; between, the last value.
-        internal const float SkyShareSeconds = 0.25f, SkyShareMoveM = 250f;
-        private float skyShareAt = -1e9f, skyShareLast = 1f;
+        // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): the camera's point and the ring's, one read per frame in turn; -1 not read yet.
+        private readonly float[] skyPointShare = new float[OwnCloudProbeLight.RingPoints + 1];
+        private int skyShareNext;
         private CelestialBody skyShareBody;
-        private Vector3 skyShareCamPos;
         private Material depthMaterial;
         private CommandBuffer depthCommands;
         private RenderTexture depthTarget;
@@ -1602,32 +1600,35 @@ namespace ReDefinition.Atmospheres
             ScattererFlareClouds.Apply(sunTransmission);
             // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
             // a ring round it (the sky light follows the depth overhead, not the sun's path).
-            // The ring's nine reads of the CPU field cost about 5 ms of the main thread per frame (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
-            // fps loss); the share changes slowly, so it is read again at most every SkyShareSeconds, or sooner where the camera moved SkyShareMoveM or the body changed.
+            // The ring's nine reads of the CPU field in one frame cost about 5 ms of the main thread (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
+            // fps loss): ONE point is read per frame in turn (the camera's, then the ring's), the share is the mean of the points' latest values; the whole ring is fresh
+            // after nine frames, the cost even, no frame takes them all. A new body starts the points afresh.
             float skyShare = 1f;
-            bool skyFresh = OwnCloudOpticalDepth.Bound && (Time.unscaledTime - skyShareAt >= SkyShareSeconds || !ReferenceEquals(b, skyShareBody)
-                                                          || (camPos - skyShareCamPos).sqrMagnitude > SkyShareMoveM * SkyShareMoveM);
-            if (OwnCloudOpticalDepth.Bound && !skyFresh) skyShare = skyShareLast;
-            else if (OwnCloudOpticalDepth.Bound)
+            if (OwnCloudOpticalDepth.Bound)
             {
-                skyShareAt = Time.unscaledTime;
-                skyShareBody = b;
-                skyShareCamPos = camPos;
+                if (!ReferenceEquals(b, skyShareBody))
+                {
+                    skyShareBody = b;
+                    for (int i = 0; i < skyPointShare.Length; i++) skyPointShare[i] = -1f;
+                }
+                int k = skyShareNext;
+                skyShareNext = (skyShareNext + 1) % skyPointShare.Length;
                 Vector3d camAt = camPos;
                 double ala = b.GetLatitude(camAt), alo = b.GetLongitude(camAt);
-                double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI, sum = 0.0;
+                double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI;
+                double a = 2.0 * Math.PI * Math.Max(k - 1, 0) / OwnCloudProbeLight.RingPoints, r = k == 0 ? 0.0 : ringDeg;
+                double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
+                float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
+                skyPointShare[k] = tau < 0f ? -1f : (float)OwnCloudProbeLight.DiffuseShare(tau);
+                double sum = 0.0;
                 int n = 0;
-                for (int k = -1; k < OwnCloudProbeLight.RingPoints; k++)
+                for (int i = 0; i < skyPointShare.Length; i++)
                 {
-                    double a = 2.0 * Math.PI * Math.Max(k, 0) / OwnCloudProbeLight.RingPoints, r = k < 0 ? 0.0 : ringDeg;
-                    double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
-                    float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
-                    if (tau < 0f) continue;
-                    sum += OwnCloudProbeLight.DiffuseShare(tau);
+                    if (skyPointShare[i] < 0f) continue;
+                    sum += skyPointShare[i];
                     n++;
                 }
                 if (n > 0) skyShare = (float)(sum / n);
-                skyShareLast = skyShare;
             }
             OwnCloudProbeLight.Apply(skyShare);
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
