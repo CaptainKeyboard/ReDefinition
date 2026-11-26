@@ -31,6 +31,9 @@ namespace ReDefinition.Atmospheres
         // The diffuse share the clouds overhead pass on to the air at the camera (OwnCloudProbeLight.DiffuseShare of the vertical depth over the camera and a ring; 1: clear sky):
         // the air under a deck lies in its shadow (PRUEFPROTOKOLL 272, 302).
         public float CameraLitShare = 1f;
+        // The sun's light on the air at sea level under the camera (the luminance of the shader's SunAir there, 0 to 1; master plan 46.4): the ambient and the in-scatter are
+        // the camera's sky, and a sample gets its own share of it against this (the shader's DayShare). 0: off (every sample the full value), the state before.
+        public float CameraDay;
 
         // The distance LOD of the shape noise: where the march's sample spacing exceeds the noise's feature size the shape is replaced by its
         // mean over the noise (closed form, FarViewMath.ShapeMean). Spacing in noise scales from which the mean takes over and at which it
@@ -72,7 +75,7 @@ namespace ReDefinition.Atmospheres
             m.SetVector(Ids.B, new Vector4(RayleighPerM.x, RayleighPerM.y, RayleighPerM.z, MiePerM));
             m.SetVector(Ids.C, new Vector4(Inscatter.r, Inscatter.g, Inscatter.b, Mathf.Clamp01(CameraLitShare)));
             Color near = InscatterNear ?? Inscatter;
-            m.SetVector(Ids.E, new Vector4(near.r, near.g, near.b, 0f));
+            m.SetVector(Ids.E, new Vector4(near.r, near.g, near.b, Mathf.Clamp01(CameraDay)));
             m.SetVector(Ids.D,new Vector4(ShapeMean ? 1f : 0f, Mathf.Max(LodStart, 0f), Mathf.Max(LodEnd, LodStart + 0.01f), Mathf.Clamp(MinSamples, 0, 16)));
         }
     }

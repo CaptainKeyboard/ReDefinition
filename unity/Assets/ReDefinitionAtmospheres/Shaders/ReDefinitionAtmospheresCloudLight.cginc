@@ -123,6 +123,14 @@ float3 SunAir(float3 pc, float3 sunDir)
     return exp(-tau * m) * smoothstep(-0.02, 0.0, s);
 }
 
+// The sky light's share at a point against the camera's own sky (master plan 46.4): the ambient and the air's in-scatter are one value a frame, read for the camera's place.
+// A cloud on the night side seen from the day side must not keep the day's: the share is the sun's light on the air at the point (SunAir's luminance) over the same at sea
+// level under the camera (_FarE.w), at most 1. Camera and cloud under the same sky: 1. _FarE.w 0 (the camera in the night, or not set): 1 everywhere.
+float DayShare(float3 sunAir)
+{
+    return min(1.0, (Luma(sunAir) + 0.01) / (_FarE.w + 0.01));
+}
+
 // The most taps a march sample's light takes through one OTHER layer (LightTau).
 #define LIGHT_OTHER_TAPS 16
 
@@ -290,7 +298,9 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     }
     if (tauReuse >= 0) tauSun = tauReuse;
     taps = tauSun >= 0 ? 0.5 : sunSteps;
-    float3 sunCol = _SunColor.rgb * SunAir(pc, sunDir);
+    float3 sunAir = SunAir(pc, sunDir);
+    float3 sunCol = _SunColor.rgb * sunAir;
+    float day = DayShare(sunAir);
     // CLOUDR2 P4: the sun's, both moons' and the up tap's optical depths come from ONE call site of LightTau in a loop (the compiler inlines every call: five copies of the light march, each
     // with a copy of the density, were what the Unity 2019.4 shader compiler choked on). Slot 0 the sun, 1 and 2 the moons, 3 straight up.
     int moonSteps = max(1, (int)_LightS.x);
@@ -340,7 +350,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     // The ambient: the sky from the layer's bottom to its top, tinted, thinned by what lies above, never below the floor.
     float3 sky = lerp(_AmbientBottom.rgb, _AmbientTop.rgb, saturate(share));
     float l = Luma(sky);
-    sky = lerp(l.xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z;
+    sky = lerp(l.xxx, sky, _LightR.z) * _LightS.z * _LightL[li].z * day;
     float open = 1.0, skyMs = 0;
     tauUpOut = 0;
     if (_LightQ.w > 0)
@@ -380,7 +390,7 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
     float lightLuma = Luma(sunCol) + Luma(_MoonCol[0].rgb) + Luma(_MoonCol[1].rgb);
     float3 floorLight = _LightQ.z * lightLuma * LIGHT_INV4PI;
     dirPart = direct * powder * _PhaseP.w;
-    float3 skyTop = lerp(Luma(_AmbientTop.rgb).xxx, _AmbientTop.rgb, _LightR.z) * _LightS.z * _LightL[li].z;   // the diffused light came in at the top: the sky above, not the local gradient
+    float3 skyTop = lerp(Luma(_AmbientTop.rgb).xxx, _AmbientTop.rgb, _LightR.z) * _LightS.z * _LightL[li].z * day;   // the diffused light came in at the top: the sky above, not the local gradient
     ambPart = max((sky * open + skyTop * skyMs) * _PhaseP.w, floorLight.xxx);
     return dirPart + ambPart + BoltLight(pc) * _PhaseP.w;
 }

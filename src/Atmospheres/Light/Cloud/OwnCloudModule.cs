@@ -1547,6 +1547,18 @@ namespace ReDefinition.Atmospheres
                 ambientTop = ambientBottom = RenderSettings.ambientLight * RenderSettings.ambientIntensity;
                 ambientBottom *= 0.5f;
             }
+            // Master plan 46.4: the clouds' sky light is KSP's law at sea-level pressure, not at the vessel's (AerialPerspectivePlan.CloudAmbient).
+            DynamicAmbientLight dynamicAmbient = DynamicAmbientLight.Instance;
+            if (RenderSettings.ambientMode != AmbientMode.Trilight && dynamicAmbient != null && !dynamicAmbient.disableDynamicAmbient && b.atmosphere && FlightGlobals.ready
+                && !MapView.MapIsEnabled)
+            {
+                double seaPressure = b.GetPressure(0.0);
+                float vesselPressure = seaPressure > 0.0 ? Mathf.Clamp01((float)(FlightGlobals.ship_stP / seaPressure)) : 0f;
+                Color clouds = AerialPerspectivePlan.CloudAmbient(RenderSettings.ambientLight, dynamicAmbient.vacuumAmbientColor, b.atmosphericAmbientColor, vesselPressure,
+                                                                  dynamicAmbient.boostFactor);
+                ambientTop = clouds * RenderSettings.ambientIntensity;
+                ambientBottom = ambientTop * 0.5f;
+            }
             f.AmbientTop = ambientTop;
             f.AmbientBottom = ambientBottom;
 
@@ -1580,7 +1592,17 @@ namespace ReDefinition.Atmospheres
             // The far view: the body's own air (ResolveAir, read before the sun colour), the in-scatter that follows the sky, the march policy by altitude.
             CloudBridgeAir.Apply(f.Far, air);
             // The aerial perspective behind Scatterer's scattering (cloud.aerialPerspective 2, or AutoByDefault): on while the pass's buffers stand behind it.
-            f.Far.AerialPerspective = AerialPerspectivePlan.Active(f.Far.AerialPerspective, f.Far.AerialPerspectiveAuto, moveBehindScattering);
+            // Master plan 46.4: also while Scatterer draws the body's air on the scaled planet (its ground is off): nothing else puts air on the clouds there.
+            bool scattererScaled = AerialPerspectivePlan.ScattererScaled(scattererLoaded, AssumptionsScaledAir.ScattererScaledMode.Holds,
+                                                                         b.pqsController != null && b.pqsController.isActive);
+            f.Far.AerialPerspective = AerialPerspectivePlan.Active(f.Far.AerialPerspective, f.Far.AerialPerspectiveAuto, moveBehindScattering, scattererScaled);
+            // The camera's own sky for the shader's DayShare: the sun's light on the air at sea level under the camera.
+            {
+                Vector3 fromCentre = camPos - f.PlanetCenter;
+                float distance = fromCentre.magnitude;
+                double cameraSin = distance > 1f ? Vector3.Dot(fromCentre / distance, f.TowardsSun) : 1.0;
+                f.Far.CameraDay = AerialPerspectivePlan.ShaderLuma(CloudSunAir.AtAltitude(Color.white, cameraSin, 0.0, f.Light));
+            }
             Color aerialPerspectiveDisplay = new Color(Tuning.Get(AerialPerspectivePlan.TuneR, AerialPerspectivePlan.DefaultDisplayColour.r), Tuning.Get(AerialPerspectivePlan.TuneG, AerialPerspectivePlan.DefaultDisplayColour.g),
                                           Tuning.Get(AerialPerspectivePlan.TuneB, AerialPerspectivePlan.DefaultDisplayColour.b), 1f);
             // The colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray, the near colour what a short path in-scatters (E40 H1 aerial perspective, CloudHorizonSky;

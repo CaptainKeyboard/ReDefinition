@@ -129,6 +129,18 @@ namespace ReDefinition.Atmospheres
         // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the soft density's and the cells' numbers (_CullL).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         private static readonly int IdSkyProbeP = Shader.PropertyToID("_SkyProbeP");
+        private static readonly int IdStepV = Shader.PropertyToID("_StepV");
+        private readonly Vector4[] stepV = new Vector4[CloudLayerDef.MaxLayers];
+
+        // The steep view (master plan 46.4, the layer shader's _StepV.x): the share of a cloud slab's thickness one march step may sink or climb. A stratiform layer: half
+        // the slab (the leap's rule of at least one sample inside any slab it crosses). A layer with a single-cloud type: 0.15, the height of the field's smallest cloud as a
+        // share of its type's (the lower clamp of the body's top in FieldCloud, CloudCells.cginc), so that no cloud of the field lies between two samples.
+        internal const float SteepShareStratiform = 0.5f, SteepShareField = 0.15f;
+
+        internal static float SteepStepShare(bool fieldType)
+        {
+            return fieldType ? SteepShareField : SteepShareStratiform;
+        }
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
         internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
         // The test lattice (cloud.field off) is a shader of its own (master plan 45.3: ReDefinitionAtmospheresLayersLattice.shader, the same passes with CLOUD_LATTICE
@@ -392,6 +404,17 @@ namespace ReDefinition.Atmospheres
                 Noise.SetVertical(l, layer.VerticalScale);
                 Noise.SetSmoothing(l, layer.ShapeSmoothing);
                 Noise.SetFilament(l, layer.FilamentMinWindMs, layer.FilamentTurnSeconds);
+                bool fieldType = false;
+                float thinnestType = float.MaxValue;
+                for (int t = 0; t < table.Count; t++)
+                {
+                    fieldType |= table.FormOfType(t) > 0f;
+                    float tb, tt, te;
+                    table.Info(t, out tb, out tt, out te);
+                    if (tt > tb) thinnestType = Math.Min(thinnestType, (tt - tb) * (layer.OuterAltitudeM - layer.InnerAltitudeM));
+                }
+                if (thinnestType == float.MaxValue) thinnestType = layer.OuterAltitudeM - layer.InnerAltitudeM;
+                stepV[l] = new Vector4(SteepStepShare(fieldType), Mathf.Max(thinnestType, 1f), 0f, 0f);
                 for (int t = 0; t < table.Count; t++)
                 {
                     float b, top, e;
@@ -414,7 +437,7 @@ namespace ReDefinition.Atmospheres
             }
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
             {
-                layerH[l] = layerH2[l] = cullL[l] = Vector4.zero;
+                layerH[l] = layerH2[l] = cullL[l] = stepV[l] = Vector4.zero;
                 cellPitch[l] = 0f;
                 for (int t = 0; t < CloudLayerDef.MaxTypes; t++)
                 {
@@ -517,6 +540,7 @@ namespace ReDefinition.Atmospheres
             bool cells = CloudLookTuning.Cells;
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);
+            m.SetVectorArray(IdStepV, stepV);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
             // The map-driven sky's connected stratiform types (MapSkyRegions.StratiformTypes).

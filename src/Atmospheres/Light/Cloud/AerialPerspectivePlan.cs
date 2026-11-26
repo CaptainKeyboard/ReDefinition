@@ -3,6 +3,20 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
+    // Scatterer's scaled mode (0.908, SkyNode.UpdateNode): the sky node holds inScaledSpace, the negation of the body's pqsController.isActive, and runs its local
+    // screen-space scattering only outside it. The pass mirrors that rule from the game's own state (it reads nothing of Scatterer's); the contract says the node still
+    // has the switch.
+    [AtmospheresAssumptions]
+    internal static class AssumptionsScaledAir
+    {
+        public static readonly ReDefinition.Core.ForeignAssumption ScattererScaledMode =
+            new ReDefinition.Core.ForeignAssumption("atmo-scatterer-scaled-air", "Scatterer", "the own clouds get their air in orbit")
+                .Type("Scatterer.SkyNode")
+                .Field("Scatterer.SkyNode", "inScaledSpace", "System.Boolean")
+                .TestedVersions("0.908.0.0")
+                .OnChange(ReDefinition.Core.WhenChanged.Fallback, "the own clouds get no air of their own in orbit");
+    }
+
     // The decisions of the pass's aerial perspective (E40 horizon fade), kept out of the module so that the unit tests drive them without the engine.
     //
     // Why the pass has its own: behind Scatterer's screen-space scattering (cloud.afterScatterer) the air of Scatterer is no longer applied to the cloud, and nothing replaced
@@ -44,7 +58,50 @@ namespace ReDefinition.Atmospheres
         // Whether the aerial perspective runs in a frame: forced or set on, or automatic with the pass behind Scatterer's scattering.
         internal static bool Active(bool aerialPerspective, bool auto, bool behindScattering)
         {
-            return aerialPerspective || (auto && behindScattering);
+            return Active(aerialPerspective, auto, behindScattering, false);
+        }
+
+        // The same with Scatterer's scaled mode (master plan 46.4, PRUEFPROTOKOLL 341, 344): while the body's ground is not drawn in flight (its PQS is off), Scatterer puts
+        // its air on the scaled planet (SkyNode.UpdateNode: inScaledSpace = !pqsController.isActive; the local screen-space scattering runs only outside it), the pass
+        // draws its clouds over that picture and nothing puts air on them: at 300 km the pass ran without any (the pass dump's _FarA.x 0). The automatic rule is on there too.
+        internal static bool Active(bool aerialPerspective, bool auto, bool behindScattering, bool scattererScaled)
+        {
+            return aerialPerspective || (auto && (behindScattering || scattererScaled));
+        }
+
+        // Whether Scatterer draws the body's air in its scaled mode: Scatterer is loaded, its rule stands (AssumptionsScaledAir) and the body's ground is off.
+        internal static bool ScattererScaled(bool scattererLoaded, bool ruleHolds, bool groundActive)
+        {
+            return scattererLoaded && ruleHolds && !groundActive;
+        }
+
+        // KSP's ambient light at a pressure (DynamicAmbientLight.Update, decompiled 2026-11-26): the vacuum colour blended to the body's atmospheric ambient colour by the
+        // pressure at the VESSEL over the sea level's, then the player's boost towards white (above 0) or black (below).
+        internal static Color KspAmbient(Color vacuum, Color atmospheric, float normalisedPressure, float boost)
+        {
+            Color a = Color.Lerp(vacuum, atmospheric, Mathf.Clamp01(normalisedPressure));
+            return boost >= 0f ? Color.Lerp(a, Color.white, boost) : Color.Lerp(a, Color.black, Mathf.Abs(boost));
+        }
+
+        // The sky light the clouds get (master plan 46.4): KSP's ambient follows the vessel's pressure, so the same cloud got darker as the vessel climbed (0.234 at the
+        // ground, 0.104 at 8 km, the vacuum's 0.06 in orbit), and the ambient is about as large a part of a cloud's light as the sun's. A cloud's sky does not depend on
+        // where the vessel is: the clouds take KSP's law at sea-level pressure. Only where the scene's ambient IS KSP's law at the vessel's pressure (within the tolerance; another
+        // writer of the ambient keeps its value): found, the scene's ambient; returns the clouds'.
+        internal const float AmbientLawTolerance = 0.02f;
+
+        internal static Color CloudAmbient(Color found, Color vacuum, Color atmospheric, float vesselPressure, float boost)
+        {
+            Color atVessel = KspAmbient(vacuum, atmospheric, vesselPressure, boost);
+            if (Mathf.Abs(found.r - atVessel.r) > AmbientLawTolerance || Mathf.Abs(found.g - atVessel.g) > AmbientLawTolerance || Mathf.Abs(found.b - atVessel.b) > AmbientLawTolerance)
+                return found;
+            Color sea = KspAmbient(vacuum, atmospheric, 1f, boost);
+            return new Color(sea.r, sea.g, sea.b, found.a);
+        }
+
+        // The luminance of a colour with the layer shader's weights (its Luma).
+        internal static float ShaderLuma(Color c)
+        {
+            return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
         }
 
         // Whether the air is read from Scatterer's node: the key allows it and (for the automatic key) Scatterer is loaded.

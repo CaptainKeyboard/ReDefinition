@@ -247,18 +247,28 @@ sampler2D _CloudField;
 float4 _FieldP;
 float4 _FieldC[8];
 
+// The field's far view (master plan 46.4, PRUEFPROTOKOLL 340, 341, 344), set by FieldCloud for the caller: gFieldFar the weight of the far mean (0: the single clouds alone), gFieldShare the
+// map's local share of cloud, gFieldTop the mean body's top as a share of the type's height (the coarse channel at its mean), gFieldRC that body's horizontal semi-axis in m.
+static float gFieldFar, gFieldShare, gFieldTop, gFieldRC;
+
 // A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
-// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the closed cloud layer) and where the march's spacing (foot, 0: none) is
-// wider than the field's smallest feature, the map's own value is drawn. Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by
-// the hand-over weight, as CellCover blends the lattice's discs, so there is no edge where the hand-over begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell
-// read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point;
-// typeHeightM: the type's height in m. The field is read at the mip level of the march's spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
+// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the closed cloud layer) the map's own value is drawn.
+// Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by the weight, as CellCover blends the lattice's discs, so there is no edge
+// where it begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's
+// coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point; typeHeightM: the type's height in m. The field is read at the mip level of the march's
+// spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
+// Where the pixel's footprint (foot, 0: none) is wider than the field's smallest feature the single clouds lie below the pixel: the caller blends to the field's MEAN by gFieldFar (the
+// clumpy medium of ShapeShare). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
 int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
 {
     float4 fc = _FieldC[puff];
     float fShare = CellShare(cov, coverage, edge, amount);
-    float wF = max(saturate((fShare - 0.8) / 0.15), foot > 0.0 ? saturate((foot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0);
+    float wF = saturate((fShare - 0.8) / 0.15);
+    gFieldFar = (foot > 0.0 ? saturate((foot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0) * (1.0 - wF);
+    gFieldShare = fShare;
+    gFieldTop = clamp(clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) / 0.5, 0.15, 1.0);
+    gFieldRC = fc.x * max(gFieldTop * typeHeightM, 1.0);
     float lat = (0.5 - uv.y) * 3.14159265;
     float xM = uv.x * 2.0 * 3.14159265 * rm * max(cos(lat), 0.02), yM = lat * rm;
     float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;

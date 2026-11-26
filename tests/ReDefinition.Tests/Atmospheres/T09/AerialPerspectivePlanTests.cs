@@ -177,6 +177,60 @@ Scatterer_atmosphere
             Assert.IsFalse(AerialPerspectivePlan.Active(aerialPerspective, auto, true), "forced off wins over the setting");
         }
 
+        // Master plan 46.4: in orbit Scatterer draws its air on the scaled planet and nothing puts air on the clouds; the automatic rule is on there too.
+        [TestMethod]
+        public void TheAutomaticRuleIsOnWhileScattererDrawsItsAirOnTheScaledPlanet()
+        {
+            Assert.IsTrue(AerialPerspectivePlan.ScattererScaled(true, true, false), "Scatterer loaded, its rule stands, the ground is off: scaled mode");
+            Assert.IsFalse(AerialPerspectivePlan.ScattererScaled(true, true, true), "the ground is drawn: Scatterer's local mode");
+            Assert.IsFalse(AerialPerspectivePlan.ScattererScaled(false, true, false), "no Scatterer: the setting decides");
+            Assert.IsFalse(AerialPerspectivePlan.ScattererScaled(true, false, false), "Scatterer's rule changed: off");
+            bool aerialPerspective, auto;
+            AerialPerspectivePlan.Resolve(-1f, false, out aerialPerspective, out auto);
+            Assert.IsTrue(AerialPerspectivePlan.Active(aerialPerspective, auto, false, true), "default: on in Scatterer's scaled mode");
+            Assert.IsFalse(AerialPerspectivePlan.Active(aerialPerspective, auto, false, false), "default: off where Scatterer fogs the cloud itself");
+            AerialPerspectivePlan.Resolve(0f, true, out aerialPerspective, out auto);
+            Assert.IsFalse(AerialPerspectivePlan.Active(aerialPerspective, auto, false, true), "forced off wins");
+        }
+
+        // Master plan 46.4: KSP's ambient follows the vessel's pressure; the clouds take the law at sea-level pressure, and leave another writer's ambient alone.
+        [TestMethod]
+        public void TheCloudsTakeKspsAmbientAtSeaLevelPressure()
+        {
+            var vacuum = new Color(0.06f, 0.06f, 0.06f, 1f);
+            var air = new Color(0.243f, 0.251f, 0.255f, 1f);
+            Color orbit = AerialPerspectivePlan.KspAmbient(vacuum, air, 0f, 0f), ground = AerialPerspectivePlan.KspAmbient(vacuum, air, 1f, 0f);
+            Assert.AreEqual(0.06f, orbit.g, 1e-6f, "the vacuum's colour without air");
+            Assert.AreEqual(0.251f, ground.g, 1e-6f, "the body's colour at sea level");
+            Assert.AreEqual(0.5f * (0.06f + 0.251f), AerialPerspectivePlan.KspAmbient(vacuum, air, 0.5f, 0f).g, 1e-6f, "linear in the pressure");
+            Assert.AreEqual(0.5f * (0.251f + 1f), AerialPerspectivePlan.KspAmbient(vacuum, air, 1f, 0.5f).g, 1e-6f, "the boost towards white");
+            Assert.AreEqual(0.5f * 0.251f, AerialPerspectivePlan.KspAmbient(vacuum, air, 1f, -0.5f).g, 1e-6f, "the boost towards black");
+            // In orbit the scene's ambient is the vacuum's: the clouds get the sea level's.
+            Color clouds = AerialPerspectivePlan.CloudAmbient(orbit, vacuum, air, 0f, 0f);
+            Assert.AreEqual(ground.r, clouds.r, 1e-6f);
+            Assert.AreEqual(ground.b, clouds.b, 1e-6f);
+            // At the ground nothing changes.
+            Assert.AreEqual(ground.g, AerialPerspectivePlan.CloudAmbient(ground, vacuum, air, 1f, 0f).g, 1e-6f);
+            // Another writer's ambient (not KSP's law at the vessel's pressure) stays.
+            var other = new Color(0.5f, 0.4f, 0.3f, 1f);
+            Assert.AreEqual(other, AerialPerspectivePlan.CloudAmbient(other, vacuum, air, 0f, 0f));
+        }
+
+        [TestMethod]
+        public void TheShaderLumaUsesTheShadersWeights()
+        {
+            Assert.AreEqual(1f, AerialPerspectivePlan.ShaderLuma(Color.white), 1e-6f);
+            Assert.AreEqual(0.7152f, AerialPerspectivePlan.ShaderLuma(new Color(0f, 1f, 0f)), 1e-6f);
+        }
+
+        // Master plan 46.4: a march step sinks at most half a stratiform slab, and at most the smallest single cloud's height in a layer with a field type.
+        [TestMethod]
+        public void TheSteepStepShareIsTheSmallestCloudOfAFieldLayer()
+        {
+            Assert.AreEqual(0.5f, LayerRenderer.SteepStepShare(false));
+            Assert.AreEqual(0.15f, LayerRenderer.SteepStepShare(true));
+        }
+
         [TestMethod]
         public void TheAirSourceFollowsTheKeyAndScattererBeingLoaded()
         {
