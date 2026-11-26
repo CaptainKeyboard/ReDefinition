@@ -14,7 +14,7 @@ namespace ReDefinition.Atmospheres
                 .Type("Scatterer.OceanCommandBuffer").Type("Scatterer.ShaderProperties")
                 .Literal("Scatterer.OceanCommandBuffer", "oceanGbufferDepth", "oceanGbufferNormalsAndSigma", "useOceanSSR")
                 .Literal("Scatterer.ShaderProperties", "_VarianceMax")
-                .Method("Scatterer.Scatterer", "get_Instance")
+                .Calls("Scatterer.Scatterer", "get_Instance")
                 .Field("Scatterer.Scatterer", "mainSettings", "Scatterer.MainSettingsReadWrite")
                 .Field("Scatterer.MainSettingsReadWrite", "oceanScreenSpaceReflections", "System.Boolean")
                 .TestedVersions("0.908.0.0")
@@ -52,7 +52,7 @@ namespace ReDefinition.Atmospheres
         private Vector3 planetCentre;
         private Type deferredSsr, oceanBuffer;
         private float rescanAt = -1f;
-        private bool failed, said, orderSaid, oceanSsr;
+        private bool failed, said, orderSaid, oceanSsr, offSaid;
 
         // Whether the hooks draw this frame: the own sky probe's cube is there, the contracts hold and Scatterer's ocean reads the screen-space reflections
         // (its setting oceanScreenSpaceReflections; off, it sets useOceanSSR 0 and the pass would be work without effect: run 324 A drew it).
@@ -66,6 +66,13 @@ namespace ReDefinition.Atmospheres
             if (cube == null || failed) return;
             if (!AssumptionsSeaMirror.ScattererOcean.Holds || !AssumptionsSeaMirror.DeferredSsr.Holds)
             {
+                // Once, why (PRUEFPROTOKOLL 326: a contract that did not hold left the mirror off without a word).
+                if (!offSaid)
+                {
+                    offSaid = true;
+                    AtmospheresLog.Say("own clouds: the sea mirror stays off: " + (!AssumptionsSeaMirror.ScattererOcean.Holds ? "Scatterer's ocean contract" : "Deferred's reflections contract")
+                                       + " does not hold");
+                }
                 cube = null;
                 return;
             }
@@ -88,7 +95,15 @@ namespace ReDefinition.Atmospheres
                 if (oceanBuffer == null) oceanBuffer = TypeLookup.Find("Scatterer.OceanCommandBuffer");
                 if (deferredSsr == null || oceanBuffer == null) return;
                 oceanSsr = ScattererOceanSsr();
-                if (!oceanSsr) return;
+                if (!oceanSsr)
+                {
+                    if (!offSaid)
+                    {
+                        offSaid = true;
+                        AtmospheresLog.Say("own clouds: the sea mirror stays off: Scatterer's oceanScreenSpaceReflections is off (its ocean reads no screen-space reflections)");
+                    }
+                    return;
+                }
                 foreach (UnityEngine.Object o in UnityEngine.Object.FindObjectsOfType(oceanBuffer))
                 {
                     var c = o as Component;
