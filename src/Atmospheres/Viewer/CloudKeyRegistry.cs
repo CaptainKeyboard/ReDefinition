@@ -373,6 +373,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(TestLightTerms.TuneShScale, 1f, note: "measurement: the SH ambient probe times this"),
             N(TestLightTerms.TuneProbeScale, 1f, note: "measurement: the reflection probes' intensity times this"),
             N(TestLightTerms.TuneDefaultReflection, 1f, note: "measurement: 0 makes the default reflection a black cube"),
+            N(ReflectionCameraWatch.TuneLog, 0f, note: "measurement: 1 logs the cameras that render the reflection probes"),
             N(CloudShadowRenderer.TuneTestFactor, -1f, note: "measurement: the cloud shadow's factor forced everywhere (below 0: none)"),
             // The culling (OwnCloudOptions.Apply(CullSettings)).
             N(OwnCloudOptions.TuneFootScale, Cull.FootScale),

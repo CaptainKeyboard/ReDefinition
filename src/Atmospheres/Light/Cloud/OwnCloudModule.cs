@@ -1598,6 +1598,7 @@ namespace ReDefinition.Atmospheres
                                                                          Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla));
             }
             ScattererFlareClouds.Apply(sunTransmission);
+            ReflectionCameraWatch.Sync();
             // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
             // a ring round it (the sky light follows the depth overhead, not the sun's path).
             // The ring's nine reads of the CPU field in one frame cost about 5 ms of the main thread (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
