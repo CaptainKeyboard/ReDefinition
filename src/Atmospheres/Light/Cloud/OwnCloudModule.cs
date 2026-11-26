@@ -737,6 +737,7 @@ namespace ReDefinition.Atmospheres
             Detach();
             // No own clouds drawn: Scatterer's flare as without them.
             ScattererFlareClouds.Release();
+            OwnCloudProbeLight.Release();
             if (dropStack) RtOwnClouds.Release();
             if (dropStack && stack != null) DropStack("the pass is off: " + Stats.Why);
         }
@@ -1590,6 +1591,8 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(sunTransmission);
             ScattererFlareClouds.Apply(sunTransmission);
+            // KSP's reflection probe, the scene's environment light, by the same share (PRUEFPROTOKOLL 294).
+            OwnCloudProbeLight.Apply(f.Far.CameraLitShare);
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
