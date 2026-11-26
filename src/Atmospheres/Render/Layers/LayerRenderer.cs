@@ -157,7 +157,8 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers], layerE = new Vector4[CloudLayerDef.MaxLayers];
         private Material material;
-        private Texture2D profileTexture, infoTexture;
+        private Texture2D profileTexture, infoTexture, columnTexture;
+        private static readonly int IdTypeColumn = Shader.PropertyToID("_TypeColumn");
         // Each layer's light response (CloudLayerDef.LightAmbient; the shader's _LightL.x and .y stay 1), handed to the light settings of the frame (E40 B3).
         private readonly Vector3[] layerLight = { Vector3.one, Vector3.one, Vector3.one, Vector3.one };
         private readonly float[] layerIsotropy = new float[CloudLayerDef.MaxLayers];
@@ -215,6 +216,13 @@ namespace ReDefinition.Atmospheres
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
+            // The profile's column above each sample (PRUEFPROTOKOLL 307): the profile's layout, one channel, read bilinear like the profile.
+            columnTexture = new Texture2D(LayerTypeTable.ProfileSamples, CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes, TextureFormat.RFloat, false, true)
+            {
+                name = "layer type columns",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
             SetStatic();
             commands = new CommandBuffer { name = "ReDefinition layer pass" };
             Heights.Ensure(2, 2);
@@ -231,6 +239,7 @@ namespace ReDefinition.Atmospheres
             for (int i = 0; i < tile.Length; i++) blue[i >> 2][i & 3] = tile[i];
             material.SetVectorArray(Shader.PropertyToID("_DitherM"), blue);
             material.SetTexture(IdTypeInfo, infoTexture);
+            material.SetTexture(IdTypeColumn, columnTexture);
         }
 
         // The material's shader for the frame: the lattice shader while the lattice is on and loaded, else the product's. The same material object (the command buffers keep
@@ -304,6 +313,7 @@ namespace ReDefinition.Atmospheres
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(profileTexture);
             UnityEngine.Object.Destroy(infoTexture);
+            UnityEngine.Object.Destroy(columnTexture);
             material = null;
             profileTexture = null;
         }
@@ -322,6 +332,8 @@ namespace ReDefinition.Atmospheres
             // a the lift of the coverage threshold (E40 L2 D1, 0: none).
             var profile = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes * 4];
             var info = new Color[CloudLayerDef.MaxTypes * CloudLayerDef.MaxLayers * 2];
+            // The profile's column above each sample (LayerTypeTable.Column, PRUEFPROTOKOLL 307), the same layout with one channel.
+            var column = new float[LayerTypeTable.ProfileSamples * CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes];
             bool extras = false;
             for (int l = 0; l < layerCount; l++)
             {
@@ -364,6 +376,8 @@ namespace ReDefinition.Atmospheres
                     profile[texel + 2] = amountData[i];
                     profile[texel + 3] = liftData[i];
                 }
+                float[] col = LayerTypeTable.Column(density, table.Count);
+                Array.Copy(col, 0, column, l * CloudLayerDef.MaxTypes * LayerTypeTable.ProfileSamples, col.Length);
                 // w: the layer's largest extra noise amount (the shader's empty-space bounds, CoverageNoiseBound and the cull's).
                 layerE[l] = new Vector4(0f, 0f, 0f, table.MaxNoiseAmount);
                 Noise.SetStretch(l, layer.FilamentStretch);
@@ -407,6 +421,8 @@ namespace ReDefinition.Atmospheres
             else Heights.Upload(source.Heights, layerCount);
             profileTexture.SetPixelData(profile, 0);
             profileTexture.Apply(false);
+            columnTexture.SetPixelData(column, 0);
+            columnTexture.Apply(false);
             infoTexture.SetPixels(info);
             infoTexture.Apply(false);
             Noise.ExtrasUsed = extras;

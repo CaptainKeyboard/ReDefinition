@@ -267,8 +267,9 @@ float3 BoltLight(float3 pc)
 // _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's DensityRead.topAlt, .baseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
+// column: the optical depth straight up through a plane-parallel deck of the sample's type, from its profile (DensityRead.column, PRUEFPROTOKOLL 307; 0: none).
 
-float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, out float3 dirPart,
+float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t, float tauReuse, float tauUpReuse, float2 topAlt, float column, out float3 dirPart,
                    out float3 ambPart, out float taps, out float tauSunOut, out float tauUpOut)
 {
     float3 sunDir = _Sun.xyz;
@@ -360,6 +361,15 @@ float3 LightSource(float3 pc, float3 d, float dens, float share, int li, float t
             // _LightV.y 0 keeps the layer's outer altitude (the earlier behaviour, for the comparison).
             float columnTop = _LightV.y > 0.5 ? topAlt.x : _LayerA[li].y;
             tu = dens * max(columnTop - (length(pc) - _PlanetR), 0.0);
+            // PRUEFPROTOKOLL 273, 307: in a plane-parallel deck the column above is the type's PROFILE integrated to its top, not the sample's own density: a sparse shred under
+            // the deck (the pannus) read a thin column as if the sky were open above it. The plane share as for the sun (a deck of cells many times wider than tall); a cell
+            // (a cumulus) keeps the local estimate.
+            [branch] if (column > 0.0 && _LightM[li].w > 0.0)
+            {
+                float typeH = max(topAlt.x - topAlt.y, 1.0);
+                float plane = saturate((_LightM[li].w - 4.0 * typeH) / (4.0 * typeH));
+                tu = max(tu, plane * column);
+            }
         }
         tauUpOut = tu;
         open = exp(-tu * _LightQ.w);
