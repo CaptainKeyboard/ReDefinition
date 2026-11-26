@@ -26,10 +26,12 @@ namespace ReDefinition.Atmospheres
         // Below this opacity the shell is not drawn at all.
         internal const float MinVisibleOpacity = 0.004f;
 
-        // The opacity of the shell for the camera (package T06): it is the far picture of the same layers the near march draws, so its weight is
-        // what the near march leaves, a smooth cross-fade through the hand-over band (FarViewMath.NearWeight) and not a second layer drawn over
-        // the first. Where the near march is not drawing (nearMarchActive false: the own clouds are off or the cloud source is not ours) the shell
-        // is the only picture and stays at full weight at any altitude. In the map view the near march is off and the fade of the map view applies.
+        // The opacity of the shell for the camera. Where the near march draws (the flight view with the own clouds on) the shell is not drawn at any altitude
+        // (master plan 46.4, PRUEFPROTOKOLL 343 to 352): the 3D clouds hold their look from the ground to 10,000 km at no measurable cost, while the shell above the
+        // old hand-over band (200 to 260 km on Kerbin, the pack's numbers) showed no cloud at 300 km, only its swirl overlay over the 3D clouds, and cost about 22
+        // fps there (36.6 with it, 59.2 without). Where the near march is not drawing (nearMarchActive false: the own clouds are off or the cloud source is not
+        // ours) the shell is the only picture and stays at full weight at any altitude. In the map view the near march is off and the fade of the map view applies.
+        // cameraAltitudeM and bodyRadiusM are kept for the callers (the hand-over they fed is gone).
         internal static float Opacity(double cameraAltitudeM, double bodyRadiusM, bool nearMarchActive, bool mapView, double mapDistanceRadii, bool mapFadeOn)
         {
             double weight = 1.0;
@@ -39,7 +41,7 @@ namespace ReDefinition.Atmospheres
             }
             else if (nearMarchActive)
             {
-                weight = 1.0 - FarViewMath.NearWeight(cameraAltitudeM, bodyRadiusM * FarViewMath.BandStartRadii, bodyRadiusM * FarViewMath.BandEndRadii);
+                weight = 0.0;
             }
             return (float)weight;
         }

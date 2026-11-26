@@ -190,12 +190,13 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheShellsOpacityIsWhatTheNearMarchLeavesAndFullWhereTheNearMarchIsOff()
+        public void TheShellGivesWayToTheNearMarchAtEveryAltitudeAndIsFullWhereTheNearMarchIsOff()
         {
-            // Near march drawing: full below the band, nothing above it, half at the middle of the band (a 600 km body: 200 to 260 km).
+            // Near march drawing: the 3D clouds are the picture at every altitude (master plan 46.4), the shell is not drawn.
             Assert.AreEqual(0f, OwnShell.Opacity(100000.0, R, true, false, 0.0, true), 1e-6);
-            Assert.AreEqual(1f, OwnShell.Opacity(300000.0, R, true, false, 0.0, true), 1e-6);
-            Assert.AreEqual(0.5f, OwnShell.Opacity(230000.0, R, true, false, 0.0, true), 1e-6);
+            Assert.AreEqual(0f, OwnShell.Opacity(230000.0, R, true, false, 0.0, true), 1e-6);
+            Assert.AreEqual(0f, OwnShell.Opacity(300000.0, R, true, false, 0.0, true), 1e-6);
+            Assert.AreEqual(0f, OwnShell.Opacity(10000000.0, R, true, false, 0.0, true), 1e-6);
             // The near march is off (own clouds off, another cloud source): the shell is the only picture at any altitude.
             Assert.AreEqual(1f, OwnShell.Opacity(2000.0, R, false, false, 0.0, true), 1e-6);
             // Map view: the near march is off, the fade follows the camera's distance in body radii; with the fade off the shell stays.
