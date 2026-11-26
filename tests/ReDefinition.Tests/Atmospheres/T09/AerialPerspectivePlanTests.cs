@@ -46,6 +46,16 @@ Scatterer_atmosphere
         }
 
         [TestMethod]
+        public void TheProbeLightUnderADeckIsTheDiffuseShareOfTheDepthOverhead()
+        {
+            // PRUEFPROTOKOLL 295: a clear sky keeps the probe, a deck of vertical tau 10 passes about half, a nimbostratus of tau 66 about an eighth
+            Assert.AreEqual(1.0, OwnCloudProbeLight.DiffuseShare(0f), 1e-9);
+            Assert.AreEqual(1.0 / (1.0 + 0.11 * 10.0), OwnCloudProbeLight.DiffuseShare(10f), 1e-6);
+            Assert.IsTrue(OwnCloudProbeLight.DiffuseShare(66f) < 0.13);
+            Assert.AreEqual(1.0, OwnCloudProbeLight.DiffuseShare(-1f), 1e-9, "a negative depth is none");
+        }
+
+        [TestMethod]
         public void ANodeThatIsMissingOrBrokenGivesNoAirAndAReason()
         {
             string why;
