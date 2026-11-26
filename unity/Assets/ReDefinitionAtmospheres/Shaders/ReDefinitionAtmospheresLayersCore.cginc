@@ -1100,6 +1100,14 @@
             c.rgb = w * pow(u, _OutP.y) * c.a;
             return c;
         }
+        // Pass 8 (master plan 46.1 part 4, OwnCloudSkyProbe): the march through a face of the own sky probe's cube with the display stage. _SkyProbeP.x 1 (the test
+        // variant only, light.testCubeDirs): the ray's direction as a colour (d / 2 + 1 / 2), opaque: a check of the faces' convention.
+        float4 _SkyProbeP;
+        float4 SkyProbeFace(v2f i)
+        {
+            if (DEV(_SkyProbeP.x, 0.0) > 0.5) return float4(RayDir(i.uv) * 0.5 + 0.5, 1.0);
+            return OutputStage(Pass0(i));
+        }
         #include "MarchStep.cginc"
         // The tile pass of the culling (T16; pass 5).
         #define CLOUDCULL_TILE

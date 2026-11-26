@@ -205,6 +205,8 @@ namespace ReDefinition.Atmospheres
         // The pass's shape noise for the CPU readers of the stack (the hook's field: sun dimming, the weather driver): updated every frame in FillShadow.
         private readonly CloudShadowShapeNoise shadowNoise = new CloudShadowShapeNoise();
         private readonly float[] worldToMapRows = new float[9];
+        // The own clouds in KSP's reflection probe's place (master plan 46.1 part 4).
+        private readonly OwnCloudSkyProbe skyProbe = new OwnCloudSkyProbe();
         // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): the camera's point and the ring's, one read per frame in turn; -1 not read yet.
         private readonly float[] skyPointShare = new float[OwnCloudProbeLight.RingPoints + 1];
         private int skyShareNext;
@@ -498,6 +500,8 @@ namespace ReDefinition.Atmospheres
                 long cpuFilled = ModuleCpuTiming.Begin();
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
+                // The own clouds in what the sea and the land mirror: one face of the own sky probe a frame (master plan 46.1 part 4, PRUEFPROTOKOLL 315).
+                skyProbe.Update(renderer.Material);
                 if (FrameOrigin != 0) PinLogFrame(cam);
                 recordedFrame = Time.frameCount;
                 if (motionFrame == recordedFrame) DrawMotion();
@@ -746,6 +750,7 @@ namespace ReDefinition.Atmospheres
             // No own clouds drawn: Scatterer's flare as without them.
             ScattererFlareClouds.Release();
             OwnCloudProbeLight.Release();
+            skyProbe.Off();
             if (dropStack) RtOwnClouds.Release();
             if (dropStack && stack != null) DropStack("the pass is off: " + Stats.Why);
         }
@@ -780,6 +785,7 @@ namespace ReDefinition.Atmospheres
             if (lightCache != null) lightCache.Dispose();
             sceneWhiteBalance.Dispose();
             lightCache = null;
+            skyProbe.Dispose();
             if (renderer != null) renderer.Dispose();
             renderer = null;
             if (depthCommands != null) depthCommands.Release();

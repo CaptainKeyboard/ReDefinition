@@ -157,5 +157,19 @@ Shader "ReDefinition/AtmospheresLayers"
             float4 frag(v2f i) : SV_Target { return Pass0(i); }
             ENDCG
         }
+
+        // Pass 8 (master plan 46.1 part 4, OwnCloudSkyProbe): the march of pass 7 through a face of the own sky probe's cube (the face's basis, no scene depth, no
+        // reconstruction: a MaterialPropertyBlock), with the display stage, over the face (KSP's probe's face copied there first): what the sea and the land mirror.
+        Pass
+        {
+            Blend One OneMinusSrcAlpha
+            CGPROGRAM
+            #pragma vertex vertProc
+            #pragma fragment frag
+            #pragma target 3.5
+            #pragma multi_compile_local __ CLOUD_DEV
+            float4 frag(v2f i) : SV_Target { return SkyProbeFace(i); }
+            ENDCG
+        }
     }
 }

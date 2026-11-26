@@ -43,6 +43,7 @@ namespace ReDefinition.Atmospheres
             new Entry("_EdgeP", 0, 0f),     // the edge-adaptive draw (layers.edgeAdaptive)
             new Entry("_CellA", 3, 0f),     // the parity test cell (CloudLightSettings.CellRadiusM)
             new Entry("_BlendP", 0, 1f),    // the noise blend (cloud.noise.blend)
+            new Entry("_SkyProbeP", 0, 0f), // the sky probe's direction test (light.testCubeDirs, OwnCloudSkyProbe; set through the face's property block)
         };
 
         // The cloud shadow (it reads the noise include).

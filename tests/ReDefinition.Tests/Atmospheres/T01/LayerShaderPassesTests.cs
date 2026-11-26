@@ -31,7 +31,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
         {
             string product = Read("ReDefinitionAtmospheresLayers.shader"), lattice = Read("ReDefinitionAtmospheresLayersLattice.shader");
             Assert.AreEqual(Passes(product), Passes(lattice), "the pass blocks differ: the renderer's pass numbers would draw other passes with the lattice");
-            Assert.AreEqual(8, Regex.Matches(Passes(product), @"^\s*Pass\s*$", RegexOptions.Multiline).Count, "the eight passes");
+            Assert.AreEqual(9, Regex.Matches(Passes(product), @"^\s*Pass\s*$", RegexOptions.Multiline).Count, "the nine passes (8: the own sky probe's face)");
         }
 
         [TestMethod]
