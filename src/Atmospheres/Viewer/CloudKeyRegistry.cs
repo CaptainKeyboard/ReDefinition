@@ -376,7 +376,7 @@ namespace ReDefinition.Atmospheres.Viewer
             N(ReflectionCameraWatch.TuneLog, 0f, note: "measurement: 1 logs the cameras that render the reflection probes"),
             N(OwnProbeTest.TuneOn, 0f, note: "measurement: 1 puts a red own probe on KSP's flight probe"),
             N(OwnCloudSkyProbe.TuneDump, 0f, note: "measurement: 1 writes the sky probe's six faces as PNGs"),
-            N(OwnCloudSkyProbe.TuneBelowWhite, 0f, note: "measurement: 1 (with layers.devVariant 1) fills the sky probe white below the horizon"),
+            N(OwnCloudSkyProbe.TuneBelowWhite, 0f, note: "measurement (with layers.devVariant 1): 1 fills the sky probe white below the horizon, 2 the whole probe"),
             N(OwnCloudSkyProbe.TuneCubeDirs, 0f, note: "measurement: 1 (with layers.devVariant 1) draws the sky probe's ray directions as colours"),
             N(CloudShadowRenderer.TuneTestFactor, -1f, note: "measurement: the cloud shadow's factor forced everywhere (below 0: none)"),
             // The culling (OwnCloudOptions.Apply(CullSettings)).

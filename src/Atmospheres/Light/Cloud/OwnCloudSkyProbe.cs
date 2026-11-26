@@ -44,9 +44,10 @@ namespace ReDefinition.Atmospheres
         private int face;
         private float nextScan;
         private bool said, filled, dumped;
+        private float dumpFrom = -1f;
         // Measurement (PRUEFPROTOKOLL 319): light.dumpSkyProbe 1 writes the cube's six faces (mip 0) as PNGs into the series pictures' folder, once after a full turn.
         internal const string TuneDump = "light.dumpSkyProbe";
-        // Measurement (PRUEFPROTOKOLL 320, with layers.devVariant 1): light.testBelowWhite 1 fills the cube below the horizon white.
+        // Measurement (PRUEFPROTOKOLL 320, with layers.devVariant 1): light.testBelowWhite 1 fills the cube below the horizon white, 2 the whole cube (no clouds).
         internal const string TuneBelowWhite = "light.testBelowWhite";
 
         private void Dump()
@@ -149,8 +150,18 @@ namespace ReDefinition.Atmospheres
             if (face == 5)
             {
                 filled = true;
-                if (Tuning.Get(TuneDump, 0f) > 0.5f && !dumped) Dump();
-                else if (Tuning.Get(TuneDump, 0f) <= 0.5f) dumped = false;
+                // The dump waits 3 s after the key turns on, then for this full turn: a pin's maps settle about 2.5 s (PRUEFPROTOKOLL 320: the first dump came at
+                // the first face 5 after the key and held five faces from before the pin).
+                if (Tuning.Get(TuneDump, 0f) > 0.5f)
+                {
+                    if (dumpFrom < 0f) dumpFrom = Time.realtimeSinceStartup + 3f;
+                    else if (!dumped && Time.realtimeSinceStartup >= dumpFrom) Dump();
+                }
+                else
+                {
+                    dumped = false;
+                    dumpFrom = -1f;
+                }
             }
             face = (face + 1) % 6;
             if (!said)
@@ -189,8 +200,11 @@ namespace ReDefinition.Atmospheres
             block.SetTexture(IdSceneDepth, noDepth);
             // KSP's face holds a clear, sunlit scene; under the clouds its land and sea are lit by the diffuse share they pass on (316, 318): darkened first, with the
             // face's basis set (its rays decide what lies below the horizon; the idea check 319 found the first version reading the main camera's), the clouds after.
-            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), Tuning.Get(TuneBelowWhite, 0f) > 0.5f ? 1f : 0f));
+            float white = Mathf.Round(Tuning.Get(TuneBelowWhite, 0f));
+            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), white));
             c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
+            // light.testBelowWhite 2: the whole face white, no clouds over it.
+            if (white >= 2f) return;
             // light.testCubeDirs (the test variant: layers.devVariant 1): the faces hold their rays' directions as colours, drawn by the same pass and basis as the clouds.
             block.SetVector(IdSkyProbeP, new Vector4(testDirs ? 1f : 0f, 0f, 0f, 0f));
             c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
