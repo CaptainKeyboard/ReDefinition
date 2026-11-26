@@ -336,11 +336,7 @@ Scatterer_atmosphere
         [TestMethod]
         public void TheAirUnderADeckGetsOnlyTheFluxTheDeckPassesOn()
         {
-            // PRUEFPROTOKOLL 272: a clear sky passes the whole flux; a deck of tau 26 along the sun (T e^-26) a quarter (1 / (1 + 0.11 x 26)); T 0 stays finite
-            Assert.AreEqual(1f, AerialPerspectivePlan.LitShare(1f), 1e-6f);
-            Assert.AreEqual(1f / (1f + 0.11f * 26f), AerialPerspectivePlan.LitShare((float)Math.Exp(-26.0)), 1e-4f);
-            float dark = AerialPerspectivePlan.LitShare(0f);
-            Assert.IsTrue(dark > 0.05f && dark < 0.2f, "T 0: " + dark);
+            // PRUEFPROTOKOLL 272, 302: the share is the diffuse share of the depth overhead (OwnCloudProbeLight.DiffuseShare, tested there);
             // the in-scatter scales with the share; the cloud's own colour times the air's transmittance does not
             var cloud = new Color(0.2f, 0.2f, 0.2f, 1f);
             var t = new Vector3(0.93f, 0.88f, 0.76f);
