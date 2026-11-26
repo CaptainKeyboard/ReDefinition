@@ -11,7 +11,9 @@ namespace ReDefinition.Atmospheres
     // SkyNode.UpdateNode (InterpolateVariables, from its Update) and writes them to its materials in SkyNode.OnPreRender, a camera message of a camera that
     // renders before the flight camera (decompiled). 279 wrote from the flight camera's pre-cull, after that write and undone by the next interpolation: no
     // effect. This writes in LateUpdate, after every Update and before any camera renders. A frame in which Scatterer did not interpolate keeps the base it
-    // had, so the factor never compounds. Today only the measurement key light.testScatterExposure drives it (LightWriter).
+    // had, so the factor never compounds (297: written so, the in-scatter reacts; at 0 the distant island under the deck went from bright blue to dark).
+    // Under the own clouds the air is lit only by the diffuse share they pass on: the own clouds publish that share (the same as KSP's probe gets,
+    // OwnCloudProbeLight) and the light writer's LateUpdate drives it (Drive); the measurement key light.testScatterExposure overrides it.
     [AtmospheresAssumptions]
     internal static class AssumptionsAirUnderClouds
     {
@@ -43,6 +45,29 @@ namespace ReDefinition.Atmospheres
         }
 
         internal static bool Active { get { return state.Count > 0; } }
+
+        private static float publishedShare = 1f;
+        private static int publishedFrame = -10;
+        private static bool everPublished;
+
+        // Whether Drive has anything to do: published once, or still holding a write.
+        internal static bool Wanted { get { return everPublished || state.Count > 0; } }
+
+        // The air's diffuse share under the own clouds, from their frame (they publish while drawn).
+        internal static void Publish(float share)
+        {
+            publishedShare = Mathf.Clamp01(share);
+            publishedFrame = Time.frameCount;
+            everPublished = true;
+        }
+
+        // From LateUpdate: the measurement key's factor where set (not 1), else the published share while the own clouds publish it, else Scatterer's own value.
+        internal static void Drive(float testFactor)
+        {
+            if (testFactor != 1f) Apply(testFactor);
+            else if (Time.frameCount - publishedFrame <= 2) Apply(publishedShare);
+            else if (Active) Release();
+        }
 
         // Scales each sky node's interpolated scatteringExposure by the factor (call in LateUpdate).
         internal static void Apply(float factor)

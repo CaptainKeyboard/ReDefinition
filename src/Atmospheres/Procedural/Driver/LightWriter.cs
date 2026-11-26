@@ -80,10 +80,10 @@ namespace ReDefinition.Atmospheres
             // The measurement keys (PRUEFPROTOKOLL 287: which light terms reach the land): 1 in the product.
             float testSun = Mathf.Max(0f, Tuning.Get(TuneTestSunScale, 1f)), testAmbient = Mathf.Max(0f, Tuning.Get(TuneTestAmbientScale, 1f));
             testing = testSun != 1f || testAmbient != 1f || TestLightTerms.Wanted;
-            // Scatterer's air in-scatter (PRUEFPROTOKOLL 297): written here, in LateUpdate, after Scatterer's interpolation and before any camera renders.
+            // Scatterer's air in-scatter under the own clouds (PRUEFPROTOKOLL 297, 298): written here, in LateUpdate, after Scatterer's interpolation and
+            // before any camera renders. Nothing published and no key: no engine call (the tests run the writer outside the game).
             float testScatter = Tuning.Get(TuneTestScatterExposure, 1f);
-            if (testScatter != 1f) ScattererAirUnderClouds.Apply(testScatter);
-            else if (ScattererAirUnderClouds.Active) ScattererAirUnderClouds.Release();
+            if (testScatter != 1f || ScattererAirUnderClouds.Wanted) ScattererAirUnderClouds.Drive(testScatter);
             if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;

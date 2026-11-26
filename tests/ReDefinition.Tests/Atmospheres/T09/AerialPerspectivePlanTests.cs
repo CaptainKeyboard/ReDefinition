@@ -56,6 +56,15 @@ Scatterer_atmosphere
         }
 
         [TestMethod]
+        public void ScatterersExposureIsScaledFromItsOwnValueAndNeverCompounds()
+        {
+            // PRUEFPROTOKOLL 298: a fresh interpolation is the base; where the value is still the one written last, the stored base stays
+            Assert.AreEqual(0.2f, ScattererAirUnderClouds.Base(0.2f, 0f, 0f, false), 1e-7f);
+            Assert.AreEqual(0.2f, ScattererAirUnderClouds.Base(0.1f, 0.2f, 0.1f, true), 1e-7f, "not interpolated: the stored base");
+            Assert.AreEqual(0.25f, ScattererAirUnderClouds.Base(0.25f, 0.2f, 0.1f, true), 1e-7f, "interpolated anew: the new value");
+        }
+
+        [TestMethod]
         public void ANodeThatIsMissingOrBrokenGivesNoAirAndAReason()
         {
             string why;
