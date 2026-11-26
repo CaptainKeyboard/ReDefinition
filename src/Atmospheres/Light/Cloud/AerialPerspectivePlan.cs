@@ -91,14 +91,9 @@ namespace ReDefinition.Atmospheres
                              premultiplied.b * airTransmittance.z + alpha * b * (1f - airTransmittance.z), premultiplied.a);
         }
 
-        // The share of the sun's flux the air at a place gets below the clouds (PRUEFPROTOKOLL 272): the clouds' direct transmission along the sun becomes their optical depth, and a
-        // non-absorbing cloud passes 1 / (1 + decay tau) of the flux on (CloudLightMath.OtherLayersTransmission, decay 0.75 (1 - g)). 1 under a clear sky; under a deck of tau 26 about a quarter.
+        // The two-stream decay of a non-absorbing cloud's diffuse transmission, 1 / (1 + decay tau) (CloudLightMath.OtherLayersTransmission, decay 0.75 (1 - g); PRUEFPROTOKOLL 272):
+        // the share of the flux the air and the scene below the clouds get (OwnCloudProbeLight.DiffuseShare of the depth overhead, PRUEFPROTOKOLL 302).
         internal const float TwoStreamDecay = 0.11f;
-        internal static float LitShare(float sunTransmission)
-        {
-            float t = Mathf.Clamp(sunTransmission, 1e-30f, 1f);
-            return (float)CloudLightMath.OtherLayersTransmission(-Math.Log(t), TwoStreamDecay);
-        }
 
         // cloud.aerialPerspectiveSky (E40 H1 aerial perspective): 1 (the default) the colour a far cloud fades into is the radiance of the body's air along the cloud's own view ray (CloudHorizonSky), the short-path
         // colour the same medium's local source over its extinction; 0 the law of before (the sun's share and the Rayleigh power law of aerialPerspectiveBlue / aerialPerspectiveNearBlue, the body's aerialPerspectiveTint gain).

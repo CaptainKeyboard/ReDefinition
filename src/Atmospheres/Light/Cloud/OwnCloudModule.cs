@@ -1579,8 +1579,8 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.Inscatter = AerialPerspectivePlan.ExemptFromWhitePoint(farRadiance, f.OutputWhiteTint, f.OutputGamma);
             f.Far.InscatterNear = AerialPerspectivePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
-            // The sun's direct transmission through the own layers at the camera, from the CPU's cloud field along the sun: the air under the clouds gets the share of the
-            // flux they pass on (PRUEFPROTOKOLL 272), and Scatterer's sun flare is dimmed by the direct beam (master plan 46.1, ScattererFlareClouds).
+            // The sun's direct transmission through the own layers at the camera, from the CPU's cloud field along the sun: Scatterer's sun flare is dimmed by the
+            // direct beam (master plan 46.1, ScattererFlareClouds). The air's share is the diffuse share below (skyShare).
             float sunTransmission = 1f;
             if (sunBody != null && OwnCloudOpticalDepth.Bound)
             {
@@ -1589,7 +1589,6 @@ namespace ReDefinition.Atmospheres
                 sunTransmission = OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
                                                                          Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla));
             }
-            f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(sunTransmission);
             ScattererFlareClouds.Apply(sunTransmission);
             // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
             // a ring round it (the sky light follows the depth overhead, not the sun's path).
@@ -1614,6 +1613,9 @@ namespace ReDefinition.Atmospheres
             OwnCloudProbeLight.Apply(skyShare);
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
             ScattererAirUnderClouds.Publish(skyShare, b);
+            // The own aerial perspective under the clouds takes the same diffuse share as Scatterer's air and KSP's probe (PRUEFPROTOKOLL 302; the review 284:
+            // one law for the same air): the sun path's share failed at a low sun and at a cloud's edge (295).
+            f.Far.CameraLitShare = skyShare;
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
