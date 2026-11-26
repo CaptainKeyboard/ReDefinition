@@ -63,6 +63,7 @@ namespace ReDefinition.Atmospheres
         // Measurement (PRUEFPROTOKOLL 289): shadow.testFactor >= 0 forces the shadow factor everywhere (the CLOUD_DEV variant); -1 in the product.
         internal const string TuneTestFactor = "shadow.testFactor";
         private static readonly int IdForced = Shader.PropertyToID("_CsForced");
+        private static readonly int IdDirectOnly = Shader.PropertyToID("_CsDirectOnly");
 
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
@@ -356,7 +357,11 @@ namespace ReDefinition.Atmospheres
             cb.SetGlobalTexture(IdDepthSource, oceanDepth);
             cb.Blit(BuiltinRenderTextureType.None, depthId, material, PassDownscaleSource);
             cb.SetGlobalTexture(IdDepthHalf, depthId);
+            // The direct beam alone (PRUEFPROTOKOLL 300): Scatterer's ocean multiplies the sun's glint by this texture, and the glint is the sun disc's
+            // mirror image; with the diffuse lift the far sea under a closed deck kept a glint band. Back to 0 for the sun's mask after this blit.
+            cb.SetGlobalFloat(IdDirectOnly, 1f);
             cb.Blit(BuiltinRenderTextureType.None, shadowId, material, PassShadow);
+            cb.SetGlobalFloat(IdDirectOnly, 0f);
             cb.SetGlobalTexture(OceanDepthName, depthId);
             cb.SetGlobalTexture(OceanShadowsName, shadowId);
             cb.SetRenderTarget(shadowId);
