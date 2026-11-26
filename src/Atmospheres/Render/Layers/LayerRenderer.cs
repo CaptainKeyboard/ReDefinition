@@ -135,6 +135,7 @@ namespace ReDefinition.Atmospheres
         internal const string LatticeShaderName = "ReDefinition/AtmospheresLayersLattice";
         internal Shader LatticeShader { get; set; }
         private Shader productShader;
+        private bool latticeMissingSaid;
         private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
@@ -246,6 +247,12 @@ namespace ReDefinition.Atmospheres
         // it); after a change everything is uploaded again (a shader change need not keep array values), the frame's own uploads follow in Upload.
         private void SyncShader(bool lattice)
         {
+            // A lattice asked for without its shader draws the product's field: said once, so a picture is not taken for the lattice (the bug hunt 309).
+            if (lattice && LatticeShader == null && !latticeMissingSaid)
+            {
+                latticeMissingSaid = true;
+                Debug.LogWarning("[ReDefinition] Atmospheres: cloud.field 0 asks for the lattice, but its shader (" + LatticeShaderName + ") is not set: the field draws");
+            }
             Shader want = lattice && LatticeShader != null ? LatticeShader : productShader;
             if (want == null || material.shader == want) return;
             material.shader = want;
