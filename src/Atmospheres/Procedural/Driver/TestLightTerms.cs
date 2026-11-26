@@ -10,7 +10,8 @@ namespace ReDefinition.Atmospheres
     internal sealed class TestLightTerms
     {
         internal const string TuneShScale = "light.testShScale", TuneProbeScale = "light.testProbeScale";
-        // light.testDefaultReflection 0: Unity's default reflection (outside every probe box) a black custom cube (PRUEFPROTOKOLL 297: what the distant sea mirrors).
+        // light.testDefaultReflection g below 1: Unity's default reflection (outside every probe box) a custom cube of grey g, 0 black (PRUEFPROTOKOLL 297, 301:
+        // what the distant sea mirrors). The cube is made once per game with the first value.
         internal const string TuneDefaultReflection = "light.testDefaultReflection";
 
         private bool shActive, probeActive, defaultActive;
@@ -59,12 +60,16 @@ namespace ReDefinition.Atmospheres
                 for (int i = 0; i < probes.Length; i++)
                     if (probes[i] != null) probes[i].intensity = probeBase[i] * probe;
             }
-            if (Tuning.Get(TuneDefaultReflection, 1f) != 1f && !defaultActive)
+            float grey = Tuning.Get(TuneDefaultReflection, 1f);
+            if (grey != 1f && !defaultActive)
             {
+                // The cube's grey level is the key's value below 1 (0 black; PRUEFPROTOKOLL 301: a grey cube shows whether the sea reads it at all).
                 if (black == null)
                 {
+                    float g = Mathf.Clamp01(grey);
                     black = new Cubemap(16, TextureFormat.RGBA32, false);
                     Color[] px = new Color[16 * 16];
+                    for (int i = 0; i < px.Length; i++) px[i] = new Color(g, g, g, 1f);
                     for (int f = 0; f < 6; f++) black.SetPixels(px, (CubemapFace)f);
                     black.Apply();
                 }
@@ -73,7 +78,7 @@ namespace ReDefinition.Atmospheres
                 RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
                 RenderSettings.customReflection = black;
                 defaultActive = true;
-                AtmospheresLog.Say("light measurement: the default reflection a black custom cube (was " + defaultModeBase + ")");
+                AtmospheresLog.Say("light measurement: the default reflection a custom cube of grey " + grey.ToString("0.00") + " (was " + defaultModeBase + ")");
             }
         }
 
