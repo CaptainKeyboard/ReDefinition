@@ -154,7 +154,8 @@ namespace ReDefinition.Atmospheres
             CommandBuffer[] list = cam.GetCommandBuffers(CameraEvent.BeforeImageEffectsOpaque);
             var names = new string[list.Length];
             for (int i = 0; i < list.Length; i++) names[i] = list[i].name;
-            bool last = list.Length > 0 && ReferenceEquals(list[list.Length - 1], ours);
+            // By name: GetCommandBuffers hands back new wrappers (run 6: ours last by name, not the same object).
+            bool last = list.Length > 0 && list[list.Length - 1].name == ours.name;
             AtmospheresLog.Say("own clouds: the sea mirror's buffer order at BeforeImageEffectsOpaque on " + cam.name + ": " + string.Join(", ", names)
                                + (last ? " (ours last)" : " (ours NOT last)"));
         }
