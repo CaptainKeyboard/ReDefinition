@@ -46,6 +46,8 @@ namespace ReDefinition.Atmospheres
         private bool said, filled, dumped;
         // Measurement (PRUEFPROTOKOLL 319): light.dumpSkyProbe 1 writes the cube's six faces (mip 0) as PNGs into the series pictures' folder, once after a full turn.
         internal const string TuneDump = "light.dumpSkyProbe";
+        // Measurement (PRUEFPROTOKOLL 320, with layers.devVariant 1): light.testBelowWhite 1 fills the cube below the horizon white.
+        internal const string TuneBelowWhite = "light.testBelowWhite";
 
         private void Dump()
         {
@@ -187,7 +189,7 @@ namespace ReDefinition.Atmospheres
             block.SetTexture(IdSceneDepth, noDepth);
             // KSP's face holds a clear, sunlit scene; under the clouds its land and sea are lit by the diffuse share they pass on (316, 318): darkened first, with the
             // face's basis set (its rays decide what lies below the horizon; the idea check 319 found the first version reading the main camera's), the clouds after.
-            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), 0f));
+            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), Tuning.Get(TuneBelowWhite, 0f) > 0.5f ? 1f : 0f));
             c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
             // light.testCubeDirs (the test variant: layers.devVariant 1): the faces hold their rays' directions as colours, drawn by the same pass and basis as the clouds.
             block.SetVector(IdSkyProbeP, new Vector4(testDirs ? 1f : 0f, 0f, 0f, 0f));

@@ -1108,6 +1108,8 @@
         {
             // Only below the horizon (KSP's sunlit land and sea): its sky is the sky the camera sees, which a mirror must show as it is (PRUEFPROTOKOLL 318).
             float below = saturate(-dot(RayDir(i.uv), normalize(_CamPos.xyz - _PlanetCenter.xyz)) / 0.05);
+            // The test variant: _SkyProbeP.w 1 fills the part below the horizon white (PRUEFPROTOKOLL 320: whether the sea's reflections read below it).
+            if (_SkyProbeP.y > 0.5 && DEV(_SkyProbeP.w, 0.0) > 0.5) return float4(below.xxx, below);
             if (_SkyProbeP.y > 0.5) return float4(0.0, 0.0, 0.0, (1.0 - saturate(_SkyProbeP.z)) * below);
             if (DEV(_SkyProbeP.x, 0.0) > 0.5) return float4(RayDir(i.uv) * 0.5 + 0.5, 1.0);
             return OutputStage(Pass0(i));
