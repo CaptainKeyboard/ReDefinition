@@ -1101,12 +1101,14 @@
             return c;
         }
         // Pass 8 (master plan 46.1 part 4, OwnCloudSkyProbe): the march through a face of the own sky probe's cube with the display stage. _SkyProbeP.y 1: the darkening
-        // draw before it, the face (KSP's probe's clear, sunlit scene) times _SkyProbeP.z, the diffuse share under the clouds (PRUEFPROTOKOLL 316; with the pass's
-        // blend, colour 0 and alpha 1 - share). _SkyProbeP.x 1 (the test variant only, light.testCubeDirs): the ray's direction as a colour, opaque.
+        // draw before it, the face's part below the horizon (KSP's probe's sunlit land and sea) times _SkyProbeP.z, the diffuse share under the clouds (PRUEFPROTOKOLL
+        // 316, 318; with the pass's blend, colour 0 and alpha 1 - share). _SkyProbeP.x 1 (the test variant only, light.testCubeDirs): the ray's direction as a colour, opaque.
         float4 _SkyProbeP;
         float4 SkyProbeFace(v2f i)
         {
-            if (_SkyProbeP.y > 0.5) return float4(0.0, 0.0, 0.0, 1.0 - saturate(_SkyProbeP.z));
+            // Only below the horizon (KSP's sunlit land and sea): its sky is the sky the camera sees, which a mirror must show as it is (PRUEFPROTOKOLL 318).
+            float below = saturate(-dot(RayDir(i.uv), normalize(_CamPos.xyz - _PlanetCenter.xyz)) / 0.05);
+            if (_SkyProbeP.y > 0.5) return float4(0.0, 0.0, 0.0, (1.0 - saturate(_SkyProbeP.z)) * below);
             if (DEV(_SkyProbeP.x, 0.0) > 0.5) return float4(RayDir(i.uv) * 0.5 + 0.5, 1.0);
             return OutputStage(Pass0(i));
         }
