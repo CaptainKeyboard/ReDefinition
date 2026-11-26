@@ -63,16 +63,19 @@ TEX = "ReDefinition/Atmospheres/Clouds"
 #   under the k^(-5/3) spectrum of turbulent clouds and dust (Davis et al. 1994) the variance between k and k_max goes as k^(-2/3), so that share
 #   is (64^(-2/3) - 1000^(-2/3)) / (1 - 1000^(-2/3)) = 0.05 (detail down to a thousandth of the tile): hardness 0.95 for every type. (The first
 #   version read the key as a threshold window, PRUEFPROTOKOLL 330.)
-#   cover: a type's density over the map's coverage. Inside a cloud the condensate does not follow the cloud fraction (the two are only weakly
-#   correlated, Wood 2012): no cloud at 0, the full density from a coverage of 0.1. The storm keeps the curve of the storm cell's layer (ours,
-#   d35a07c0: a core, a falloff and a ragged rim). Densities, heights and the light grey colour are CONTRACT.md's table (ours).
-COVER_STEP = [(0, 0, 0, 0), (0.1, 1, 0, 0), (1, 1, 0, 0)]
+#   cover: a type's density over the weather's coverage map. The weather sets the coverage (light and broken at a low value, a closed deck at a
+#   high one, changing with the weather: the owner 2026-11-26), and the drawn cloud must follow it, not saturate: the density rises in proportion
+#   to the coverage (a grid cell's mean condensate is the cloud fraction times the in-cloud condensate), so a thin coverage is a thin, see-through
+#   cloud and a full one the type's full density. (The first version took the full density from 0.1 and drew every sky as a closed deck,
+#   PRUEFPROTOKOLL 330.) The storm keeps the curve of the storm cell's layer (ours, d35a07c0: a core, a falloff and a ragged rim). Densities,
+#   heights and the light grey colour are CONTRACT.md's table (ours).
+COVER_PROPORTIONAL = [(0, 0, 1, 1), (1, 1, 1, 1)]
 TYPES = {
-    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.95, cover=COVER_STEP),
-    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.95, cover=COVER_STEP),
+    "Snow": dict(role="SnowLight", min=600, max=900, density=0.0025, tiling=10000, edge=0.95, cover=COVER_PROPORTIONAL),
+    "Stratus": dict(role="SnowStratus", min=400, max=1800, density=0.0065, tiling=4000, edge=0.95, cover=COVER_PROPORTIONAL),
     "Storm": dict(role="Storm", min=300, max=2300, density=0.014, tiling=8000, edge=0.95,
                   cover=[(0, 0, 0, 5), (0.12, 0.85, 0, 0), (0.5, 0.95, 0, 0), (0.82, 0.35, -3, -3), (0.95, 0, 0, 0)]),
-    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.95, cover=COVER_STEP),
+    "Dust": dict(role="Dust", min=150, max=6000, density=0.006, tiling=20000, edge=0.95, cover=COVER_PROPORTIONAL),
 }
 
 # The bodies. radius_m: the body's radius (scaled fade). altitude: the radius of the 2D sphere above the body (the layer2D).
