@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
 
         internal static readonly string[] Textures =
         {
-            "_TypeProfile", "_TypeInfo", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
+            "_TypeProfile", "_TypeColumn", "_TypeInfo", "_CovMaps", "_TypeMaps", "_CovReach", "_SceneDepth", "_MarchTex", "_NoiseShape", "_NoiseDetail", "_NoiseCurl", "_NoiseFlow",
             "_NoiseColour", "_LightCache", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
         };
 

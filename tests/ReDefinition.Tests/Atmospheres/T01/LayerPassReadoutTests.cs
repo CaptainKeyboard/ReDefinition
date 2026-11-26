@@ -27,6 +27,8 @@ namespace ReDefinition.Tests.Atmospheres.T01
             var found = new Dictionary<string, string>();
             var plain = new Regex(@"^\s*(?:uniform\s+)?(float|float4|float4x4|sampler2D|sampler3D|sampler2D_float)\s+(_[A-Za-z0-9_]+(?:\[\d+\])?(?:\s*,\s*_[A-Za-z0-9_]+(?:\[\d+\])?)*)\s*;", RegexOptions.Multiline);
             var array = new Regex(@"UNITY_DECLARE_TEX2DARRAY\((_[A-Za-z0-9_]+)\)");
+            // A texture read by Load without a sampler (PRUEFPROTOKOLL 307: _TypeColumn).
+            var loaded = new Regex(@"^\s*Texture2D(?:<[a-z0-9]+>)?\s+(_[A-Za-z0-9_]+)\s*;", RegexOptions.Multiline);
             foreach (string file in Files)
             {
                 string text = File.ReadAllText(Path.Combine(root, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders", file));
@@ -41,6 +43,8 @@ namespace ReDefinition.Tests.Atmospheres.T01
                         if (!found.ContainsKey(name)) found[name] = kind;
                     }
                 foreach (Match m in array.Matches(text))
+                    if (!found.ContainsKey(m.Groups[1].Value)) found[m.Groups[1].Value] = "texture";
+                foreach (Match m in loaded.Matches(text))
                     if (!found.ContainsKey(m.Groups[1].Value)) found[m.Groups[1].Value] = "texture";
             }
             return found;

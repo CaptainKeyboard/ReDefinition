@@ -539,8 +539,13 @@
             if (s <= 0) return 0;
             // The column above for the lit sample's sky light (the light march's reads skip it): read only where the layer is a deck (_LightM[li].w, its cell width, at least
             // four times the type's height; LightSource weighs it by the same plane share).
+            // The column is the closed deck's: at the deck's edge and in a gap of its map the deck above thins too, so the map's coverage shape without the noise (1 inside a closed
+            // map, where the pannus' shreds still get the whole deck above them; falling to 0 over the edge band) weighs it (the idea check 308).
             [branch] if (light == 0 && _LightM[li].w > 4.0 * (ty.tp - ty.b) * (outer - inner))
-                dr.column = _LayerB[li].x * (ty.tp - ty.b) * (outer - inner) * lerp(TypeColumn(li, ty.ta, h), TypeColumn(li, ty.tb, h), ty.f) * fade;
+            {
+                float mapShape = saturate((m.cov + _LayerB[li].y - 1.0) / max(_LayerB[li].z, 1e-4) + 0.5);
+                dr.column = _LayerB[li].x * (ty.tp - ty.b) * (outer - inner) * lerp(TypeColumn(li, ty.ta, h), TypeColumn(li, ty.tb, h), ty.f) * fade * mapShape;
+            }
             float pw = ty.waterPow;
             if (pw > 0.05 && pw != 1.0) s = pow(s, pw);
             return _LayerB[li].x * s * pf.x * fade;

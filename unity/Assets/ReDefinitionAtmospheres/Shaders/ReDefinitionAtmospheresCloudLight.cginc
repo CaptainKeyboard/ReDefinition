@@ -264,7 +264,8 @@ float3 BoltLight(float3 pc)
 // The source function at a march sample of a lit layer (kind 0 weather). dir and amb return the direct and ambient parts (the aid view).
 // tauReuse >= 0: the optical depth towards the sun of an earlier sample of the span (the cost package's reuse); tauSunOut returns the one used.
 // tauUpReuse >= 0: the optical depth straight up of an earlier sample (the cost package T05's up-tap reuse, UpMode 1); tauUpOut returns the one used.
-// _LightT.w is the up mode: 0 a tap march at every lit sample, 1 reuse together with the sun march's reuse, 2 the analytic term (no taps).
+// _LightT.w is the up mode: 0 the analytic term (no taps; in a deck the type's profile column, PRUEFPROTOKOLL 307), 1 a tap march at every lit sample, 2 and 3 the taps reused
+// with the sun march's reuse (3 moved by the ray's progress).
 // topAlt: the altitudes of the top and the base of the cloud type at the sample (the march's DensityRead.topAlt, .baseAlt): the end of the analytic occlusion's column and the type's
 // height for the cell diffusion (E40 LM2).
 // column: the optical depth straight up through a plane-parallel deck of the sample's type, from its profile (DensityRead.column, PRUEFPROTOKOLL 307; 0: none).
