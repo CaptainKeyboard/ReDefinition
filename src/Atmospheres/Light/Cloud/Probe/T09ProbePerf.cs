@@ -114,6 +114,8 @@ namespace ReDefinition.Atmospheres
                 case "ceilvis8c7":
                 case "nolayers":
                 case "plain2":
+                case "noshell":
+                case "noprecip":
                 case "fshort":
                 case "faerial":
                 case "ffarmean":
@@ -242,6 +244,8 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudRotation, baseCloudRotation);
             SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, baseShadowQuality);
             foreach (KeyValuePair<string, double> f in baseFeatures) SetSetting(f.Key, f.Value);
+            OwnShell.ProbeHidden = false;
+            ApiBridge.ProbeSkipOwners.Remove("precipitation");
         }
 
         // The cumulus layer's name in the stack that stands ("Kerbin-cumulus" where no stack is drawn yet).
@@ -389,6 +393,10 @@ namespace ReDefinition.Atmospheres
                 case "fpnorot": ForceTuning(OwnCloudOptions.TuneReconRotate, 0f); break;
                 // Master plan 46.2 (the eight default-off player features, each to become the default with pictures and fps): one feature on each. rain / rain2 force
                 // rain at the vessel (the control); fwet, fdrops, fbolt the same rain with the feature on (lightning needs a storm, PrecipType.Rain at a storm's rate).
+                // Master plan 46.4 (the own clouds from orbit): noshell the 2D shell hidden (the near march alone), noprecip the precipitation's draw left out
+                // (what the pale diamonds are); the shell alone is nolayers (the pass runs and draws no layer).
+                case "noshell": OwnShell.ProbeHidden = true; break;
+                case "noprecip": ApiBridge.ProbeSkipOwners.Add("precipitation"); break;
                 case "fshort": SetSetting(AtmospheresSettings.Keys.CloudShortSunMarch, 1.0); break;
                 case "faerial": SetSetting(AtmospheresSettings.Keys.CloudAerialPerspective, 1.0); break;
                 case "ffarmean": SetSetting(AtmospheresSettings.Keys.CloudFarShapeMean, 1.0); break;

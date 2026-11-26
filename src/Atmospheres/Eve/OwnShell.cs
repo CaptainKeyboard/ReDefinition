@@ -52,8 +52,12 @@ namespace ReDefinition.Atmospheres
 
         // The shell's opacity now: from the flight camera's altitude over the body, or in the map view and the tracking station from the map
         // camera's distance in body radii.
+        // Measurement (master plan 46.4, PRUEFPROTOKOLL 339): a probe hides the shell to see the near march alone from orbit.
+        internal static bool ProbeHidden;
+
         private float CurrentOpacity(CelestialBody b)
         {
+            if (ProbeHidden) return 0f;
             bool map = MapView.MapIsEnabled || HighLogic.LoadedScene == GameScenes.TRACKSTATION;
             double altitude = 0.0, radii = 0.0;
             if (map)
