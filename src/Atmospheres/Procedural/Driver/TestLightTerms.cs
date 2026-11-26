@@ -10,8 +10,13 @@ namespace ReDefinition.Atmospheres
     internal sealed class TestLightTerms
     {
         internal const string TuneShScale = "light.testShScale", TuneProbeScale = "light.testProbeScale";
+        // light.testDefaultReflection 0: Unity's default reflection (outside every probe box) a black custom cube (PRUEFPROTOKOLL 297: what the distant sea mirrors).
+        internal const string TuneDefaultReflection = "light.testDefaultReflection";
 
-        private bool shActive, probeActive;
+        private bool shActive, probeActive, defaultActive;
+        private DefaultReflectionMode defaultModeBase;
+        private Texture defaultCubeBase;
+        private Cubemap black;
         private SphericalHarmonicsL2 shBase;
         private float reflectionBase;
         private ReflectionProbe[] probes;
@@ -20,7 +25,7 @@ namespace ReDefinition.Atmospheres
         // Whether a key asks for a scaling (no engine call: the tests run the writer outside the game).
         internal static bool Wanted
         {
-            get { return Tuning.Get(TuneShScale, 1f) != 1f || Tuning.Get(TuneProbeScale, 1f) != 1f; }
+            get { return Tuning.Get(TuneShScale, 1f) != 1f || Tuning.Get(TuneProbeScale, 1f) != 1f || Tuning.Get(TuneDefaultReflection, 1f) != 1f; }
         }
 
         // Applies the scalings each frame (from the writer's pre-cull).
@@ -54,6 +59,22 @@ namespace ReDefinition.Atmospheres
                 for (int i = 0; i < probes.Length; i++)
                     if (probes[i] != null) probes[i].intensity = probeBase[i] * probe;
             }
+            if (Tuning.Get(TuneDefaultReflection, 1f) != 1f && !defaultActive)
+            {
+                if (black == null)
+                {
+                    black = new Cubemap(16, TextureFormat.RGBA32, false);
+                    Color[] px = new Color[16 * 16];
+                    for (int f = 0; f < 6; f++) black.SetPixels(px, (CubemapFace)f);
+                    black.Apply();
+                }
+                defaultModeBase = RenderSettings.defaultReflectionMode;
+                defaultCubeBase = RenderSettings.customReflection;
+                RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
+                RenderSettings.customReflection = black;
+                defaultActive = true;
+                AtmospheresLog.Say("light measurement: the default reflection a black custom cube (was " + defaultModeBase + ")");
+            }
         }
 
         // Puts the values back.
@@ -70,8 +91,14 @@ namespace ReDefinition.Atmospheres
             }
             probeActive = false;
             probes = null;
+            if (defaultActive)
+            {
+                RenderSettings.defaultReflectionMode = defaultModeBase;
+                RenderSettings.customReflection = defaultCubeBase;
+            }
+            defaultActive = false;
         }
 
-        internal bool Active { get { return shActive || probeActive; } }
+        internal bool Active { get { return shActive || probeActive || defaultActive; } }
     }
 }
