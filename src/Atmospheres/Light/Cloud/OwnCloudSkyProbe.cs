@@ -43,7 +43,37 @@ namespace ReDefinition.Atmospheres
         private MaterialPropertyBlock block;
         private int face;
         private float nextScan;
-        private bool said;
+        private bool said, filled, dumped;
+        // Measurement (PRUEFPROTOKOLL 319): light.dumpSkyProbe 1 writes the cube's six faces (mip 0) as PNGs into the series pictures' folder, once after a full turn.
+        internal const string TuneDump = "light.dumpSkyProbe";
+
+        private void Dump()
+        {
+            dumped = true;
+            int n = cube.width;
+            RenderTexture tmp = RenderTexture.GetTemporary(n, n, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            var t = new Texture2D(n, n, TextureFormat.RGBA32, false);
+            RenderTexture before = RenderTexture.active;
+            try
+            {
+                for (int f = 0; f < 6; f++)
+                {
+                    Graphics.CopyTexture(cube, f, 0, tmp, 0, 0);
+                    RenderTexture.active = tmp;
+                    t.ReadPixels(new Rect(0, 0, n, n), 0, 0);
+                    t.Apply(false);
+                    string file = System.IO.Path.Combine(SeriesPictures.Folder, "skyprobe-face" + f + ".png");
+                    System.IO.File.WriteAllBytes(file, t.EncodeToPNG());
+                }
+                AtmospheresLog.Say("light measurement: the sky probe's six faces written to " + SeriesPictures.Folder + " (skyprobe-face0..5.png: +X -X +Y -Y +Z -Z)");
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                RenderTexture.ReleaseTemporary(tmp);
+                Object.Destroy(t);
+            }
+        }
 
         internal bool Active { get { return own != null && own.enabled; } }
 
@@ -88,6 +118,7 @@ namespace ReDefinition.Atmospheres
                 };
                 cube.Create();
                 face = 0;
+                filled = false;
             }
             if (holder == null)
             {
@@ -102,7 +133,8 @@ namespace ReDefinition.Atmospheres
             own.center = ksp.center;
             own.boxProjection = ksp.boxProjection;
             own.blendDistance = ksp.blendDistance;
-            own.enabled = true;
+            // On only once every face holds the clouds (the idea check 319: an empty cube for the first twelve frames is black in the sea).
+            own.enabled = filled;
             holder.transform.position = ksp.transform.position;
 
             if ((Time.frameCount & 1) == 1) return;
@@ -112,6 +144,12 @@ namespace ReDefinition.Atmospheres
             DrawFace(cb, layers, source, face, holder.transform.position, Tuning.Get(TuneCubeDirs, 0f) > 0.5f, skyShare);
             if (face == 5) cb.GenerateMips(cube);
             Graphics.ExecuteCommandBuffer(cb);
+            if (face == 5)
+            {
+                filled = true;
+                if (Tuning.Get(TuneDump, 0f) > 0.5f && !dumped) Dump();
+                else if (Tuning.Get(TuneDump, 0f) <= 0.5f) dumped = false;
+            }
             face = (face + 1) % 6;
             if (!said)
             {
@@ -124,12 +162,6 @@ namespace ReDefinition.Atmospheres
         {
             c.CopyTexture(source, f, 0, cube, f, 0);
             c.SetRenderTarget(cube, 0, (CubemapFace)f);
-            // KSP's face holds a clear, sunlit scene; under the clouds it is lit by the diffuse share they pass on (the idea check 316): darkened first, the clouds
-            // (their own radiance) over it after.
-            if (block == null) block = new MaterialPropertyBlock();
-            block.Clear();
-            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), 0f));
-            c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
             int n = cube.width;
             if (noDepth == null)
             {
@@ -153,6 +185,10 @@ namespace ReDefinition.Atmospheres
             block.SetVector(IdDitherP, new Vector4(dither.x, dither.y, dither.z, 1f));
             block.SetVector(IdLimitP, new Vector4(0f, 0f, 0f, 0f));
             block.SetTexture(IdSceneDepth, noDepth);
+            // KSP's face holds a clear, sunlit scene; under the clouds its land and sea are lit by the diffuse share they pass on (316, 318): darkened first, with the
+            // face's basis set (its rays decide what lies below the horizon; the idea check 319 found the first version reading the main camera's), the clouds after.
+            block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), 0f));
+            c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
             // light.testCubeDirs (the test variant: layers.devVariant 1): the faces hold their rays' directions as colours, drawn by the same pass and basis as the clouds.
             block.SetVector(IdSkyProbeP, new Vector4(testDirs ? 1f : 0f, 0f, 0f, 0f));
             c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
