@@ -168,6 +168,8 @@ namespace ReDefinition.Atmospheres
                 attachedEvent = CameraEvent.AfterForwardOpaque;
                 attachedCameraBuffer = forwardBuffer;
             }
+            // The shadow carries the scene's sun for this frame: published only where it is attached to the shadow camera (PRUEFPROTOKOLL 291).
+            OwnCloudSceneLight.Publish();
         }
 
         // Whether the forward path reads the share of the colour that is the sun's from the scene's light and ambient each frame (the default)

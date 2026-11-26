@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
         private static int frame = -10;
         private static bool published;
 
-        // Published by the own clouds' frame (OwnCloudModule) while their shadow is drawn, before the cameras cull.
+        // Published by the cloud shadow (CloudShadowIntegration) in the pre-cull where it is attached to the shadow camera (PRUEFPROTOKOLL 291): not drawn, not published.
         internal static void Publish()
         {
             frame = Time.frameCount;

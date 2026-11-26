@@ -1590,8 +1590,6 @@ namespace ReDefinition.Atmospheres
             }
             f.Far.CameraLitShare = AerialPerspectivePlan.LitShare(sunTransmission);
             ScattererFlareClouds.Apply(sunTransmission);
-            // The own shadow carries the scene's sun while it is drawn: the weather's global sun dimming stays off (PRUEFPROTOKOLL 290).
-            if (Stats.ShadowOn) OwnCloudSceneLight.Publish();
             f.Far.ApplyTo(f, altitude, b.Radius);
 
             if (now >= nextWind)
