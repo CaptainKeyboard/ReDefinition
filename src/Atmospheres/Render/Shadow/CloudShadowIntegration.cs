@@ -141,6 +141,11 @@ namespace ReDefinition.Atmospheres
             int mode = deferred ? 1 : 2;
             if (recordedWidth != w || recordedHeight != h || recordedMode != mode || recordedDivisor != Frame.Divisor)
             {
+                // Each re-record is rare: the log names the path the shadow takes (PRUEFPROTOKOLL 287: the land under a closed deck kept its sunlight).
+                Light l0 = sun();
+                AtmospheresLog.Say("own clouds: the cloud shadow records for " + camera.name + " (" + w + " x " + h + "): " + (deferred ? "deferred, the sun's shadow mask" : "forward, the colour")
+                                   + "; sun light " + (l0 != null ? l0.name + " shadows " + l0.shadows + " strength " + l0.shadowStrength.ToString("0.00") : "none")
+                                   + "; shadow distance " + QualitySettings.shadowDistance.ToString("0") + " m, camera path " + camera.actualRenderingPath);
                 if (deferred) renderer.RecordSunBuffer(maskBuffer, maskDisplayBuffer, w, h, Frame.Divisor);
                 else renderer.RecordForwardBuffer(forwardBuffer, w, h, null, null, Frame.Divisor);
                 recordedWidth = w;

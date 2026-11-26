@@ -21,6 +21,8 @@ namespace ReDefinition.Atmospheres
         // The tuning keys of the sun dimming's weights and their compiled defaults.
         internal const string TuneSunDimWeight = "light.sunDimWeight", TuneSunDimWeightEve = "light.sunDimWeightEve";
         internal const float SunDimWeightDefault = 1f, SunDimWeightEveDefault = 0.5f;
+        // Measurement keys of the scene's light under the own clouds (PRUEFPROTOKOLL 286): the sun's intensity and the ambient times these (1: none).
+        internal const string TuneTestSunScale = "light.testSunScale", TuneTestAmbientScale = "light.testAmbientScale";
 
         private readonly StormAmbient ambient = new StormAmbient();
         private readonly AmbientTracker sunIntensity = new AmbientTracker();
@@ -29,6 +31,8 @@ namespace ReDefinition.Atmospheres
         private Light sun;
         private bool hooked;
         private bool sunScaling;
+        // Whether a measurement key asks for a scaling (TuneTestSunScale / TuneTestAmbientScale).
+        private bool testing;
         private float ambientFactor = 1f;
         private float sunFactor = 1f;
         private float shadowFactor = 1f;
@@ -70,7 +74,10 @@ namespace ReDefinition.Atmospheres
         {
             sun = sunLight;
             level = view.Active ? view.Level : 0f;
-            if (level < OffBelow)
+            // The measurement keys (PRUEFPROTOKOLL 287: which light terms reach the land): 1 in the product.
+            float testSun = Mathf.Max(0f, Tuning.Get(TuneTestSunScale, 1f)), testAmbient = Mathf.Max(0f, Tuning.Get(TuneTestAmbientScale, 1f));
+            testing = testSun != 1f || testAmbient != 1f;
+            if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;
                 sunFactor = 1f;
@@ -80,9 +87,12 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             LookValues look = PrecipitationLook.Evaluate(level);
-            ambientFactor = view.AmbientFactor;
-            sunFactor = SunFactorOf(look.SunDirect, !string.IsNullOrEmpty(view.CloudLayerName));
-            shadowFactor = look.ShadowStrength;
+            ambientFactor = (level < OffBelow ? 1f : view.AmbientFactor) * testAmbient;
+            // Under the own clouds the weather's global sun dimming and their per-pixel shadow both act on the land (a double count), but forward-rendered objects
+            // (the vessel's parts) get no cloud shadow in a deferred camera (PRUEFPROTOKOLL 288), so the global dimming stays until the shadow reaches them.
+            float weatherSun = level < OffBelow ? 1f : SunFactorOf(look.SunDirect, !string.IsNullOrEmpty(view.CloudLayerName));
+            sunFactor = weatherSun * testSun;
+            shadowFactor = level < OffBelow ? 1f : look.ShadowStrength;
             SyncHook(true);
         }
 
@@ -91,7 +101,7 @@ namespace ReDefinition.Atmospheres
         {
             try
             {
-                if (level < OffBelow) return;
+                if (level < OffBelow && !testing) return;
                 ambient.Apply(ambientFactor);
                 ApplySun();
                 tufx.Apply(level);
