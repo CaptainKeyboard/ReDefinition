@@ -22,7 +22,7 @@ namespace ReDefinition.Atmospheres
     //      maps with pass.json are taken at that frame's end.
     //   5. -t09PinLimits <name=kind:key:value+...;...> (in the views of -t09PinLimitViews, default ground; master plan section 29, the straight line before the horizon): after the
     //      plain capture, each named set of switches is applied, the history cut again, and the same capture taken under the tag pin-<view>-<name>-...; kinds t (a tuning key forced), s (a setting set, put back
-    //      after), p (a probe switch: surface 0 = OwnCloudModule.ProbeNoSurface, scenedepth 0 = ProbeNoSceneDepth, maxsteps N = LayerProbeSwitches.MaxSteps).
+    //      after), p (a probe switch: surface 0 = OwnCloudModule.ProbeNoSurface, scenedepth 0 = ProbeNoSceneDepth, maxsteps N = LayerProbeSwitches.MaxSteps, rain 1 = rain forced at the vessel).
     // Every step is a row T09.pin.<view>[-<limit>].<step> and a check; a step that cannot be done fails the start by name and the next view is taken. The files land in
     // series-pictures/maps/<tag> (tag pin-<view>[-<limit>]-u<ut>-<start>-<time>).
     internal sealed partial class T09Probe
@@ -191,10 +191,10 @@ namespace ReDefinition.Atmospheres
                     string[] f = part.Split(':');
                     float value;
                     if (f.Length != 3 || f[0].Length != 1 || "tsp".IndexOf(f[0][0]) < 0 || !float.TryParse(f[2], NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps" && SkipDrawOwner(f[1]) == null))
+                        || (f[0][0] == 'p' && f[1] != "surface" && f[1] != "scenedepth" && f[1] != "maxsteps" && f[1] != "rain" && SkipDrawOwner(f[1]) == null))
                     {
                         problem = "-t09PinLimits switch '" + part + "' of " + limit.Name + " is not kind:key:value (kinds t, s, p; probe switches surface, scenedepth, maxsteps, "
-                                  + "skipprecip, skiplamp)";
+                                  + "rain, skipprecip, skiplamp)";
                         return list;
                     }
                     limit.Switches.Add(new PinSwitch { Kind = f[0][0], Key = f[1], Value = value });
@@ -217,6 +217,12 @@ namespace ReDefinition.Atmospheres
                 }
                 else if (s.Key == "surface") OwnCloudModule.ProbeNoSurface = s.Value == 0f;
                 else if (s.Key == "scenedepth") OwnCloudModule.ProbeNoSceneDepth = s.Value == 0f;
+                // rain N: rain forced on 30 km around the vessel (the field's test forcing, T09ProbePerf.PerfRainAtVessel), so that the weather features under
+                // the pinned rain deck have precipitation to act on (master plan 46.2).
+                else if (s.Key == "rain")
+                {
+                    if (s.Value != 0f) PerfRainAtVessel();
+                }
                 else if (SkipDrawOwner(s.Key) != null)
                 {
                     if (s.Value != 0f) ApiBridge.ProbeSkipOwners.Add(SkipDrawOwner(s.Key));
