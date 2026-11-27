@@ -247,9 +247,16 @@ sampler2D _CloudField;
 float4 _FieldP;
 float4 _FieldC[8];
 
-// The field's far view (master plan 46.4, PRUEFPROTOKOLL 340, 341, 344), set by FieldCloud for the caller: gFieldFar the weight of the far mean (0: the single clouds alone), gFieldShare the
-// map's local share of cloud, gFieldTop the mean body's top as a share of the type's height (the coarse channel at its mean), gFieldRC that body's horizontal semi-axis in m.
+// The field's far view (master plan 46.4, PRUEFPROTOKOLL 340, 341, 344, 357), set by FieldCloud for the caller: gFieldFar the weight of the far mean (0: the single clouds alone),
+// gFieldShare the share of the pixel's footprint inside the single clouds (the field's filtered picture, FieldCloud), gFieldTop the body's top there as a share of the type's height,
+// gFieldRC that body's horizontal semi-axis in m (both from the coarse channel at the footprint's mip level).
 static float gFieldFar, gFieldShare, gFieldTop, gFieldRC;
+// The pixel's footprint, as a share of the field's smallest feature, from which the far mean begins (the feature spans 8 pixels) and at which it has taken over (4 pixels).
+#define FIELD_FAR_FROM 0.125
+#define FIELD_FAR_TO 0.25
+// The field's spread inside a texel of each mip level (CloudFieldGpu, CloudField.MipSpread): the half width of the field's values about the texel's mean.
+#define FIELD_SPREAD_LEVELS 12
+float _FieldV[FIELD_SPREAD_LEVELS];
 
 // A puffy type's single cloud from the field, the one code of the layer pass and the cloud shadow. The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u, in the place of the lattice's distance to a centre: a dome of the
@@ -258,17 +265,16 @@ static float gFieldFar, gFieldShare, gFieldTop, gFieldRC;
 // where it begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's
 // coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point; typeHeightM: the type's height in m. The field is read at the mip level of the march's
 // spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
-// Where the pixel's footprint (foot, 0: none) is wider than the field's smallest feature the single clouds lie below the pixel: the caller blends to the field's MEAN by gFieldFar (the
-// clumpy medium of ShapeShare). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
+// Where the pixel's footprint (foot, 0: none) nears the field's smallest feature the single clouds lie below the pixel: the caller blends by gFieldFar to the clumpy medium of
+// ShapeShare with gFieldShare, the share of the footprint inside the single clouds (the field's filtered picture, the middle stage below; the map's share where the footprint spans the whole field). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
 int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
 {
     float4 fc = _FieldC[puff];
     float fShare = CellShare(cov, coverage, edge, amount);
     float wF = saturate((fShare - 0.8) / 0.15);
-    gFieldFar = (foot > 0.0 ? saturate((foot - 0.25 * _FieldP.w) / (0.5 * _FieldP.w)) : 0.0) * (1.0 - wF);
-    gFieldShare = fShare;
-    gFieldTop = clamp(clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) / 0.5, 0.15, 1.0);
-    gFieldRC = fc.x * max(gFieldTop * typeHeightM, 1.0);
+    // The far mean takes over while the field's smallest feature (_FieldP.w) shrinks from 8 pixels to 4 (PRUEFPROTOKOLL 355, 356): a cloud of fewer pixels cannot be drawn
+    // as a shape by one sample a pixel; drawn so (until 2026-11-26 down to 1.3 pixels) the fields were a speckle from orbit (the owner: too noisy from above).
+    gFieldFar = (foot > 0.0 ? saturate((foot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : 0.0) * (1.0 - wF);
     float lat = (0.5 - uv.y) * 3.14159265;
     float xM = uv.x * 2.0 * 3.14159265 * rm * max(cos(lat), 0.02), yM = lat * rm;
     float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;
@@ -280,6 +286,23 @@ int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, flo
     float coreF = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + fc.y * (1.0 - 2.0 * fv.z));
     float topF = clamp(coreF / 0.5, 0.15, 1.0);
     float semiH = max(topF * typeHeightM, 1.0), rC = fc.x * semiH;
+    // THE FAR VIEW'S MIDDLE STAGE (PRUEFPROTOKOLL 357): the share of the pixel's footprint that lies inside the single clouds, {u < f}, is the field's own filtered picture.
+    // fv.x is the field's mean over the footprint (the mip level of the footprint); inside it the field is spread about that mean by _FieldV at the level (taken as even
+    // over mean +- spread; CloudField.MipSpread, from the field's own variance by level). Spread 0 (the finest level): the step u < f, the single clouds' footprint itself;
+    // the coarsest levels (mean 0.5, spread 0.5): f, the map's share. Between, the field's clusters and streets stay as a soft cover while they are wider than a pixel, and
+    // on the approach the single clouds sharpen out of their own blurred picture (the owner: nothing may pop). The body's top and width follow the coarse channel at the
+    // same level. Until 2026-11-26 the far share was the map's alone: an even veil with the map's shapes as its borders.
+    // Worked out only where the far mean has begun: a near sample (every accepted view) does none of it (PRUEFPROTOKOLL 359).
+    gFieldShare = fShare;
+    gFieldTop = topF;
+    gFieldRC = rC;
+    [branch] if (gFieldFar > 0.0)
+    {
+        float lodV = min(lod, FIELD_SPREAD_LEVELS - 1.001);
+        int level = (int)floor(lodV);
+        float spread = lerp(_FieldV[level], _FieldV[level + 1], lodV - level);
+        gFieldShare = spread > 1e-4 ? saturate((fShare - fv.x) / (2.0 * spread) + 0.5) : step(fv.x, fShare);
+    }
     if (wF > 0.0)
     {
         // The footprint as CellCover's profile: above the threshold by up to the core strength inside, below it by up to half a unit outside.

@@ -469,7 +469,15 @@
             [branch] if (ty.puff > 0 && slice >= 0)
             {
                 float typeHeightM = (ty.tp - ty.b) * (outer - inner);
-                int fieldCloud = FieldCloud(li, ty.puff, uvRaw, cov, coverage, edge, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot, _PlanetR + 0.5 * (inner + outer), h, typeHeightM);
+                // The light march reads the single clouds themselves (no footprint) while the pixel resolves them; where the far mean has begun it reads the mean too
+                // (PRUEFPROTOKOLL 356): a cloud below the pixel shades a sample or does not by chance, a grain from orbit; the mean extinction along the light's path
+                // is that shade's mean (the same clumpy law, the chord along the light: gRayVertical is the light march's there).
+                // The light's footprint grows from 0 at the far window's start to the pixel's at its end, so that its read of the field does not step where the
+                // window begins (the idea check 358: a full footprint right at the edge read the single clouds from a blurred mip level at once). The light's own far
+                // weight follows that footprint (FieldCloud), so it rises over the upper part of the window only (footprints 0.2 to 0.25 of the smallest feature, the
+                // view's over 0.125 to 0.25): meant, no step at either end; below it the light reads the single clouds through the footprint's mip level (PRUEFPROTOKOLL 372).
+                float fieldFoot = light != 0 ? gNoiseFoot * saturate((gNoiseFoot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : gNoiseFoot;
+                int fieldCloud = FieldCloud(li, ty.puff, uvRaw, cov, coverage, edge, _LayerD[li].x, fieldFoot, _PlanetR + 0.5 * (inner + outer), h, typeHeightM);
                 farW = gFieldFar;
                 [branch] if (farW > 0.0)
                 {

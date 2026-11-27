@@ -134,6 +134,48 @@ namespace ReDefinition.Atmospheres
             return o;
         }
 
+        // ---- the field's spread inside a footprint (master plan 46.4, the far view's middle stage) ----
+
+        // The mip levels the spread is given for (a 1024 texture has 11; the shader's array holds 12).
+        internal const int SpreadLevels = 12;
+
+        // For each mip level L of a channel: the half width a of the channel's values inside one texel of that level, taken as spread evenly over mean +- a.
+        // The variance inside a box of level L is the whole field's variance less the variance of the level's means (the law of total variance, exact for the 2 x 2
+        // box filter the mip chain is made with), and an even spread of variance v has the half width sqrt(3 v). Level 0: 0 (a texel holds one value); the coarsest
+        // levels of the rank-uniform field: about 0.5 (its variance 1 / 12). FieldCloud takes it for the share of a pixel's footprint that lies inside the single
+        // clouds, {u < f}: saturate((f - mean) / (2 a) + 0.5), the field's own filtered picture between the single clouds and the map's share.
+        internal static float[] MipSpread(float[] field, int size, int channel, int levels = SpreadLevels)
+        {
+            var spread = new float[levels];
+            int n = size;
+            var level = new double[n * n];
+            for (int k = 0; k < n * n; k++) level[k] = field[k * 4 + channel];
+            double whole = Variance(level, n * n);
+            for (int l = 0; l < levels; l++)
+            {
+                spread[l] = (float)Math.Sqrt(3.0 * Math.Max(whole - Variance(level, n * n), 0.0));
+                if (n == 1) continue;   // the last level is one texel: every further level repeats it
+                int half = n / 2;
+                for (int j = 0; j < half; j++)
+                    for (int i = 0; i < half; i++)
+                        level[j * half + i] = 0.25 * (level[(2 * j) * n + 2 * i] + level[(2 * j) * n + 2 * i + 1] + level[(2 * j + 1) * n + 2 * i] + level[(2 * j + 1) * n + 2 * i + 1]);
+                n = half;
+            }
+            return spread;
+        }
+
+        private static double Variance(double[] v, int count)
+        {
+            double sum = 0.0, squares = 0.0;
+            for (int k = 0; k < count; k++)
+            {
+                sum += v[k];
+                squares += v[k] * v[k];
+            }
+            double mean = sum / count;
+            return Math.Max(squares / count - mean * mean, 0.0);
+        }
+
         // ---- the CPU lookup (the shader's tex2Dlod with the bilinear filter and the repeat wrap) ----
 
         // The channel of the field at the metres (x east, y north) of the map frame, bilinear, tiling; scale lengthens (below 1) or shortens the features.

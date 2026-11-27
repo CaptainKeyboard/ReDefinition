@@ -182,6 +182,7 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
                 float mid = 0.5 * (prev + edge);
                 float3 q = pc + dir * mid;
                 float qs;
+                gRayVertical = max(abs(dot(dir, q)) / max(length(q), 1.0), 1e-3);   // the far mean's chord lies along the light here (ShapeShare)
                 DensityRead qr;   // the tap needs only the density
                 acc += LayerDensityEx(lj, q, length(q) - _PlanetR, t, i < eroded ? 0 : 1, qs, qr) * (edge - prev);   // the light path reads the shape only, not the erosion detail (T02), except the first taps (P3)
                 prev = edge;
