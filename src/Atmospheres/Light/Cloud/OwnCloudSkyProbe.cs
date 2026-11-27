@@ -7,8 +7,8 @@ namespace ReDefinition.Atmospheres
     // The own clouds in what the sea and the land mirror (master plan 46.1 part 4; the owner 11-26: "Klar soll das Meer die Wolkendecke spiegeln"). With
     // Scatterer's sky reflections off the ocean reads KSP's flight reflection probe, and the land's environment light is that probe too (PRUEFPROTOKOLL 293,
     // 312); an own probe of mode Custom with a higher importance in KSP's probe's box replaces it for both (314). Its cube is KSP's probe's cube with the own
-    // clouds composited over it: each frame one face is copied from KSP's probe and the layer pass's march is drawn through it (pass 8: the face's basis,
-    // no scene depth, no reconstruction, with the display stage); after the sixth face the mips are made again. KSP's probe itself is not touched; while
+    // clouds composited over it: every few frames a part of a face is copied from KSP's probe and the layer pass's march is drawn through it (pass 8: the face's
+    // basis, no scene depth, no reconstruction, with the display stage; the pacing below); after the last part of the sixth face the mips are made again. KSP's probe itself is not touched; while
     // the own clouds are not drawn the own probe is off and KSP's carries on as before.
     // The cube's faces follow Direct3D's convention (texel row 0 at the top): the face bases below; light.testCubeDirs 1 with layers.devVariant 1 draws the
     // faces' ray directions as colours instead, through the same pass (a check of the convention: the land, whose ambient looks up, turns green).
@@ -34,6 +34,41 @@ namespace ReDefinition.Atmospheres
             IdCullB = Shader.PropertyToID("_CullB"), IdCullD = Shader.PropertyToID("_CullD"), IdDitherP = Shader.PropertyToID("_DitherP"), IdLimitP = Shader.PropertyToID("_LimitP"),
             IdSceneDepth = Shader.PropertyToID("_SceneDepth"), IdSkyProbeP = Shader.PropertyToID("_SkyProbeP");
 
+        // THE PACING (PRUEFPROTOKOLL 365; the owner 11-27: a view below 48 fps is to be explained and fixed whichever part of the frame holds the time). A whole face
+        // every second frame was 2 to 4 ms of GPU time a frame outside the cameras (the GPU table's "between scripts and cameras": 1.8 ms before the probe, 4 to 6
+        // with it) in a lump of 4 to 8 ms on every second frame. Now one of a face's PartsPerFace parts (each a range of columns) every FramesPerStep frames: a quarter of the
+        // work a frame, half the lump, the cube fresh after TurnFrames frames (about a second; the clouds a mirror shows move far less in it).
+        // A class of its own: the probe's own statics hold shader property ids, which only the engine can make (a test that touched them could not load the type).
+        internal static class Pacing
+        {
+            internal const int FramesPerStep = 4, PartsPerFace = 2;
+            internal const int TurnFrames = FramesPerStep * PartsPerFace * 6;
+
+            // Whether a part is drawn in the frame.
+            internal static bool DrawsAt(int frameCount)
+            {
+                return frameCount % FramesPerStep == 0;
+            }
+
+            // The columns of a part of a face n texels wide: parts side by side (columns, not rows: a row range would depend on which way up the scissor and the
+            // copy count a render texture's rows), the last taking the rest.
+            internal static void PartColumns(int part, int n, out int x0, out int width)
+            {
+                int w = System.Math.Max(1, n / PartsPerFace);
+                x0 = System.Math.Min(part * w, System.Math.Max(n - 1, 0));
+                width = part >= PartsPerFace - 1 ? System.Math.Max(n - x0, 1) : System.Math.Min(w, System.Math.Max(n - x0, 1));
+            }
+
+            // The step after (face, part): the next part, then the next face.
+            internal static void Next(ref int face, ref int part)
+            {
+                part++;
+                if (part < PartsPerFace) return;
+                part = 0;
+                face = (face + 1) % 6;
+            }
+        }
+
         private ReflectionProbe ksp, own;
         private GameObject holder;
         private RenderTexture cube;
@@ -41,7 +76,7 @@ namespace ReDefinition.Atmospheres
         // Made on first use (the module is built in the tests, outside the engine).
         private CommandBuffer cb;
         private MaterialPropertyBlock block;
-        private int face;
+        private int face, part;
         private float nextScan;
         private bool said, filled, dumped;
         private float dumpFrom = -1f;
@@ -83,8 +118,8 @@ namespace ReDefinition.Atmospheres
         // The cube the sea mirror reads (stage D, OwnCloudSeaMirror): null while the probe is off.
         internal RenderTexture Cube { get { return Active ? cube : null; } }
 
-        // From the own clouds' frame, after the layer pass's material holds the frame's values: keeps the own probe on KSP's and draws one face every second frame
-        // (the cube fresh after twelve frames: a face a frame cost about 3 fps, PRUEFPROTOKOLL 316). skyShare: the diffuse share under the clouds at the camera
+        // From the own clouds' frame, after the layer pass's material holds the frame's values: keeps the own probe on KSP's and draws a part of a face every
+        // FramesPerStep frames (the pacing above; a face a frame cost about 3 fps, PRUEFPROTOKOLL 316). skyShare: the diffuse share under the clouds at the camera
         // (OwnCloudModule's), which the copied clear scene is darkened to before the clouds go over it.
         internal void Update(Material layers, float skyShare)
         {
@@ -124,6 +159,7 @@ namespace ReDefinition.Atmospheres
                 };
                 cube.Create();
                 face = 0;
+                part = 0;
                 filled = false;
             }
             if (holder == null)
@@ -139,18 +175,21 @@ namespace ReDefinition.Atmospheres
             own.center = ksp.center;
             own.boxProjection = ksp.boxProjection;
             own.blendDistance = ksp.blendDistance;
-            // On only once every face holds the clouds (the idea check 319: an empty cube for the first twelve frames is black in the sea).
+            // On only once every face holds the clouds (the idea check 319: an empty cube for the first turn is black in the sea).
             own.enabled = filled;
             holder.transform.position = ksp.transform.position;
 
-            if ((Time.frameCount & 1) == 1) return;
+            if (!Pacing.DrawsAt(Time.frameCount)) return;
             if (cb == null) cb = new CommandBuffer { name = "ReDefinition own sky probe" };
             if (block == null) block = new MaterialPropertyBlock();
             cb.Clear();
-            DrawFace(cb, layers, source, face, holder.transform.position, Tuning.Get(TuneCubeDirs, 0f) > 0.5f, skyShare);
-            if (face == 5) cb.GenerateMips(cube);
+            int x0, width;
+            Pacing.PartColumns(part, cube.width, out x0, out width);
+            DrawFace(cb, layers, source, face, x0, width, holder.transform.position, Tuning.Get(TuneCubeDirs, 0f) > 0.5f, skyShare);
+            bool turnDone = face == 5 && part == Pacing.PartsPerFace - 1;
+            if (turnDone) cb.GenerateMips(cube);
             Graphics.ExecuteCommandBuffer(cb);
-            if (face == 5)
+            if (turnDone)
             {
                 filled = true;
                 // The dump waits 3 s after the key turns on, then for this full turn: a pin's maps settle about 2.5 s (PRUEFPROTOKOLL 320: the first dump came at
@@ -166,19 +205,23 @@ namespace ReDefinition.Atmospheres
                     dumpFrom = -1f;
                 }
             }
-            face = (face + 1) % 6;
+            Pacing.Next(ref face, ref part);
             if (!said)
             {
                 said = true;
-                AtmospheresLog.Say("own clouds: the sky probe mirrors the own clouds (" + cube.width + " per face, one face a frame, importance " + own.importance + " over KSP's flight probe)");
+                AtmospheresLog.Say("own clouds: the sky probe mirrors the own clouds (" + cube.width + " per face, a face's " + Pacing.PartsPerFace + " parts one every " + Pacing.FramesPerStep
+                                   + " frames, a turn " + Pacing.TurnFrames + " frames, importance " + own.importance + " over KSP's flight probe)");
             }
         }
 
-        private void DrawFace(CommandBuffer c, Material layers, Texture source, int f, Vector3 at, bool testDirs, float skyShare)
+        // One part of a face: the columns x0 .. x0 + width of KSP's face copied, darkened and marched (the scissor keeps the two draws to them; the viewport stays the
+        // whole face, so a texel's ray is the one it has when the face is drawn at once).
+        private void DrawFace(CommandBuffer c, Material layers, Texture source, int f, int x0, int width, Vector3 at, bool testDirs, float skyShare)
         {
-            c.CopyTexture(source, f, 0, cube, f, 0);
-            c.SetRenderTarget(cube, 0, (CubemapFace)f);
             int n = cube.width;
+            c.CopyTexture(source, f, 0, x0, 0, width, n, cube, f, 0, x0, 0);
+            c.SetRenderTarget(cube, 0, (CubemapFace)f);
+            c.EnableScissorRect(new Rect(x0, 0, width, n));
             if (noDepth == null)
             {
                 noDepth = new Texture2D(1, 1, TextureFormat.RFloat, false, true) { name = "ReDefinition no depth" };
@@ -207,10 +250,13 @@ namespace ReDefinition.Atmospheres
             block.SetVector(IdSkyProbeP, new Vector4(0f, 1f, Mathf.Clamp01(skyShare), white));
             c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
             // light.testBelowWhite 2: the whole face white, no clouds over it.
-            if (white >= 2f) return;
-            // light.testCubeDirs (the test variant: layers.devVariant 1): the faces hold their rays' directions as colours, drawn by the same pass and basis as the clouds.
-            block.SetVector(IdSkyProbeP, new Vector4(testDirs ? 1f : 0f, 0f, 0f, 0f));
-            c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
+            if (white < 2f)
+            {
+                // light.testCubeDirs (the test variant: layers.devVariant 1): the faces hold their rays' directions as colours, drawn by the same pass and basis as the clouds.
+                block.SetVector(IdSkyProbeP, new Vector4(testDirs ? 1f : 0f, 0f, 0f, 0f));
+                c.DrawProcedural(Matrix4x4.identity, layers, PassFace, MeshTopology.Triangles, 3, 1, block);
+            }
+            c.DisableScissorRect();
         }
 
         // The own clouds not drawn: KSP's probe carries on.
