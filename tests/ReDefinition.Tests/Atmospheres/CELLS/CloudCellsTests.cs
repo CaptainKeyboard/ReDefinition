@@ -15,7 +15,6 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             read.XBest = xBest;
             read.RBest = 1000.0;
             read.Core = 0.5;
-            read.WMap = 0.0;
             return read;
         }
 

@@ -46,13 +46,13 @@ namespace ReDefinition.Atmospheres
             return (h >> 8) * (1.0 / 16777216.0);
         }
 
-        // What the field's read left (the shader's gCellX, gCellR, gCellCore, gCellW): the point's horizontal coordinate in the body times EdgeX (below 0: no body), the body's horizontal
-        // semi-axis over EdgeX in m, the cloud's core strength and the share of the map's own value there (0: the body draws; 1: the map does). The body (CellBody) reads them.
+        // What the field's read left (the shader's gCellX, gCellR, gCellCore): the point's horizontal coordinate in the body times EdgeX (below 0: no body), the body's horizontal
+        // semi-axis over EdgeX in m and the cloud's core strength. The body (CellBody) reads them.
         internal struct CellRead
         {
-            internal double XBest, RBest, Core, WMap;
-            // The shader's body test: a body was read and it alone draws (no closed cloud layer).
-            internal bool Body { get { return XBest >= 0.0 && WMap <= 0.0; } }
+            internal double XBest, RBest, Core;
+            // The shader's body test: a body was read.
+            internal bool Body { get { return XBest >= 0.0; } }
         }
 
         // The body of a cloud at a point, as the shader's CellBody: its share, 0 outside and 1 inside, rising over the band at its surface. The body is a half ellipsoid over the type's

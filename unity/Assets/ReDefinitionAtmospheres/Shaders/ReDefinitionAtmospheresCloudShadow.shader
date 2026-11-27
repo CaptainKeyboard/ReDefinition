@@ -181,7 +181,6 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         {
             reachM = 0;
             gCellX = -1.0;
-            gCellW = 1.0;
             float inner = _CsLayerA[li].x, outer = _CsLayerA[li].y;
             float share = (alt - inner) / (outer - inner);
             if (share < 0 || share > 1) return 0;
@@ -228,7 +227,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float typeBound = 0.5 * abs(_CsNoiseD[li].x) * (1.0 + pf.b);
             float typeAmount = _CsNoiseD[li].x * (1.0 + pf.b);
             // CLOUD FIELD: the layer pass's clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
-            // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
+            // the march's spacing (no foot).
             int puff = (int)(f < 0.5 ? TypePuff(li, ta) : TypePuff(li, tb));
             [branch] if (puff > 0 && slice >= 0)
             {
@@ -237,7 +236,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             cov -= _CsParams2.z * pf.a * (_CsLayerB[li].y + typeBound + 0.5 * edge);
             // THE BODY of a cloud the field placed, where the field's read says a body draws, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
             // full swing); it replaces the type's lift, so the lift's bound is not asked.
-            bool body = gCellX >= 0.0 && gCellW <= 0.0;
+            bool body = gCellX >= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
             if (!body && cov + _CsLayerB[li].y - 1.0 + typeBound + 0.5 * edge <= 0.0) return 0;
             // The coverage share: the map's threshold, or the layer pass's shape noise moving it (NoiseShareNear is the threshold itself where the amount is 0 or the volumes are not up).

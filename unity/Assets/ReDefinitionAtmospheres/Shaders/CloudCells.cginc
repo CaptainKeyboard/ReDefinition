@@ -41,10 +41,9 @@ float CellShare(float cov, float coverage, float edge, float amount)
 }
 
 // What the field's read (FieldCloud) leaves for the body (CellBody; gCellX below 0: no body read): the point's horizontal coordinate in the body times CELL_EDGE_X, the cloud's core
-// strength, the share of the map's own value there (0: the body draws; 1: the map does) and the body's horizontal semi-axis over CELL_EDGE_X, in m.
+// strength and the body's horizontal semi-axis over CELL_EDGE_X, in m.
 static float gCellX = -1.0;
 static float gCellCore = 0.0;
-static float gCellW = 1.0;
 static float gCellR = 0.0;
 
 // The finer bulge octaves of a cloud's body: the cumuliform field (the shape volume's green channel, preset bulge) read at 0.37 and 0.137 of its period at the noise lattice's true vertical scale
@@ -87,9 +86,24 @@ float4 _FieldP;
 float4 _FieldC[8];
 
 // The field's far view (master plan 46.4, PRUEFPROTOKOLL 340, 341, 344, 357), set by FieldCloud for the caller: gFieldFar the weight of the far mean (0: the clouds alone),
-// gFieldShare the share of the pixel's footprint inside the clouds (the field's filtered picture, FieldCloud), gFieldTop the body's top there as a share of the type's height,
-// gFieldRC that body's horizontal semi-axis in m (both from the coarse channel at the footprint's mip level).
-static float gFieldFar, gFieldShare, gFieldTop, gFieldRC;
+// gFieldTop the body's top there as a share of the type's height, gFieldRC that body's horizontal semi-axis in m (both from the coarse channel at the footprint's mip level).
+static float gFieldFar, gFieldTop, gFieldRC;
+// The far mean's cover at a height (FieldFarShare below): the field's share with the map's surplus (gFieldF; below 0: no share), the field's mean and spread over the
+// footprint (gFieldMean, gFieldSpread: the middle stage) and the field's rise across one body radius (gFieldG: the gradient times the radius, in rank).
+static float gFieldF = -1.0, gFieldMean, gFieldSpread, gFieldG;
+
+// The share of the pixel's footprint that is inside a cloud at the height hv (the point's height over the body's top, 0 the base): the far mean's cover there. It is the
+// near view's body counted over the footprint: a place is inside at hv where its horizontal coordinate in the body, 1 - (f - u) / (gradient x radius), is below
+// sqrt(1 - hv^2) (the half ellipsoid), which is u < f - G (1 - sqrt(1 - hv^2)): the field's filtered share (the middle stage: saturate over mean +- spread) at a share
+// lowered by that much. At the base it is the footprint's cloud share; a dense field's merged interior stays full up to the top, separate clouds thin toward it.
+// Until master plan 47.U stage 2 it was share x (1 - hv^2), every cloud a separate dome whatever the share: from space a field of a share of 0.8 to 1 was a third
+// thinner than the near view's merged bodies (PRUEFPROTOKOLL 401: the clouds' level C fell from 0.63 to 0.57 when the map's sheet no longer drew those shares).
+float FieldFarShare(float hv)
+{
+    if (gFieldF < 0.0 || hv >= 1.0) return 0.0;
+    float f = gFieldF - gFieldG * (1.0 - sqrt(saturate(1.0 - hv * hv)));
+    return gFieldSpread > 1e-4 ? saturate((f - gFieldMean) / (2.0 * gFieldSpread) + 0.5) : step(gFieldMean, f);
+}
 // The pixel's footprint, as a share of the field's smallest feature, from which the far mean begins (the feature spans 8 pixels) and at which it has taken over (4 pixels).
 #define FIELD_FAR_FROM 0.125
 #define FIELD_FAR_TO 0.25
@@ -100,21 +114,24 @@ float _FieldV[FIELD_SPREAD_LEVELS];
 // A puffy type's cloud from the field, the one code of the layer pass and the cloud shadow (its twin on the CPU, number for number: CloudField.Cloud in CloudField.cs; a change here is a change there,
 // judged by the weather player's scene cloud-shadow -shadownoise 3). The cloud is where the field u(x) is below the map's local share f ({u < f} has the map's cover
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u: a dome of the
-// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). Where the share is above 0.8 (the closed cloud layer) the map's own value is drawn.
-// Returns -1 there (the caller draws the map; cov is then the map's value with the field's footprint blended in by the weight, so there is no edge
-// where it begins), 0 outside the body's reach (the density is 0), 1 inside it with the cell read's globals (gCellX, gCellR, gCellCore, gCellW) set for CellBody. uv: the layer map's
+// class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). The field carries every share: the closed cloud layer is the field at a share of 1, its bodies merged
+// (until master plan 47.U stage 2 the map's own value was drawn above a share of 0.8, the map's texels as blocks).
+// Returns 0 outside the body's reach (the density is 0), 1 inside it with the cell read's globals (gCellX, gCellR, gCellCore) set for CellBody. uv: the layer map's
 // coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point; typeHeightM: the type's height in m. The field is read at the mip level of the march's
 // spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
 // Where the pixel's footprint (foot, 0: none) nears the field's smallest feature the clouds lie below the pixel: the caller blends by gFieldFar to the clumpy medium of
-// ShapeShare with gFieldShare, the share of the footprint inside the clouds (the field's filtered picture, the middle stage below; the map's share where the footprint spans the whole field). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
-int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
+// ShapeShare with FieldFarShare, the share of the footprint inside the clouds (the field's filtered picture, the middle stage below; the map's share where the footprint spans the whole field). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
+int FieldCloud(int li, int puff, float2 uv, float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
 {
     float4 fc = _FieldC[puff];
     float fShare = CellShare(cov, coverage, edge, amount);
-    float wF = saturate((fShare - 0.8) / 0.15);
+    // THE FIELD CARRIES EVERY SHARE (master plan 47.U stage 2): the closed layer is the field at a share of 1, its clouds merged. Where the map lies above what a full
+    // cover needs (the share is 1 from cov + coverage - 1 = half the edge plus half the noise's swing on), the surplus carries on above 1: the field's highest places,
+    // the last to close, then lie as deep inside the merged body as the map is above the threshold, and a map well above it leaves no pit at them.
+    float fField = fShare + max(cov + coverage - 1.0 - 0.5 * (edge + abs(amount)), 0.0);
     // The far mean takes over while the field's smallest feature (_FieldP.w) shrinks from 8 pixels to 4 (PRUEFPROTOKOLL 355, 356): a cloud of fewer pixels cannot be drawn
     // as a shape by one sample a pixel; drawn so (until 2026-11-26 down to 1.3 pixels) the fields were a speckle from orbit (the owner: too noisy from above).
-    gFieldFar = (foot > 0.0 ? saturate((foot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : 0.0) * (1.0 - wF);
+    gFieldFar = (foot > 0.0 ? saturate((foot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : 0.0);
     float lat = (0.5 - uv.y) * 3.14159265;
     float xM = uv.x * 2.0 * 3.14159265 * rm * max(cos(lat), 0.02), yM = lat * rm;
     float along = (xM * _FieldP.y + yM * _FieldP.z) / fc.w, across = -xM * _FieldP.z + yM * _FieldP.y;
@@ -122,7 +139,7 @@ int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, flo
     // A texel is CloudField.TileM / CloudField.Size / z = 100 / z m.
     float lod = foot > 0.0 ? max(log2(foot * fc.z / 100.0), 0.0) : 0.0;
     float3 fv = tex2Dlod(_CloudField, float4(pF, 0, lod)).xyz;
-    float dm = (fShare - fv.x) / max(fv.y * fc.z * 0.001, 1e-6);
+    float dm = (fField - fv.x) / max(fv.y * fc.z * 0.001, 1e-6);
     float coreF = clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + fc.y * (1.0 - 2.0 * fv.z));
     float topF = clamp(coreF / 0.5, 0.15, 1.0);
     float semiH = max(topF * typeHeightM, 1.0), rC = fc.x * semiH;
@@ -133,23 +150,20 @@ int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, flo
     // on the approach the clouds sharpen out of their own blurred picture (the owner: nothing may pop). The body's top and width follow the coarse channel at the
     // same level. Until 2026-11-26 the far share was the map's alone: an even veil with the map's shapes as its borders.
     // Worked out only where the far mean has begun: a near sample (every accepted view) does none of it (PRUEFPROTOKOLL 359).
-    gFieldShare = fShare;
+    gFieldF = fShare > 0.0 ? fField : -1.0;
+    gFieldMean = fv.x;
+    gFieldSpread = 0.0;
+    gFieldG = fv.y * fc.z * 0.001 * rC;
     gFieldTop = topF;
     gFieldRC = rC;
     [branch] if (gFieldFar > 0.0)
     {
         float lodV = min(lod, FIELD_SPREAD_LEVELS - 1.001);
         int level = (int)floor(lodV);
-        float spread = lerp(_FieldV[level], _FieldV[level + 1], lodV - level);
-        gFieldShare = spread > 1e-4 ? saturate((fShare - fv.x) / (2.0 * spread) + 0.5) : step(fv.x, fShare);
+        gFieldSpread = lerp(_FieldV[level], _FieldV[level + 1], lodV - level);
     }
-    if (wF > 0.0)
-    {
-        // The footprint as the profile the threshold takes: above the threshold by up to the core strength inside, below it by up to half a unit outside.
-        float e = dm >= 0.0 ? min(dm / rC, 1.0) * coreF : max(dm / rC, -1.0) * 0.5;
-        cov = lerp(1.0 - coverage + e, cov, wF);
-        return -1;
-    }
+    // No share of the region is cloud: nothing, whatever the field holds there (its lowest places are below any share above 0 only).
+    if (fShare <= 0.0) return 0;
     float xv = 1.0 - clamp(dm / rC, -2.0, 1.0), hv = h / topF;
     float axis = min(rC, semiH);
     float swing = _CellE[li].x * axis * (0.5 + 0.5 * _CellE[li].z * (0.37 + 0.137));
@@ -157,7 +171,6 @@ int FieldCloud(int li, int puff, float2 uv, inout float cov, float coverage, flo
     gCellX = CELL_EDGE_X * xv;
     gCellR = rC / CELL_EDGE_X;
     gCellCore = coreF;
-    gCellW = 0.0;
     return 1;
 }
 

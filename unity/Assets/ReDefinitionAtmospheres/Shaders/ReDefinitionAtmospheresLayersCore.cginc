@@ -452,7 +452,7 @@
                 [branch] if (farW > 0.0)
                 {
                     float hv = h / gFieldTop;
-                    float fh = gFieldShare * saturate(1.0 - hv * hv);
+                    float fh = FieldFarShare(hv);   // the footprint's share inside a cloud at this height: the near view's bodies counted over the footprint
                     float semiH = max(gFieldTop * typeHeightM, 1.0), mu = saturate(gRayVertical);
                     float chord = (4.0 / 3.0) * gFieldRC * semiH / max(sqrt(gFieldRC * gFieldRC * mu * mu + semiH * semiH * (1.0 - mu * mu)) + gFieldRC * mu, 1e-3);
                     float tauC = _LayerB[li].x * pf.x * chord;
@@ -465,9 +465,9 @@
                 if (fieldCloud == 0 || farW >= 1.0) return farW * farShare;
             }
             cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
-            // THE BODY of a cloud the field placed (CellBody), where the field's read says a body draws (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
+            // THE BODY of a cloud the field placed (CellBody), where the field's read says a body draws (every share of a type with a form, the closed layer too; not the far view's mean): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
-            bool body = gCellX >= 0.0 && gCellW <= 0.0;
+            bool body = gCellX >= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
             // noise is evaluated only where this bound passes. The bound is the same expression as the shape below, so the result is exact.
             if (!body && DEV(_CostP.x, 1.0) > 0.5 && cov + coverage - 1.0 + TypeNoiseBound(li, pf.b) + 0.5 * edge <= 0.0) return farW * farShare;
@@ -492,7 +492,11 @@
             float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
-                float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 ? CellFineBulges(li, pc) : float2(0.0, 0.0);   // a read of the noise volume: none while the volumes are not bound
+                // The finer bulges are two reads of the noise volume: none while the volumes are not bound, and none for a light tap that reads the shape only (light != 0:
+                // every tap of a march to a light after its first ones, CloudLight's LightTau). They are the body's detail as the erosion is the map path's, which those
+                // taps do not read either; a body read them at EVERY tap, about half of a tap's texture reads (PRUEFPROTOKOLL 401: the light march is what keeps a sky
+                // full of cloud below 48 fps).
+                float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 && light == 0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, s, fine, (ty.tp - ty.b) * (outer - inner));
             }
             return lerp(s, farShare, farW);
@@ -515,7 +519,6 @@
             gFarW = 0.0;
             gFarSigma = 0.0;
             gCellX = -1.0;
-            gCellW = 1.0;
             gNoiseD = _NoiseS.w;
             gCumuliformPreset = 0;
             gCumuliformCav = 1;

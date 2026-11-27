@@ -26,26 +26,26 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             return 0.5 * (lo + hi);
         }
 
-        private static int At(double cov, double u, double v, double h, out double covOut, out CloudCells.CellRead read)
+        private static int At(double cov, double u, double v, double h, out CloudCells.CellRead read)
         {
-            return CloudField.Cloud(FieldData, Size, Mediocris, 1.0, 0.0, cov, Coverage, Edge, Amount, u, v, Rm, h, TypeHeightM, Bulge, Band, Fine, out covOut, out read);
+            return CloudField.Cloud(FieldData, Size, Mediocris, 1.0, 0.0, cov, Coverage, Edge, Amount, u, v, Rm, h, TypeHeightM, Bulge, Band, Fine, out read);
         }
 
         [TestMethod]
         public void TheShareOfPlacesInsideAFootprintIsTheMapsShare()
         {
             // The field is rank-uniform: a point lies in a cloud's footprint (the field below the share: a body's horizontal coordinate below 1) with the probability f.
-            foreach (double f in new[] { 0.2, 0.5, 0.7 })
+            // Every share, the nearly closed layer too (master plan 47.U stage 2: no hand-over to the map's value above 0.8).
+            foreach (double f in new[] { 0.2, 0.5, 0.7, 0.9, 0.97 })
             {
                 double cov = CovOf(f);
                 var rng = new Random(11);
                 int inside = 0, n = 20000;
                 for (int i = 0; i < n; i++)
                 {
-                    double covOut;
                     CloudCells.CellRead read;
                     // Places within 10 degrees of the equator, over a span far wider than the field's tile.
-                    int c = At(cov, rng.NextDouble(), 0.5 + (rng.NextDouble() - 0.5) * 0.1, 0.0, out covOut, out read);
+                    int c = At(cov, rng.NextDouble(), 0.5 + (rng.NextDouble() - 0.5) * 0.1, 0.0, out read);
                     if (c > 0 && read.XBest / CloudCells.EdgeX < 1.0) inside++;
                 }
                 Assert.AreEqual(f, inside / (double)n, 0.03, "share " + f);
@@ -60,51 +60,50 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             int bodies = 0, above = 0;
             for (int i = 0; i < 2000; i++)
             {
-                double u = rng.NextDouble(), v = 0.5 + (rng.NextDouble() - 0.5) * 0.1, covOut;
+                double u = rng.NextDouble(), v = 0.5 + (rng.NextDouble() - 0.5) * 0.1;
                 CloudCells.CellRead read;
-                if (At(cov, u, v, 0.0, out covOut, out read) <= 0) continue;
+                if (At(cov, u, v, 0.0, out read) <= 0) continue;
                 if (read.XBest / CloudCells.EdgeX > 0.5) continue;   // well inside the footprint
                 bodies++;
                 Assert.IsTrue(read.Body, "a body's read is a body");
                 Assert.IsTrue(CloudCells.CellBody(read, 0.0, 0.5, 0.0, 0.0, TypeHeightM, Bulge, Band, Fine) > 0.99, "the base inside the footprint is cloud");
                 // Three times the type's height above the base no body reaches (its top is at most the type's height, the bulges' swing at most half the shorter semi-axis).
-                double c2;
                 CloudCells.CellRead r2;
-                if (At(cov, u, v, 3.0, out c2, out r2) == 0) above++;
+                if (At(cov, u, v, 3.0, out r2) == 0) above++;
             }
             Assert.IsTrue(bodies > 100, "bodies found: " + bodies);
             Assert.AreEqual(bodies, above, "no body three type heights up");
         }
 
         [TestMethod]
-        public void FromACoverShareOfFourFifthsTheMapDrawsAValueThatStartsAtTheFootprintsProfileAndEndsAtTheMapsOwn()
+        public void TheClosedLayerIsTheFieldAtAShareOfOneAndTheMapsSurplusMergesItsClouds()
         {
-            double below = CovOf(0.799), just = CovOf(0.8001), third = CovOf(0.85), full = CovOf(0.97);
+            // The share is 1 from the map value 1 - coverage + half the edge + half the noise's swing on. There every place is inside a footprint, but the field's highest
+            // places lie right at an edge (a pit). A map above that value carries its surplus on: the distance to the edge grows by surplus / gradient, the same at every
+            // place, so the pits close. A map with no share at all draws nothing, whatever the field holds.
+            double full = 1.0 - Coverage + 0.5 * (Edge + Amount);
             var rng = new Random(3);
-            double minJust = double.MaxValue, minThird = double.MaxValue, maxThird = double.MinValue;
-            for (int i = 0; i < 4000; i++)
+            int n = 4000, nearEdgeAtOne = 0, nearEdgeWithSurplus = 0;
+            double sumAtOne = 0.0, sumWithSurplus = 0.0;
+            for (int i = 0; i < n; i++)
             {
-                double u = rng.NextDouble(), v = 0.5 + (rng.NextDouble() - 0.5) * 0.1, covOut;
-                CloudCells.CellRead read;
-                Assert.AreNotEqual(-1, At(below, u, v, 0.2, out covOut, out read), "below 0.8 the field draws");
-                Assert.AreEqual(below, covOut, 0.0, "the map value is untouched where the field draws");
-                Assert.AreEqual(-1, At(just, u, v, 0.2, out covOut, out read), "from 0.8 the map draws");
-                Assert.IsFalse(read.Body, "the map's read is no body");
-                minJust = Math.Min(minJust, covOut);
-                Assert.AreEqual(-1, At(third, u, v, 0.2, out covOut, out read));
-                minThird = Math.Min(minThird, covOut);
-                maxThird = Math.Max(maxThird, covOut);
-                Assert.AreEqual(-1, At(full, u, v, 0.2, out covOut, out read));
-                Assert.AreEqual(full, covOut, 1e-12, "from 0.95 the map's own value");
+                double u = rng.NextDouble(), v = 0.5 + (rng.NextDouble() - 0.5) * 0.1;
+                CloudCells.CellRead one, more, none;
+                Assert.AreEqual(1, At(full, u, v, 0.0, out one), "a share of 1: a body everywhere");
+                Assert.AreEqual(1, At(full + 0.3, u, v, 0.0, out more));
+                Assert.AreEqual(0, At(1.0 - Coverage - 0.5 * (Edge + Amount) - 0.01, u, v, 0.0, out none), "no share: no cloud");
+                Assert.IsFalse(none.Body);
+                double xOne = one.XBest / CloudCells.EdgeX, xMore = more.XBest / CloudCells.EdgeX;   // 0 the body's middle, 1 its edge
+                Assert.IsTrue(xOne <= 1.0 + 1e-9 && xMore <= xOne + 1e-9, "the surplus moves no place outward: " + xOne + " -> " + xMore);
+                sumAtOne += xOne;
+                sumWithSurplus += xMore;
+                if (xOne > 0.8) nearEdgeAtOne++;
+                if (xMore > 0.8) nearEdgeWithSurplus++;
             }
-            // The value handed on is the footprint's profile blended to the map's own by the weight (share - 0.8) / 0.15. Far outside every footprint the profile is half a
-            // unit below the threshold, 1 - coverage - 0.5: right above 0.8 the value there is that number (NOT the map's own, about 0.95), a third of the way it is a third
-            // of the way to the map's value. An implementation that hands the map's value on unblended fails both.
-            double outside = 1.0 - Coverage - 0.5;
-            Assert.AreEqual(outside + (just - outside) * (0.0001 / 0.15), minJust, 1e-9, "the value far outside a footprint right above 0.8");
-            Assert.AreEqual(outside + (third - outside) / 3.0, minThird, 1e-9, "the value far outside a footprint at a share of 0.85");
-            // Inside a footprint the profile lies above the threshold by at most the core strength (0.5 times 1 + the class's top gain).
-            Assert.IsTrue(maxThird > 1.0 - Coverage + 0.2 && maxThird <= 1.0 - Coverage + 0.5 * (1.0 + Mediocris[1]) + (third - (1.0 - Coverage)) / 3.0 + 1e-9, "the value deep inside: " + maxThird);
+            // The field's gradient is not bounded, so a steep place can stay near an edge: the count falls to a small part, it is not asserted to be none.
+            Assert.IsTrue(nearEdgeAtOne > 20, "at a share of exactly 1 some places still lie at an edge: " + nearEdgeAtOne);
+            Assert.IsTrue(nearEdgeWithSurplus * 20 <= nearEdgeAtOne, "a map 0.3 above the full share leaves at most a twentieth of them: " + nearEdgeAtOne + " -> " + nearEdgeWithSurplus);
+            Assert.IsTrue(sumWithSurplus < 0.5 * sumAtOne, "the mean distance from the middle falls: " + sumAtOne / n + " -> " + sumWithSurplus / n);
         }
 
         // The map coordinate of a place given in metres east and north of the map's origin on the layer's sphere.
@@ -117,10 +116,10 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
 
         private static CloudCells.CellRead ReadAt(float[] cls, double windDeg, double xM, double yM)
         {
-            double u, v, covOut, a = windDeg * Math.PI / 180.0;
+            double u, v, a = windDeg * Math.PI / 180.0;
             Place(xM, yM, out u, out v);
             CloudCells.CellRead read;
-            int cloud = CloudField.Cloud(FieldData, Size, cls, Math.Cos(a), Math.Sin(a), CovOf(0.5), Coverage, Edge, Amount, u, v, Rm, 0.0, TypeHeightM, Bulge, 1e6, Fine, out covOut, out read);
+            int cloud = CloudField.Cloud(FieldData, Size, cls, Math.Cos(a), Math.Sin(a), CovOf(0.5), Coverage, Edge, Amount, u, v, Rm, 0.0, TypeHeightM, Bulge, 1e6, Fine, out read);
             Assert.AreEqual(1, cloud, "with a band this wide every place is within a body's reach");
             return read;
         }

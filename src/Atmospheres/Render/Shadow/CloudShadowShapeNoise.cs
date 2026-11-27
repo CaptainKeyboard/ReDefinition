@@ -155,19 +155,17 @@ namespace ReDefinition.Atmospheres
                     double latDeg = Math.Asin(Math.Max(-1.0, Math.Min(1.0, z / r))) * (180.0 / Math.PI);
                     double lonDeg = Math.Atan2(y, x) * (180.0 / Math.PI);
                     double u = (lonDeg - layer.MapShiftDeg + 180.0) / 360.0, v = (90.0 - latDeg) / 180.0;
-                    double blended;
                     int cloud = CloudField.Cloud(field, fieldSize, CloudField.Classes[form], fieldCos, fieldSin, covMap, layer.EffectiveCoverage,
                                                  Math.Max(layer.EffectiveEdgeSoftness, 1e-4f), layerAmount, u, v, layerRm[layerIndex],
                                                  (layerShare - b) / (tp - b), (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), CloudLookTuning.CellBulgeFor(layer),
-                                                 CloudLookTuning.CellBandFor(layer), CloudLookTuning.CellFineFor(layer), out blended, out read);
-                    if (cloud == 0) return 0.0;
-                    if (cloud > 0) return BodyShare(layerIndex, layer, x, y, z, table, typeValue, layerShare, b, tp, amount, ref read);
-                    covMap = blended;   // the map draws (a cover share above 0.8): the blended value takes the lift and the noise below
+                                                 CloudLookTuning.CellBandFor(layer), CloudLookTuning.CellFineFor(layer), out read);
+                    // The field carries every share of a type with a form (the closed layer too): outside every body nothing, inside one the body.
+                    return cloud == 0 ? 0.0 : BodyShare(layerIndex, layer, x, y, z, table, typeValue, layerShare, b, tp, amount, ref read);
                 }
             }
             if (!noiseRead || !(amount > 0.0) || !(layer.EffectiveNoiseScaleM > 0f))
             {
-                if (!(lift > 0.0) && form <= 0) return -1.0;
+                if (!(lift > 0.0)) return -1.0;
                 double plain = LayerDensity.Shape(covMap - lift, layer.EffectiveCoverage, layer.EffectiveEdgeSoftness);
                 return CloudWater.Pow(plain, layer.EffectiveWaterPowerAt(table, typeValue));
             }
