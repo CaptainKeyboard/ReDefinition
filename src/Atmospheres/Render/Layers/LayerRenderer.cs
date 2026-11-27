@@ -65,7 +65,10 @@ namespace ReDefinition.Atmospheres
         public float LeapScales;
         // The product's values: the leap and the layer-kind shares are off (they gained nothing on the view table), the sun march is reused
         // below a step weight of 0.05 and between every two lit steps.
-        public float EmptyLeap = 1f, LightCutoff = 0.05f, CheapShare = 1f, FogShare = 1f;
+        // LightCutoff is a tenth since 2026-11-28 (it was a twentieth): in the dense sky under rain the pictures with a tenth differ from the plain ones by less than two
+        // plain runs differ from each other (mean absolute difference 0.011 to 0.030 against 0.012 to 0.037, the 99th percentile 0.043 to 0.180 against 0.047 to 0.184, in
+        // the four views), and looking up it gives 5 to 6 fps (PRUEFPROTOKOLL 401, 402).
+        public float EmptyLeap = 1f, LightCutoff = 0.10f, CheapShare = 1f, FogShare = 1f;
         // LightStride: a lit step marches to the sun only every this many lit steps of a span; the steps between reuse the last result.
         public int LightStride = 2;
         // Cost attribution only (layers.costCutM): the march ends at this distance in m, 0 off; the picture is wrong while set.

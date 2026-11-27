@@ -90,7 +90,10 @@ namespace ReDefinition.Atmospheres
                     material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                 }
                 if (Time.realtimeSinceStartup < rescanAt) return;
+                // The look below walks every object of the scene and reads Scatterer by reflection: every RescanSeconds until an ocean camera carries the hook, every
+                // ten times that after (a camera Scatterer makes later, or its setting switched, is taken up then).
                 rescanAt = Time.realtimeSinceStartup + RescanSeconds;
+                int hooked = 0;
                 if (deferredSsr == null) deferredSsr = TypeLookup.Find("Deferred.ScreenSpaceReflections");
                 if (oceanBuffer == null) oceanBuffer = TypeLookup.Find("Scatterer.OceanCommandBuffer");
                 if (deferredSsr == null || oceanBuffer == null) return;
@@ -112,7 +115,9 @@ namespace ReDefinition.Atmospheres
                     Camera cam = c.GetComponent<Camera>();
                     if (ssr == null || cam == null) continue;
                     Attach(cam.gameObject, ssr);
+                    hooked++;
                 }
+                if (hooked > 0) rescanAt = Time.realtimeSinceStartup + 10f * RescanSeconds;
             }
             catch (Exception e)
             {

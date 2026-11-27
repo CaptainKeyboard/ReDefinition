@@ -299,7 +299,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "ReDefinition", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.05", "atmo.layers.emptyLeap": "1"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "ReDefinition", "atmo.ownClouds": "True", "atmo.layerCap": "4", "atmo.layerStepGrowth": "2", "atmo.cloudLightOctaves": "4", "atmo.cloudPowder": "0.8075", "atmo.cloudMoonLights": "2", "atmo.cloudAmbientTaps": "False", "atmo.cloudAmbientReuse": "0", "atmo.cloudShadowFloor": "0", "atmo.cloudReconMode": "Full", "atmo.cloudResolution": "1", "atmo.layers.coverageBound": "1", "atmo.layers.lightStride": "2", "atmo.layers.lightCutoff": "0.1", "atmo.layers.emptyLeap": "1"},
       "tweaks": [
         {"id": "weather-layerCap", "name": "Own Cloud Layer Cap 2", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerCap": "2"}},
         {"id": "weather-layerStepGrowth", "name": "Own Cloud Step Growth 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerStepGrowth": "0"}},
