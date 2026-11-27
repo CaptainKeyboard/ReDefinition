@@ -1399,6 +1399,11 @@ namespace ReDefinition.Atmospheres
                 lastHeightMapsRead = done.MapsRead;
                 Stats.HeightBuilds++;
                 Stats.LastHeightMs = done.ElapsedMs;
+                // The moment the layers' heights change (they change at once: PRUEFPROTOKOLL 376): a picture taken within a second of it shows the moved clouds
+                // from the reconstruction's fill. One line a build (a build about every 30 s).
+                AtmospheresLog.Say("own clouds: height build " + Stats.HeightBuilds + " applied at frame " + Time.frameCount + " (planned at ut "
+                                   + done.PlanUt.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + ", " + done.ElapsedMs.ToString("0", System.Globalization.CultureInfo.InvariantCulture)
+                                   + " ms on the worker)");
                 if (Stats.HeightBuilds <= 1 && Stats.FirstHeightMs == 0.0) Stats.FirstHeightMs = Stats.LastHeightMs;
                 else Stats.WorstHeightMs = Math.Max(Stats.WorstHeightMs, Stats.LastHeightMs);
             }
