@@ -227,21 +227,8 @@ VARIANTS = {
     # --- OPT4 (2026-11-17): the march target at a quarter of the full size (recon.resolution 0.25) against today's third, on today's look (cumuliform, rim 0.5, cavity 0.35, blend, 96 points) ---
     "o4_now": ("(OPT4) today's look, the march target a third of the full size", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), NG96),
     "o4_r25": ("(OPT4) today's look, the march target a quarter of the full size", tune_cumulus(CUMULIFORM1 + EDGE + CAV35 + [("cloud.noise.blend", 1.0)]), "seq1+lq2+ng96+r25+lp100"),
-    # --- CELLS (2026-11-17): the jobs as e40pp --prepare --state now makes them carry today's cfg (the types' cumuliform, rim and cavity, the cumulus layer's cellPitch); the product march of Medium ---
-    "c_off": ("(CELLS) the game today: the map's texels as the clouds (cloud.cells 0)", tune_dotted([("cloud.cells", 0.0)]), NG96),
-    "c_on": ("(CELLS) single clouds from the map's share on the cumulus layer's 3 km lattice (cloud.cells 1)", tune_dotted([("cloud.cells", 1.0)]), NG96),
-    # the soft rim seen from below: the erosion in the rim band (types' erosion halved), the edge band (the cumulus layer's edge softness 0.08 instead of 0.15), both
-    # the soft water content's rim width is softness (the owner's setting, 0.5) x the layer's softnessScale (cumulus 1) in units of the noise's swing: 0.5 of it fades every cloud over hundreds of metres
-    "c_ss03": ("(CELLS) c_on, the cumulus layer's softnessScale 0.3 (rim width 0.15)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.3))), NG96),
-    "c_ss05": ("(CELLS) c_on, the cumulus layer's softnessScale 0.5 (rim width 0.25)", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softnessScale", 0.5))), NG96),
-    # the owner's photograph's framing (one cumulus seen from the side over the sea): the camera 30 m over the sea looking east from the K-T2 site, 8 degrees up, the sun behind it
-    "c_side": ("(CELLS) the photograph's framing: 30 m over the sea, 8 degrees up, cells on", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 1.0)])), NG96),
-    "c_side_off": ("(CELLS) the photograph's framing, cells off (the game before CELLS)", compose(camera_at(30.0, 8.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
-    # the photograph's light too: the sun 25 degrees up behind the camera, the camera 4 degrees up (the far clouds in the frame)
-    "c_photo": ("(CELLS) the photograph's framing and light: 30 m, 4 degrees up, the sun 25 degrees up behind the camera, cells on", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), NG96),
-    "c_photo_off": ("(CELLS) as c_photo, cells off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), NG96),
-    # the look without a cost limit (owner 2026-11-17: first the photograph's look whatever it costs, then the performance): c_photo at the ceiling march
-    "c_photo_ceil": ("(CELLS) c_photo at the ceiling march (256 grid points, 6 m minimum step, every lit step to the sun with 16 taps, full size)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 1.0)])), CEIL),
+    # (The variants c_*, t_*, s_*, f_*, tc_nocells and tr_nocells went with master plan 47.U stage 1: they set the keys cloud.cells, cloud.cellTrace, cloud.cellShell and
+    # cloud.cellFoot, which no code reads any more. The photograph's framing and light, 30 m over the sea, 4 degrees up, the sun 25 degrees up behind the camera, are the b_* variants'.)
     # The single cloud's body (CloudCells.cginc CellBody) as the cfg sets it (the cumulus layer's cellBulge 0.5, cellBand 10 m, cellFine 1: the look the owner chose on 2026-11-17),
     # in the photograph's framing and light. b_ceil at the ceiling march is the chosen look; b_prod is what the product's march of Medium draws of it; b_fh adds the first hit by
     # bisection with 32 thin steps after it (the surface found to the band's width), b_fh50 that at half the size; b_f0 and b_f3 the finer bulges off and three times as strong.
@@ -267,20 +254,7 @@ VARIANTS = {
     "b_steps_filt": ("(BODY) the ceiling's steps, the product's light with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0)), STEPS),
     "b_prod_filt": ("(BODY) the product's march (96 grid points) with filtered jittered sun taps", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cumuliform.footLod", 1.0)])), "seq1+lq2+ng96+r33+lp100"),
     "b_ng96_nofoot": ("(BODY) the product's march with 96 grid points, the cumuliform's spacing LOD off", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cumuliform.footLod", 0.0)])), "seq1+lq2+ng96+r33+lp100"),
-    # A4 (owner audit 2026-11-17): cloud.cellTrace leaps the grid points beyond the reach of a body's bulges (the picture should be the grid march's: cover and look equal on and off);
-    # cloud.cellFoot filters the body by the sample's footprint (finer bulges fade once the sample is wider than them, the band at least a pixel): the product's march with fewer grid points
-    # should come close to the chosen look (t_ceil_off) where the grid alone needed 256.
-    "t_ceil": ("(TRACE) b_ceil with the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), CEIL),
-    "t_ceil_off": ("(TRACE) b_ceil without the shell leap (the chosen look as it was)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), CEIL),
-    "t_prod": ("(TRACE) the product's march (96 grid points) with the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0)])), NG96),
-    "t_prod_off": ("(TRACE) the product's march (96 grid points) without the shell leap", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0)])), NG96),
-    "f_ceil": ("(FOOT) b_ceil with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), CEIL),
-    "f_ng96": ("(FOOT) 96 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), NG96),
-    # cloud.cellShell: fine steps inside a body's shell (the pixel's size, at least 6 m, at most the grid step), with the leap outside; fewer grid points should reach the ceiling's look.
-    "s_ng64": ("(SHELL) 64 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), "seq1+lq2+ng64+r33+lp100"),
-    "s_ng96": ("(SHELL) 96 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), NG96),
-    "s_ng128": ("(SHELL) 128 grid points with the shell leap and fine steps in the shell", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellShell", 1.0)])), "seq1+lq2+ng128+r33+lp100"),
-    # A4 2026-11-18: the owner's verdict: t_ceil_off is the finest picture, every cheaper one loses visibly. Which of the ceiling's factors makes it, one at a time from the ceiling:
+    # A4 2026-11-18: the owner's verdict: b_ceil (then named t_ceil_off) is the finest picture, every cheaper one loses visibly. Which of the ceiling's factors makes it, one at a time from the ceiling:
     # the march target's size (r33, the product's), the temporal stage (the product's reconstruction instead of the jittered accumulation), the light taps (b_steps_res), the step (the
     # product's grid of 256 and 96 points at the ceiling's full size and accumulation).
     "k_ceil_r33": ("(SPLIT) the ceiling march at the product's third of the size and its reconstruction", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ceil+r33+lp100"),
@@ -307,7 +281,7 @@ VARIANTS = {
     "k4_grow": ("(SEARCH 4) k3_taps8 with the product's step growth along the ray", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cel+ctap8+cst1+r100+lp100"),
     "k4_stride": ("(SEARCH 4) k3_taps8 with the light march every second lit step (the product's stride)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     # Round 5 (owner 2026-11-18: the light march every second lit step is equal; 4 taps and a 9 km march are not): the accepted look (k4_stride) at a smaller march size, the
-    # missing pixels taken from the jittered history (the target t_ceil_off accumulated jittered frames too). Static camera: one that passes is checked in motion next.
+    # missing pixels taken from the jittered history (the target b_ceil accumulated jittered frames too). Static camera: one that passes is checked in motion next.
     "k5_r66acc": ("(SEARCH 5) k4_stride at two thirds of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r66+jit+acc8+clip1000+lp100"),
     "k5_r50acc": ("(SEARCH 5) k4_stride at half the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r50+jit+acc8+clip1000+lp100"),
     "k5_r33acc": ("(SEARCH 5) k4_stride at a third of the size with jitter and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r33+jit+acc8+clip1000+lp100"),
@@ -316,12 +290,11 @@ VARIANTS = {
     "p2_skip": ("(PERF 2) the accepted look with the tile pass's skip of empty tiles", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+skip+r100+lp100"),
     "p6_dlod": ("(PERF 6) the accepted look with the detail dropped below a pixel", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dlod+r100+lp100"),
     # Timing split of the accepted look in the player's soft-cost scene (2026-11-18, the GPU timestamps of the march, a few minutes a run; the cost debug bits make the picture
-    # wrong on purpose): no light march (dbg1), no shape noise (dbg2), neither and no erosion (dbg7), the map alone without the single clouds, no finer bulges.
+    # wrong on purpose): no light march (dbg1), no shape noise (dbg2), neither and no erosion (dbg7), no finer bulges.
     "tc_base": ("(TIME) the accepted look", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     "tc_d1": ("(TIME) the accepted look without the light march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg1+r100+lp100"),
     "tc_d2": ("(TIME) the accepted look without the shape noise", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg2+r100+lp100"),
     "tc_d7": ("(TIME) the accepted look without light, noise and erosion", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+dbg7+r100+lp100"),
-    "tc_nocells": ("(TIME) the accepted look with the map alone (no single clouds)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     "tc_nofine": ("(TIME) the accepted look without the finer bulges", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellFine", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+r100+lp100"),
     # The light cache (2026-11-19): the accepted look with its first three sun taps marched (47/94/188 m) and the rest of the way to the sun from the cache (40 km box,
     # 24 fill taps unless named). lc_g128 the default 128 x 128 x 32 voxels (owner: equal to k4_stride; player 86 against 97 ms); the others at 256 x 256 x 64:
@@ -347,7 +320,6 @@ VARIANTS = {
     "tr_d1": ("(TIME) tr_base without the light march", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+dbg1+lp100"),
     "tr_d2": ("(TIME) tr_base without the shape noise", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+dbg2+lp100"),
     "tr_d7": ("(TIME) tr_base without light, noise and erosion", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+dbg7+lp100"),
-    "tr_nocells": ("(TIME) tr_base with the map alone (no single clouds)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cells", 0.0)])), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+lp100"),
     # The light stride with the rotation (2026-11-19, owner: continue the cloud optimisation): ls3/ls4 the sun march every 3rd/4th lit step, m the reused depth
     # moved by the ray's progress (lrm); against rot2ac (stride 2, the accepted look with the rotation) and tr_s1 (every lit step).
     "tr_s1": ("(STRIDE) rot2ac with the sun march at every lit step", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctap8+blk2+bacc+chm+cst1+lp100"),
@@ -359,9 +331,6 @@ VARIANTS = {
     "k_vis_all": ("(SEARCH 2) the ceiling with all three visibility savings of the product", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+c256+cmin6+cnsg+cel+ctaps+cst1+r100+lp100"),
     "k_ng256_full":("(SPLIT) 256 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r100+jit+acc8+clip1000+lp100"),
     "k_ng96_full": ("(SPLIT) 96 grid points at the ceiling's full size and accumulation", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+r100+jit+acc8+clip1000+lp100"),
-    "f_ng96_only":("(FOOT) 96 grid points with the footprint filter alone (no shell leap)", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 0.0), ("cloud.cellFoot", 1.0)])), NG96),
-    "f_ng128":("(FOOT) 128 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), "seq1+lq2+ng128+r33+lp100"),
-    "f_ng256": ("(FOOT) 256 grid points with the shell leap and the footprint filter", compose(camera_at(30.0, 4.0), sun_behind(25.0), tune_dotted([("cloud.cellTrace", 1.0), ("cloud.cellFoot", 1.0)])), "seq1+lq2+ng256+r33+lp100"),
     "b_ng256": ("(BODY) the product's march with 256 grid points (the product since ffd10f37)", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng256+r33+lp100"),
     "b_ng128": ("(BODY) the product's march with 128 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng128+r33+lp100"),
     "b_ng160": ("(BODY) the product's march with 160 grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng160+r33+lp100"),
@@ -371,10 +340,6 @@ VARIANTS = {
     "b_ceo": ("(BODY) the product's march with early-out 0.001", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+ceo+r33+lp100"),
     "b_cel": ("(BODY) the product's march without the leap over empty grid points", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+cel+r33+lp100"),
     "b_cls": ("(BODY) the product's march with every lit step to the sun", compose(camera_at(30.0, 4.0), sun_behind(25.0)), "seq1+lq2+ng96+cls+r33+lp100"),
-    "c_ero50": ("(CELLS) c_on, the types' erosion halved", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5))), NG96),
-    "c_edge08": ("(CELLS) c_on, the cumulus layer's edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
-    "c_both": ("(CELLS) c_on, erosion halved and edge softness 0.08", compose(tune_dotted([("cloud.cells", 1.0)]), lambda job: each_type(job, lambda t: t.__setitem__("erosion", t.get("erosion", 0.0) * 0.5)),
-                                                                               cumulus_layer(lambda l: l.__setitem__("softness", 0.08))), NG96),
     "steps": ("(Phase 0) the ceiling's grid, minimum step, no growth, early-out", None, STEPS),
     "s_p2p1p3": ("(Phase 0 grid) P2 + P1 + P3 at the ceiling's grid, minimum step, no growth", tune_cumulus(CUMULIFORM1 + EDGE + CAV), STEPS),
     "s_p2p1p3p6": ("(Phase 0 grid) P2 + P1 + P3 + P6 at the ceiling's grid", tune_cumulus(CUMULIFORM1 + EDGE + CAV + FIRSTHIT), STEPS),
@@ -450,9 +415,6 @@ def prepare(views, variants, only=None):
             job["id"] = "gn-%s-prod-f0" % new_tag
             job["width"], job["height"] = SIZE
             change, case = VARIANTS[variant][1], VARIANTS[variant][2]
-            # The single-cloud lattice is the shape test's tool (owner 2026-11-19): on in every puff job unless the variant sets cloud.cells itself (its entry comes later and wins);
-            # the game's default is off, the weather map decides the clouds.
-            job.setdefault("tuning", []).insert(0, {"key": "cloud.cells", "value": 1.0})
             if change:
                 change(job)
             spec = json.loads(json.dumps(specs[base_id]).replace(base_tag + "-", new_tag + "-"))
@@ -779,7 +741,7 @@ def collect(ctx):
 
 register_series("e40-puff", stage_list(), collect, exclusive=False, who="e40-puff")
 
-COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nocells", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_nocells", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac")
+COST_VARIANTS = ("base", "ssz", "steps", "res", "light", "ceil", "r_a", "r_s16", "r_s32", "r_s64", "r_s32n", "r_ls", "r_c256", "r_cmin6", "r_cng", "r_c256m", "r_c256mg", "r_g", "r_ng96", "r_ng128", "r_ng192", "bl_a", "bl_base", "bl_g", "p2p1p3", "s_p2p1p3", "tc_base", "tc_d1", "tc_d2", "tc_d7", "tc_nofine", "lc_3", "lc_box80", "lc_near4", "lc_fill12", "lc_g128", "lc_g128f12", "rot2", "rot3", "rot2a", "rot3a", "far5", "far10", "tr_base", "tr_d1", "tr_d2", "tr_d7", "tr_s1", "tr_s2m", "tr_s3", "tr_s3m", "tr_s4m", "rot2ac")
 
 
 def cost_label(march):

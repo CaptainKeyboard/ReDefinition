@@ -2,8 +2,8 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
-    // CLOUD FIELD (owner 2026-11-19): the arrangement and the body of the cumuliform cloud types from the weather map and ONE multi-scale field, without a lattice. The C# twin of
-    // tools/weather_metrics/cellfield.py (make_field) and of the field block of ReDefinitionAtmospheresLayers.shader (LayerDensityEx).
+    // CLOUD FIELD (owner 2026-11-19): the arrangement and the body of the cumuliform cloud types from the weather map and ONE multi-scale field, without a lattice. The shaders read the
+    // field through FieldCloud (CloudCells.cginc); Cloud below is that function's twin on the CPU.
     //
     // The field u(x) is horizontal and tileable (TileM), a Gaussian field with the power spectrum |k|^-Slope between the wavelengths LambdaMaxM and LambdaMinM (spectral synthesis: amplitude
     // |k|^(-Slope/2), the phase a hash of the wavenumber, the real part of the inverse FFT), its value replaced by its rank, so the share of the points with u < f is f for every f. A cloud exists
@@ -143,7 +143,7 @@ namespace ReDefinition.Atmospheres
         // The variance inside a box of level L is the whole field's variance less the variance of the level's means (the law of total variance, exact for the 2 x 2
         // box filter the mip chain is made with), and an even spread of variance v has the half width sqrt(3 v). Level 0: 0 (a texel holds one value); the coarsest
         // levels of the rank-uniform field: about 0.5 (its variance 1 / 12). FieldCloud takes it for the share of a pixel's footprint that lies inside the single
-        // clouds, {u < f}: saturate((f - mean) / (2 a) + 0.5), the field's own filtered picture between the single clouds and the map's share.
+        // clouds, {u < f}: saturate((f - mean) / (2 a) + 0.5), the field's own filtered picture between the clouds and the map's share.
         internal static float[] MipSpread(float[] field, int size, int channel, int levels = SpreadLevels)
         {
             var spread = new float[levels];
@@ -189,6 +189,59 @@ namespace ReDefinition.Atmospheres
             double a = field[(y0 * size + x0) * 4 + channel], b = field[(y0 * size + x1) * 4 + channel];
             double c = field[(y1 * size + x0) * 4 + channel], d = field[(y1 * size + x1) * 4 + channel];
             return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+        }
+
+        // ---- the field's cloud on the CPU (the shader's FieldCloud for a point: a footprint of 0) ----
+
+        // What the field says at a point of a layer's map, as the shader's FieldCloud (CloudCells.cginc) says it for a footprint of 0, so that the CPU readers of the clouds' place (the cloud
+        // shadow's field: the sun's dimming) stand where the picture draws them. Returns 1: inside the reach of a cloud's body, read holds the body's numbers for CloudCells.CellBody;
+        // 0: outside every body (no cloud); -1: the cover share is above 0.8, the map draws (read is "no body") and covOut is the map's value blended to the footprint's profile, which the
+        // caller's lift and noise then take. The far mean of the shader is not here: a CPU reader asks for a point, not for a pixel's footprint.
+        // field: the channels of Build (size x size x 4); cls: the type's class (aspect, top gain, scale, stretch: Classes); windCos, windSin: the street direction; cov: the layer map's
+        // value after the clear-sky rule; coverage, edge, amount: the layer's; u, v: the layer map's coordinate (u with the layer's shift, any value; v 0 north to 1 south); rm: the radius
+        // of the layer's middle in m; h: the height share of the type at the point; typeHeightM: the type's height in m; bodyBulge, band, fineGain: the layer's body numbers (the bulges'
+        // swing bounds the body's reach).
+        internal static int Cloud(float[] field, int size, float[] cls, double windCos, double windSin, double cov, double coverage, double edge, double amount, double u, double v,
+                                  double rm, double h, double typeHeightM, double bodyBulge, double band, double fineGain, out double covOut, out CloudCells.CellRead read)
+        {
+            read.XBest = -1.0;
+            read.RBest = 0.0;
+            read.Core = 0.0;
+            read.WMap = 1.0;
+            covOut = cov;
+            double f = CloudCells.Share(cov, coverage, edge, amount);
+            double wF = Clamp((f - 0.8) / 0.15, 0.0, 1.0);
+            double lat = (0.5 - v) * Math.PI;
+            double xM = u * 2.0 * Math.PI * rm * Math.Max(Math.Cos(lat), 0.02), yM = lat * rm;
+            double along = (xM * windCos + yM * windSin) / cls[3], across = -xM * windSin + yM * windCos;
+            double px = along * windCos - across * windSin, py = along * windSin + across * windCos;
+            double fu = Sample(field, size, 0, px, py, cls[2]), fg = Sample(field, size, 1, px, py, cls[2]), fb = Sample(field, size, 2, px, py, cls[2]);
+            double dm = (f - fu) / Math.Max(fg * cls[2] * 0.001, 1e-6);
+            double coreF = Clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + cls[1] * (1.0 - 2.0 * fb));
+            double topF = Clamp(coreF / 0.5, 0.15, 1.0);
+            double semiH = Math.Max(topF * typeHeightM, 1.0), rC = cls[0] * semiH;
+            if (wF > 0.0)
+            {
+                // The footprint as the profile the threshold takes: above it by up to the core strength inside, below it by up to half a unit outside.
+                double e = dm >= 0.0 ? Math.Min(dm / rC, 1.0) * coreF : Math.Max(dm / rC, -1.0) * 0.5;
+                double cell = 1.0 - coverage + e;
+                covOut = cell + (cov - cell) * wF;
+                return -1;
+            }
+            double xv = 1.0 - Clamp(dm / rC, -2.0, 1.0), hv = h / topF;
+            double axis = Math.Min(rC, semiH);
+            double swing = bodyBulge * axis * (0.5 + 0.5 * fineGain * (0.37 + 0.137));
+            if ((1.0 - Math.Sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * Math.Max(band, 1.0) < 0.0) return 0;
+            read.XBest = CloudCells.EdgeX * xv;
+            read.RBest = rC / CloudCells.EdgeX;
+            read.Core = coreF;
+            read.WMap = 0.0;
+            return 1;
+        }
+
+        private static double Clamp(double x, double a, double b)
+        {
+            return x < a ? a : x > b ? b : x;
         }
 
         // ---- the FFT ----

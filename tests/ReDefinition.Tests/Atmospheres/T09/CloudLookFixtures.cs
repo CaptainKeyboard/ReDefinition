@@ -80,9 +80,8 @@ namespace ReDefinition.Tests.Atmospheres.T09
             cumulus.TopReach = 0.2105f;
             cumulus.TopRefMs = 1.2f;
             cumulus.TopFullMs = 11.2f;
-            // CELLS: the sharp outline (softnessScale 0.3) and the single clouds' lattice of the shipped file.
+            // CELLS: the sharp outline (softnessScale 0.3) of the shipped file.
             cumulus.SoftnessScale = 0.3f;
-            cumulus.CellPitchM = 3000f;
             // The type at no precipitation is humilis (the second of five), at full precipitation congestus (the fourth); the mid-level sheet's rule picks the altocumulus (the last).
             cumulus.FairType = 0.25f;
             cumulus.RainType = 0.75f;

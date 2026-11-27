@@ -12,7 +12,7 @@ namespace ReDefinition.Atmospheres
     //   nocumuliform     the cumuliform volume off on the cumulus layer only (edgePower stays; the cavity goes with the cumuliform, it acts only on a type that reads one)
     //   nocatmull  recon.catmull 0 (bilinear history)
     //   g48        48 grid points (cloudSamples 48)
-    //   prev       the whole previous look (the viewer's preset "Previous Look": blend 0, erosion 0, Catmull 0, cumuliform 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
+    //   prev       the cloud model's parts off (the viewer's preset "Model Parts Off": blend 0, erosion 0, Catmull 0, cumuliform 0 / edgePower 2 / cavity 0 on cumulus, 48 points)
     //   noshadow   cloudShadows 0
     //   norays     rtOwnClouds 0 (the ray-side pack; in the K-T2 starts raytracing is Off, so nothing asks for the pack (RtOwnClouds.Tick releases it) and this equals plain: a drift control)
     //   nolight    layers.costDebug 1 (no light march; cost attribution, the picture is wrong)
@@ -96,8 +96,6 @@ namespace ReDefinition.Atmospheres
                 case "shtap1":
                 case "nomv":
                 case "nowb":
-                case "leap":
-                case "leapshell":
                 case "ceil":
                 case "ceilr33":
                 case "ceilvis":
@@ -118,6 +116,8 @@ namespace ReDefinition.Atmospheres
                 case "noshell2":
                 case "nocloud":
                 case "nocloud2":
+                case "air60":
+                case "air30":
                 case "nodepth":
                 case "noprecip":
                 case "fshort":
@@ -138,7 +138,6 @@ namespace ReDefinition.Atmospheres
                 case "cut5":
                 case "cut10":
                 case "cut20":
-                case "cells":
                 case "tri":
                 case "r3":
                 case "r3n":
@@ -175,7 +174,6 @@ namespace ReDefinition.Atmospheres
                 case "sg2e4":
                 case "sgfrom2k":
                 case "sgstep12":
-                case "nofield":
                 case "band40":
                     return true;
                 default:
@@ -305,9 +303,6 @@ namespace ReDefinition.Atmospheres
                 case "cut5": ForceTuning(OwnCloudOptions.TuneCostCutM, 5000f); break;
                 case "cut10": ForceTuning(OwnCloudOptions.TuneCostCutM, 10000f); break;
                 case "cut20": ForceTuning(OwnCloudOptions.TuneCostCutM, 20000f); break;
-                // The owner's question 2026-11-19 (a field of equal cotton balls from above): the same views with the single-cloud lattice (cloud.cells 1, the default 11-17 to 11-19; now a
-                // shape-test tool, the weather map decides the clouds).
-                case "cells": ForceTuning(CloudLookTuning.TuneCells, 1f); break;
                 // HIST fps (2026-11-20, the history work's variants in the game): tri the march as one procedural triangle (today's 2 x 2 otherwise); r3 the rotation over
                 // 3 x 3 blocks with today's history; r3n / r4n the rotation over 3 x 3 / 4 x 4 with the new history (the march's own distance, the sample count, the drop
                 // by distance at 0.3 octaves, the clip at 2 sigma; with the distance target the march draws pass 6, so the triangle key does not act there).
@@ -413,6 +408,9 @@ namespace ReDefinition.Atmospheres
                 // is what the 3D clouds cost at a height.
                 case "nocloud":
                 case "nocloud2": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); break;
+                // Master plan 47.2S: no cloud of any kind (as nocloud2) with the air's level from space at 0.6 and 0.3 of Scatterer's (light.spaceAir): the sea's level S against the factor.
+                case "air60": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); ForceTuning(ScattererAirExposure.TuneSpaceAir, 0.6f); break;
+                case "air30": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); ForceTuning(ScattererAirExposure.TuneSpaceAir, 0.3f); break;
                 // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the
                 // tile then: the scene's depth cuts it there; none: something is drawn over the pass or the maps are empty there.
                 case "nodepth": OwnShell.ProbeHidden = true; OwnCloudModule.ProbeNoSceneDepth = true; perfNoDepth = true; break;
@@ -461,9 +459,7 @@ namespace ReDefinition.Atmospheres
                 case "sg2e4": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0.0002f); break;
                 case "sgfrom2k": ForceTuning(OwnCloudOptions.TuneSpanGrowthFromM, 2000f); break;
                 case "sgstep12": ForceTuning(OwnCloudOptions.TuneMinStepM, 12f); break;
-                // Step 1b (2026-11-22): nofield the single clouds on the lattice again (cloud.field 0; the map sky stays). (core15 / core30 / core30f25, the core profile, went with it, 2026-11-25.)
-                case "nofield": ForceTuning(CloudLookTuning.TuneField, 0f); break;
-                // band40: the single cloud's rim 40 m wide instead of 10 (cloud.cellBand), whether the crisp rim makes the specks and the 4 px stair edges (PRUEFPROTOKOLL 84, 86).
+                // band40: the cloud's rim 40 m wide instead of 10 (cloud.cellBand), whether the crisp rim makes the specks and the 4 px stair edges (PRUEFPROTOKOLL 84, 86).
                 case "band40": ForceTuning(CloudLookTuning.TuneCellBand, 40f); break;
                 case "fpnosg": ForceTuning(OwnCloudOptions.TuneSpanGrowthPerM, 0f); break;
                 case "fpshfull":
@@ -514,12 +510,6 @@ namespace ReDefinition.Atmospheres
                 case "nomv": ForceTuning(OwnCloudOptions.TuneMotionVectors, 0f); break;
                 // nowb (audit A2, 2026-11-19): the scene's white balance off, the clouds' own white point as before; plain has it on (the default).
                 case "nowb": SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, 0.0); break;
-                // A4 2026-11-18: the shell leap alone (look-neutral in the player: cover and spectra equal) and with the fine steps in the shell, against plain for the cost.
-                case "leap": ForceTuning(CloudLookTuning.TuneCellTrace, 1f); break;
-                case "leapshell":
-                    ForceTuning(CloudLookTuning.TuneCellTrace, 1f);
-                    ForceTuning(CloudLookTuning.TuneCellShell, 1f);
-                    break;
                 // A4 2026-11-18: the owner chose the player's ceiling march at full size (e40puff k_ceil_rec) as the look; its cost in the game. ceil: that march at the full
                 // size of the camera; ceilr33: the same march at the product's reconstruction size (the owner saw the third of the size as a visible loss).
                 case "ceil":

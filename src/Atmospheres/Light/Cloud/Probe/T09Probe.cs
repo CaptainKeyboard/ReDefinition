@@ -143,6 +143,8 @@ namespace ReDefinition.Atmospheres
 
         protected override void ApplyVariant(string name)
         {
+            // The CPU's cloud light at the camera is logged while a variant runs (OwnCloudModule.ProbeLogLight; master plan 47.U stage 1's gate).
+            OwnCloudModule.ProbeLogLight = true;
             if (IsK3)
             {
                 K3Apply(name);
@@ -249,6 +251,7 @@ namespace ReDefinition.Atmospheres
 
         protected override void RevertVariant(string name)
         {
+            OwnCloudModule.ProbeLogLight = false;
             PinCleanup();
             ClearForced();
             if (IsK3) K3Storm(false);

@@ -126,7 +126,7 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdHeightMaps = Shader.PropertyToID("_HeightMaps"), IdLayerH = Shader.PropertyToID("_LayerH"),
             IdLayerH2 = Shader.PropertyToID("_LayerH2");
         private readonly Vector4[] layerH = new Vector4[CloudLayerDef.MaxLayers], layerH2 = new Vector4[CloudLayerDef.MaxLayers];
-        // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the soft density's and the cells' numbers (_CullL).
+        // The culling (package T16): the bound maps of the coverage, the tile map, and per layer the soft density's numbers (_CullL).
         private static readonly int IdCullL = Shader.PropertyToID("_CullL");
         private static readonly int IdSkyProbeP = Shader.PropertyToID("_SkyProbeP");
         private static readonly int IdStepV = Shader.PropertyToID("_StepV");
@@ -142,14 +142,6 @@ namespace ReDefinition.Atmospheres
             return fieldType ? SteepShareField : SteepShareStratiform;
         }
         internal static readonly int IdCellE = Shader.PropertyToID("_CellE");
-        internal static readonly int IdCellS = Shader.PropertyToID("_CellS");
-        // The test lattice (cloud.field off) is a shader of its own (master plan 45.3: ReDefinitionAtmospheresLayersLattice.shader, the same passes with CLOUD_LATTICE
-        // defined): the product's shader holds none of its code. The material switches to it while the lattice is on (LatticeShader; null: no lattice, the product draws).
-        internal const string LatticeShaderName = "ReDefinition/AtmospheresLayersLattice";
-        internal Shader LatticeShader { get; set; }
-        private Shader productShader;
-        private bool latticeMissingSaid;
-        private readonly Vector4[] cellS = new Vector4[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cullL = new Vector4[CloudLayerDef.MaxLayers];
         // M2c: each type's undulatus depth (CloudTypeDef.UndulatusAmount), layer l's type t at slot l * MaxTypes + t, four to a vector (_TypeUndulatus); the frame's switch
         // and the wavelength are _UndulatusP (LayerFrame.Undulatus, LayerFrame.UndulatusWavelengthShare).
@@ -158,9 +150,7 @@ namespace ReDefinition.Atmospheres
         private readonly Vector4[] typeTopRough = new Vector4[CloudLayerDef.MaxLayers * CloudLayerDef.MaxTypes / 4];
         private static readonly int IdTypeUndulatus = Shader.PropertyToID("_TypeUndulatus"), IdUndulatusP = Shader.PropertyToID("_UndulatusP"),
                                     IdTypeTopRough = Shader.PropertyToID("_TypeTopRough");
-        // The layers' cloud cell pitch in m (CloudLayerDef.CellPitchM; CELLS): goes into cullL's w each frame while cloud.cells is on. cellLayer: the layers, whose single cloud's body
-        // (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
-        private readonly float[] cellPitch = new float[CloudLayerDef.MaxLayers];
+        // cellLayer: the layers, whose cloud body (_CellE, CloudLookTuning.CellBodyVector) is written each frame with the viewer's overrides.
         private readonly CloudLayerDef[] cellLayer = new CloudLayerDef[CloudLayerDef.MaxLayers];
         private readonly Vector4[] cellE = new Vector4[CloudLayerDef.MaxLayers];
         internal CullBounds Bounds { get; } = new CullBounds();
@@ -210,7 +200,6 @@ namespace ReDefinition.Atmospheres
                 Problem = "the layer shader is missing";
                 return false;
             }
-            productShader = shader;
             material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             if (material.passCount < 3)
             {
@@ -244,7 +233,7 @@ namespace ReDefinition.Atmospheres
             return true;
         }
 
-        // What Init sets once: the type tables' textures and the blue-noise tile. Set again after the material's shader changed (SyncShader).
+        // What Init sets once: the type tables' textures and the blue-noise tile.
         private void SetStatic()
         {
             material.SetTexture(IdTypeProfile, profileTexture);
@@ -256,24 +245,6 @@ namespace ReDefinition.Atmospheres
             material.SetTexture(IdTypeColumn, columnTexture);
         }
 
-        // The material's shader for the frame: the lattice shader while the lattice is on and loaded, else the product's. The same material object (the command buffers keep
-        // it); after a change everything is uploaded again (a shader change need not keep array values), the frame's own uploads follow in Upload.
-        private void SyncShader(bool lattice)
-        {
-            // A lattice asked for without its shader draws the product's field: said once, so a picture is not taken for the lattice (the bug hunt 309).
-            if (lattice && LatticeShader == null && !latticeMissingSaid)
-            {
-                latticeMissingSaid = true;
-                Debug.LogWarning("[ReDefinition] Atmospheres: cloud.field 0 asks for the lattice, but its shader (" + LatticeShaderName + ") is not set: the field draws");
-            }
-            Shader want = lattice && LatticeShader != null ? LatticeShader : productShader;
-            if (want == null || material.shader == want) return;
-            material.shader = want;
-            SetStatic();
-            uploadedVersion = -1;
-            uploadedShift = -1;
-            uploadedSource = null;
-        }
 
         // The pinned capture (master plan phase 0 item 3): a hash of the type table textures as uploaded (the profile, then the info texture; their CPU copies stay
         // readable, Apply(false)), so that pass.json and the player's replay can say whether both drew with the same table. "none" before Init.
@@ -343,8 +314,6 @@ namespace ReDefinition.Atmospheres
         internal void Upload(LayerStackSource source)
         {
             if (!Ready || source == null) return;
-            // The lattice's shader first (cloud.field off): a change makes the upload below run in full.
-            SyncShader(!CloudLookTuning.Field);
             if (ReferenceEquals(source, uploadedSource) && source.Version == uploadedVersion && CloudCoverShift.Stamp == uploadedShift) return;
             layerCount = source.LayerCount;
             radius = source.BodyRadiusM;
@@ -377,12 +346,10 @@ namespace ReDefinition.Atmospheres
                 layerH2[l] = height == null ? Vector4.zero
                     : new Vector4(1f / Mathf.Max(1f, height.RaggedScaleM), height.MinThicknessM, source.Heights.SeedOf(l) & 0xFFFFFF, heightMaps == null ? 0f : 1f);
                 // x: the layer's thinnest cloud slab in m (CullMath.ThinnestSlabM: the march's leap over empty samples climbs or sinks at most half of it); y: the soft density's clear-sky K of the
-                // map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density); w: the pitch of the layer's cloud cells in m
-                // (0: none; CELLS), written by Apply every frame from cellPitch and cloud.cells.
+                // map value (0: off); z: the layer's water exponent minus 1 (0: none): the shader's two per-layer numbers (E40 soft density); w: unused.
                 cullL[l] = new Vector4(CullMath.ThinnestSlabM(table.Count, t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return tt - tb; },
                                                      layer.OuterAltitudeM - layer.InnerAltitudeM, height == null ? 0f : height.MinThicknessM),
                                        layer.ClearSkyK, layer.EffectiveWaterPower - 1f, 0f);
-                cellPitch[l] = layer.CellPitchM;
                 cellLayer[l] = layer;
                 layerTau[l] = (float)CullMath.MeanVerticalTau(layer.EffectiveSigmaPerM, layer.OuterAltitudeM - layer.InnerAltitudeM, table.Count,
                     t => { float tb, tt, te; table.Info(t, out tb, out tt, out te); return Math.Max(tt - tb, 0f); },
@@ -438,7 +405,6 @@ namespace ReDefinition.Atmospheres
             for (int l = layerCount; l < CloudLayerDef.MaxLayers; l++)
             {
                 layerH[l] = layerH2[l] = cullL[l] = stepV[l] = Vector4.zero;
-                cellPitch[l] = 0f;
                 for (int t = 0; t < CloudLayerDef.MaxTypes; t++)
                 {
                     int slot = l * CloudLayerDef.MaxTypes + t;
@@ -476,8 +442,6 @@ namespace ReDefinition.Atmospheres
         // Writes the frame's numbers (not the camera) into the material.
         internal void Apply(LayerFrame f)
         {
-            // The lattice's shader (cloud.field off; Upload switched it already where it ran this frame).
-            SyncShader(!CloudLookTuning.Field);
             Material m = material;
             m.SetFloat(IdPlanetR, (float)radius);
             m.SetVector(IdPlanetCenter, f.PlanetCenter);
@@ -537,15 +501,10 @@ namespace ReDefinition.Atmospheres
             if (f.Far != null) f.Far.Upload(m);
             if (f.Cull != null) f.Cull.Upload(m);
             CloudFieldGpu.Apply();
-            bool cells = CloudLookTuning.Cells;
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cullL[l].w = cells ? cellPitch[l] : 0f;
             m.SetVectorArray(IdCullL, cullL);
             m.SetVectorArray(IdStepV, stepV);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
-            // The map-driven sky's connected stratiform types (MapSkyRegions.StratiformTypes).
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellS[l] = l < layerCount ? MapSkyRegions.StratiformTypes(cellLayer[l]) : Vector4.zero;
-            m.SetVectorArray(IdCellS, cellS);
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
             Noise.SetPole(f.WorldToMap.GetRow(2));

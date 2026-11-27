@@ -49,7 +49,7 @@ namespace ReDefinition.Atmospheres
 
         // The approach views (master plan 46.4, the probe's -t09ApproachViews; the owner: nothing may pop on the approach): one place seen 60 degrees below the
         // horizontal from 400 km down to 130 km, the centre ray's distance from about 460 km to 150 km: through the band in which the field's far mean gives way
-        // to the single clouds (312 to 156 km of distance at 1707 x 960).
+        // to the clouds (312 to 156 km of distance at 1707 x 960).
         internal static readonly T09View[] Approach =
         {
             new T09View { Name = "app400", AglM = 400000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },

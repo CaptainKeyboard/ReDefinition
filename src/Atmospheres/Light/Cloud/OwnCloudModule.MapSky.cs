@@ -192,7 +192,7 @@ namespace ReDefinition.Atmospheres
                 if (p.MapTop != null) WriteScaled(dir, "wms-ConvectiveTop.u8", p.MapTop, 1f);
                 if (p.MapReach != null) WriteScaled(dir, "wms-CellReach.u8", p.MapReach, 1f);
                 {
-                    WriteScaled(dir, "wms-part-lattice.u8", p.Lattice, 1f);
+                    WriteScaled(dir, "wms-part-rising.u8", p.Rising, 1f);
                     WriteScaled(dir, "wms-part-tall.u8", p.Tall, 1f);
                     WriteScaled(dir, "wms-part-sc.u8", p.Sc, 1f);
                     WriteScaled(dir, "wms-part-ac.u8", p.Ac, 1f);

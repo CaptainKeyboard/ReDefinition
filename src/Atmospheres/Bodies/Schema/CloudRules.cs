@@ -92,8 +92,8 @@ namespace ReDefinition.Atmospheres
         internal float EdgePower { get; set; }
         // CLOUDR1 P3: how strongly the cumuliform volume's cavity channel darkens the creases between lobes (cfg key cavity, 0 to 1; 0: off): the light factors are cavity^(4 x this).
         internal float Cavity { get; set; }
-        // CLOUD FIELD: the cloud form of the type (cfg key form = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): where cloud.field is on the weather map's
-        // footprint is drawn as single clouds of this class (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type is not drawn as single clouds.
+        // CLOUD FIELD: the cloud form of the type (cfg key form = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): the weather map's
+        // share is drawn as clouds of this class placed by the cloud field (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type has no form (the map's threshold).
         internal int Form { get; set; }
 
         // M2c 4a(1), the pannus (WMO International Cloud Atlas, accessory cloud pannus: "ragged shreds, sometimes constituting a continuous layer, situated below another cloud";
@@ -296,10 +296,7 @@ namespace ReDefinition.Atmospheres
         // axis by 1 / FilamentStretch (E40 L2 D1; Noise.cginc NoiseLookupBase). Cirrus filaments; the axis is the body's pole, which is horizontal at the equator and tilts into the vertical
         // towards the poles (where the stretch then lies in the vertical and does not show in a thin layer).
         internal float FilamentStretch { get; set; } = 1f;
-        // The pitch of the layer's cloud cells in m (cfg key cellPitch, 0: none; CELLS, owner order 2026-11-17). The layer map (a texel of 7.4 km on Kerbin) says how much of a region
-        // is cloud; the cells put that share down as single clouds: a jittered lattice of this pitch on the sphere, each cell a disc whose radius follows the map's cloud share (CloudCells.cginc).
-        internal float CellPitchM { get; set; }
-        // The body of each single cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the bulge noise moves).
+        // The body of each cloud (CloudCells.cginc CellBody, after Schneider's Nubis: a half ellipsoid over the type's flat base with a sharp surface that the bulge noise moves).
         // CellBulge (cfg key cellBulge): how far the bulges move the surface, as a share of the body's shorter semi-axis (0: the bare ellipsoid). CellBandM (cellBand): the width in m over
         // which the share rises at the surface (Nubis: 35 m; the narrower, the crisper the outline). CellFine (cellFine): the gain of the two finer bulge octaves (0.37 and 0.137 of the
         // first's size), the heads on the heads (0: not read). The defaults are the look the owner chose on 2026-11-17 (the player's photo framing, c_pv_f1).

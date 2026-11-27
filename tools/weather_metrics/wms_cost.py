@@ -5,7 +5,7 @@
     python tools/weather_metrics/wms_cost.py --report                                        march ms per capture over every wms-cost run, today against the map sky
 
 Each capture (pin-<view>[-<set>]-u<ut>-<start>-<utc>, written by T09ProbePin with OwnCloudModule's dump) becomes one job with everything the game ran with: the layer maps, the
-height maps with their ranges, the tuning keys in force (cloud.weatherMapSky and its rule keys for the sets, which give the shader its _CellS), the camera, the sun and the
+height maps with their ranges, the tuning keys in force (cloud.weatherMapSky and its rule keys for the sets), the camera, the sun and the
 game's depth, resampled to the cost size 1707 x 960 as WM1 measured. Ids: wms-<ut>-<view>-<set> (set plain = today).
 """
 import argparse

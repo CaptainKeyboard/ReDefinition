@@ -77,6 +77,13 @@ namespace ReDefinition.WeatherPlayer
                 yield return RunMacroShape();
                 yield break;
             }
+            // -shadownoise 3 (master plan 47.U stage 1): the same cumulus type with a cloud form (mediocris): the cloud field's bodies in the shader's shadow against the CPU twin
+            // (CloudField.Cloud through CloudShadowShapeNoise).
+            if (WeatherPass.Argument("-shadownoise") == "3")
+            {
+                yield return RunMacroShape(CloudField.ClassOf("mediocris"));
+                yield break;
+            }
             // -shadowsteps 1: the step-policy comparison of the shader with its CPU twin (CloudShadowStepsScene.cs) instead of the analytic checks.
             if (WeatherPass.Argument("-shadowsteps") == "1")
             {

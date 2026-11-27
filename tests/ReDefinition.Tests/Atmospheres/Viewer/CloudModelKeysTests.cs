@@ -84,7 +84,7 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
         [TestMethod]
         public void TheLooksSetTheirKeysOnTheCumulusLayersAndTodayUndoesThem()
         {
-            NamedKeyPreset before = CloudKeyRegistry.Presets.First(p => p.Name == CloudModelKeys.LookBefore);
+            NamedKeyPreset before = CloudKeyRegistry.Presets.First(p => p.Name == CloudModelKeys.LookPartsOff);
             NamedKeyPreset look96 = CloudKeyRegistry.Presets.First(p => p.Name == "96 Steps");
             NamedKeyPreset look128 = CloudKeyRegistry.Presets.First(p => p.Name == "128 Steps");
             Assert.AreEqual(0f, before.Keys[CloudLookTuning.TuneNoiseBlend]);
@@ -102,14 +102,13 @@ namespace ReDefinition.Tests.Atmospheres.Viewer
             Assert.AreEqual(2f, set.Overrides[CloudLookTuning.TuneEdgePowerLayer + "Kerbin-cumulus"]);
             Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCavityLayer + "Kerbin-cumulus"]);
             Assert.IsFalse(set.Overrides.ContainsKey(CloudLookTuning.TuneCumuliformLayer + "Kerbin-cumulonimbus"), "the cumulonimbus layer does not end with cumulus");
-            Assert.AreEqual(0f, set.Overrides[CloudLookTuning.TuneCells], "the look before has no single clouds");
-            Assert.AreEqual(7, set.Overrides.Count, "three layer keys and the blend, the erosion, the Catmull and the cells key");
+            Assert.AreEqual(6, set.Overrides.Count, "three layer keys and the blend, the erosion and the Catmull key");
 
             // The keys the viewer lists for these layers; loading a look and then Today leaves no override.
             List<string> names = CloudKeyRegistry.Expand(layers).Select(k => k.Key).ToList();
             var store = new FakeViewerRig.Store();
             set.ApplyTo(store, names);
-            Assert.AreEqual(7, store.Overrides.Count);
+            Assert.AreEqual(6, store.Overrides.Count);
             OptionSet today = ViewerPresetBook.BuiltIn(new[] { AtmospheresSettings.Keys.OwnClouds, AtmospheresSettings.Keys.CloudSource, AtmospheresSettings.Keys.CloudSoftness }, k => 0.5, layers)[0].Make();
             today.ApplyTo(store, names);
             Assert.AreEqual(0, store.Overrides.Count, "Today undoes every key of the new model");

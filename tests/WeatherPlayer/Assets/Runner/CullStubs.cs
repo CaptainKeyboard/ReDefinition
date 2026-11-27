@@ -57,4 +57,21 @@ namespace ReDefinition.Atmospheres
             UnityEngine.Debug.Log("[ReDefinition] Atmospheres: " + message);
         }
     }
+
+    // The cloud shadow on Scatterer's ocean (src/Atmospheres/Render/Shadow/ScattererOceanCloudShadow.cs), which the linked CloudShadowIntegration holds: the game's class sets a
+    // delegate of Scatterer by reflection and declares a foreign-code contract, which the player has neither the mod nor the checker for. Here it does nothing (no Scatterer, no ocean).
+    internal sealed class ScattererOceanCloudShadow
+    {
+        internal ScattererOceanCloudShadow(CloudShadowRenderer renderer, System.Func<bool> enabled)
+        {
+        }
+
+        internal void Update()
+        {
+        }
+
+        internal void Uninstall()
+        {
+        }
+    }
 }

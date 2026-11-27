@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly string[] Arrays =
         {
             "_LayerA", "_LayerB", "_LayerC", "_LayerD", "_LayerE", "_DitherM", "_TypeUndulatus", "_TypeTopRough", "_NoiseOffset", "_NoiseLayer", "_NoiseStretch", "_NoiseAxis", "_LightM", "_LightL",
-            "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_StepV", "_FieldC", "_CellE", "_CellS"
+            "_MoonDir", "_MoonCol", "_BoltPos", "_BoltCol", "_LayerH", "_LayerH2", "_CullL", "_StepV", "_FieldC", "_CellE"
         };
 
         internal static readonly string[] Textures =
@@ -35,9 +35,8 @@ namespace ReDefinition.Atmospheres
             "_NoiseColour", "_LightCache", "_HeightMaps", "_CullTiles", "_CullMax0", "_CullMax1", "_EdgeMask", "_CloudField"
         };
 
-        // The variants of the layer pass: the lattice (its own shader since master plan 45.3, LayerRenderer.LatticeShaderName) and the test switches (multi_compile_local,
-        // CloudDevVariant.Keyword): the readout says for each whether the material has it on.
-        internal static readonly string[] Keywords = { "CLOUD_LATTICE", "CLOUD_DEV" };
+        // The variants of the layer pass: the test switches (multi_compile_local, CloudDevVariant.Keyword): the readout says for each whether the material has it on.
+        internal static readonly string[] Keywords = { "CLOUD_DEV" };
 
         // Where the numbers come from: a material in the game and in the player, a stand-in in the tests.
         internal interface ISource
@@ -66,10 +65,8 @@ namespace ReDefinition.Atmospheres
             public Vector4 Vector(string name) { return m.GetVector(name); }
             public Vector4[] Array(string name) { return m.GetVectorArray(name); }
             public Matrix4x4 Matrix(string name) { return m.GetMatrix(name); }
-            // CLOUD_LATTICE is the lattice shader's define, not a keyword (master plan 45.3): on while the material carries that shader.
             public bool KeywordOn(string name)
             {
-                if (name == "CLOUD_LATTICE") return m.shader != null && m.shader.name == LayerRenderer.LatticeShaderName;
                 return m.IsKeywordEnabled(name);
             }
             public string[] KeywordsOn() { return m.shaderKeywords; }

@@ -46,7 +46,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
         float4 _CsLayerA[4];     // inner altitude, outer altitude, tight inner altitude, tight outer altitude (m)
         float4 _CsLayerB[4];     // sigma per m, coverage, edge softness, shadow strength
         float4 _CsLayerC[4];     // clear-sky K of the map value (0: off), water exponent minus 1, map slice (< 0: no map), type count
-        float4 _CsLayerD[4];     // steps per span of the layer, the pitch of its cloud cells (m; 0: none; CELLS), the layer's seed (the layer pass's _NoiseOffset.w), map shift (degrees)
+        float4 _CsLayerD[4];     // x steps per span of the layer, y, z unused, w map shift (degrees)
         sampler2D _CsTypeProfile;
         sampler2D _CsTypeInfo;
         UNITY_DECLARE_TEX2DARRAY(_CsCovMaps);
@@ -157,7 +157,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0)).x;
         }
 
-        // The type's puff class (the second row's w, CloudShadowRenderer; 0: none): the CLOUD FIELD's single clouds (CloudField.cs) as the layer pass draws them.
+        // The type's puff class (the second row's w, CloudShadowRenderer; 0: none): the CLOUD FIELD's clouds (CloudField.cs) as the layer pass draws them.
         float TypePuff(int li, int type)
         {
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0)).w;
@@ -207,33 +207,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
                     reachM = EmptyReachM(li, uv);
                     return 0;
                 }
-                // CELLS: the single clouds of the layer pass (CloudCells.cginc; _CsLayerD[li].y the pitch, 0: none). The shadow's points are on the ground, far from the march's spacing, so the
-                // cells are read without the far view's blend; the discs' own empty reach is the leap.
-                bool typeRead = false;
-                // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the variant CLOUD_LATTICE (CloudShadowRenderer sets it
-                // while cloud.field is off). Without it the field's single clouds are placed below, once the type is known.
-#if defined(CLOUD_LATTICE)
-                [branch] if (_CsLayerD[li].y > 0.0)
-                {
-                    float cellReach, wMap;
-                    // The map-driven sky's connected sheets (CloudCells.cginc _CellS, zero where a round draws no sheet), as the layer pass reads them.
-                    float stratiformW = 0.0;
-                    [branch] if (_CellS[li].x > 0.5)
-                    {
-                        typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
-                        typeRead = true;
-                        stratiformW = CellStratiformWeight(li, typeValue);
-                    }
-                    cov = CellCover(cov, uvRaw, _CsLayerD[li].y, _CsPlanetR + 0.5 * (_CsLayerA[li].x + _CsLayerA[li].y), _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0,
-                                    (uint)_CsLayerD[li].z, stratiformW, cellReach, wMap);
-                    if (cov + _CsLayerB[li].y - 1.0 + noiseBound + 0.5 * edge <= 0.0)
-                    {
-                        reachM = _CsParams2.w > 0.5 && wMap <= 0.0 ? 0.7 * cellReach : 0.0;
-                        return 0;
-                    }
-                }
-#endif
-                if (!typeRead) typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
+                // The clouds of a type with a form are placed below, once the type is known (FieldCloud).
+                typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_CsTypeMaps, float3(uv, slice), 0).rg, _CsReachType, slice);
             }
             float typeCount = _CsLayerC[li].w;
             float x2 = saturate(typeValue) * (typeCount - 1);
@@ -252,17 +227,15 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             // The type's own bound at this height (the layer pass's TypeNoiseBound) and its noise amount (master plan 43; channel g, the erosion gain, has no erosion to act on here).
             float typeBound = 0.5 * abs(_CsNoiseD[li].x) * (1.0 + pf.b);
             float typeAmount = _CsNoiseD[li].x * (1.0 + pf.b);
-            // CLOUD FIELD: the layer pass's single clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
+            // CLOUD FIELD: the layer pass's clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
             // the march's spacing (no foot): only the closed cloud layer hands the map's own value over.
-#if !defined(CLOUD_LATTICE)
             int puff = (int)(f < 0.5 ? TypePuff(li, ta) : TypePuff(li, tb));
             [branch] if (puff > 0 && slice >= 0)
             {
                 if (FieldCloud(li, puff, uvField, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0, _CsPlanetR + 0.5 * (inner + outer), h, (tp - b) * (outer - inner)) == 0) return 0;
             }
-#endif
             cov -= _CsParams2.z * pf.a * (_CsLayerB[li].y + typeBound + 0.5 * edge);
-            // CELLS: the single cloud's body where the cells alone draw, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
+            // THE BODY of a cloud the field placed, where the field's read says a body draws, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
             // full swing); it replaces the type's lift, so the lift's bound is not asked.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // OPT2: the same bound after the lift (the layer pass's second one): no noise read where the lifted map cannot reach the threshold.
@@ -272,7 +245,8 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             [branch] if (body)
             {
                 float rank = NoiseShareNear(li, pc, 1.0 - _CsLayerB[li].y, _CsLayerB[li].y, 1.0, _CsNoiseD[li].x > 0.0 ? 1.0 : 0.0, 0.0);
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
+                // The finer bulges are a read of the noise volume: none while the volumes are not bound (_NoiseP.x 0), as the rank above is the mean then.
+                float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
                 s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
             }
             else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, typeAmount, 0.0);
@@ -470,8 +444,6 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 4.0
-            // The test lattice (cloud.field off) as a variant, so the product's shader holds none of its code.
-            #pragma multi_compile_local _ CLOUD_LATTICE
             #pragma multi_compile_local _ CLOUD_DEV
 
             float4 frag(v2f i) : SV_Target
@@ -542,7 +514,6 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 4.0
-            #pragma multi_compile_local _ CLOUD_LATTICE
             #pragma multi_compile_local _ CLOUD_DEV
 
             float4 frag(v2f i) : SV_Target

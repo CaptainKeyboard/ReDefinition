@@ -44,6 +44,30 @@ namespace ReDefinition.Atmospheres
         // them back when it ends (T09Probe.RevertVariant).
         internal static bool ProbeNoSurface, ProbeNoSceneDepth;
 
+        // Probe-only: the CPU's cloud light at the camera is written to the log while a probe's variant runs, one line whenever a value moved by more than 0.02 and at most
+        // one a second (the gate of master plan 47.U stage 1: the CPU's cloud field against the run before it, view by view). False by default; T09Probe sets it.
+        internal static bool ProbeLogLight;
+        private float lightLogAt;
+        private float loggedSunT = -1f, loggedTau = -1f, loggedShare = -1f, loggedSpace = -1f;
+
+        // sunT: the sun's direct transmission at the camera; tau: the vertical optical depth over the camera (below 0: not read this frame); share: the diffuse share of the
+        // camera and its ring; space: the air's space factor.
+        private void LogCameraLight(float now, float sunT, float tau, float share, float space)
+        {
+            if (!ProbeLogLight || now < lightLogAt) return;
+            bool moved = Mathf.Abs(sunT - loggedSunT) > 0.02f || Mathf.Abs(share - loggedShare) > 0.02f || Mathf.Abs(space - loggedSpace) > 0.02f
+                         || (tau >= 0f && Mathf.Abs(tau - loggedTau) > 0.02f * Mathf.Max(1f, loggedTau));
+            if (!moved) return;
+            lightLogAt = now + 1f;
+            loggedSunT = sunT;
+            loggedShare = share;
+            loggedSpace = space;
+            if (tau >= 0f) loggedTau = tau;
+            AtmospheresLog.Say("own clouds: cpu light at the camera: sun transmission " + sunT.ToString("0.000") + ", optical depth overhead " + (tau < 0f ? "not read" : tau.ToString("0.00"))
+                               + ", diffuse share " + share.ToString("0.000") + ", space factor " + space.ToString("0.000") + ", forms from "
+                               + (CloudFieldGpu.Data != null ? "the cloud field" : "the map (the field is not built yet)") + ", shape noise " + (shadowNoise.NoiseReady ? "ready" : "not ready"));
+        }
+
         // Asks for a map round with a snap and a height build at once (the clock was just pinned: the next maps and heights are those of the pinned time).
         internal void PinRefetch()
         {

@@ -37,7 +37,7 @@ namespace ReDefinition.Atmospheres
 
         internal QualityTier Tier { get; }
         // Key cloudSamples: the most grid points of the cloud march. Measured at 1080p (soft-cost scene, field view, CLOUDR3): 48 points 2.35 ms, 96 3.53, 128 4.10;
-        // the look gains from 48 (large soft lobes, grainy) through 96 (firmer) to 128 (small turrets). The single clouds' body (CELLS, a 10 m surface band) needs 256 for the look the owner
+        // the look gains from 48 (large soft lobes, grainy) through 96 (firmer) to 128 (small turrets). The clouds' body (CELLS, a 10 m surface band) needs 256 for the look the owner
         // chose on 2026-11-17: in the player's photo framing the cloud converges steadily from 96 (wider, soft) over 160 and 192 to 256, which matches the ceiling march (b_ng*, b_c256).
         // Low keeps 48 (its tier is the cost); 256's cost in the game is measured after the look (owner order 2026-11-17: the look first, then the performance).
         internal int CloudSamples { get; }

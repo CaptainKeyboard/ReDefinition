@@ -18,7 +18,7 @@ namespace ReDefinition.Tests.Atmospheres.T10
     public class CloudLayerTemplateTests
     {
         // The lengths of a layer, in m in the parsed spec and in troposphere depths in the template (and what follows from them).
-        private static readonly HashSet<string> Lengths = new HashSet<string>(StringComparer.Ordinal) { "InnerAltitudeM", "OuterAltitudeM", "NoiseScaleM", "LightCellWidth", "PeakOpticalDepth", "CellPitchM" };
+        private static readonly HashSet<string> Lengths = new HashSet<string>(StringComparer.Ordinal) { "InnerAltitudeM", "OuterAltitudeM", "NoiseScaleM", "LightCellWidth", "PeakOpticalDepth" };
         private const double LengthTolerance = 5e-4;
 
         internal static List<ConfigNode> Templates()

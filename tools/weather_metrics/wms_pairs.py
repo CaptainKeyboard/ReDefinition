@@ -108,7 +108,7 @@ def main():
     fig = plt.figure(figsize=(30, 8.6 * rows + 1.2), dpi=100)
     gs = fig.add_gridspec(rows, 4, width_ratios=[3.2, 1, 1, 1])
     amounts = [("wms-cover.u8", "Bedeckung (Karte)"), ("wms-ConvectiveAmount.u8", "Haufenwolken-Anteil (Karte)"), ("wms-StratiformAmount.u8", "Schichtwolken-Anteil (Karte)")]
-    parts = [("wms-part-lattice.u8", "gezeichnet: Cumulus als Einzelwolken"), ("SHEET", "gezeichnet: zusammenhaengende Schicht (Sc + Ac)"), ("wms-part-tall.u8", "gezeichnet: Turm-Anteil (Cb)")]
+    parts = [("wms-part-rising.u8", "gezeichnet: aufsteigender Cumulus"), ("SHEET", "gezeichnet: zusammenhaengende Schicht (Sc + Ac)"), ("wms-part-tall.u8", "gezeichnet: Turm-Anteil (Cb)")]
 
     def panels_row(r, folder, which, suffix=""):
         for c, (name, title) in enumerate(which):

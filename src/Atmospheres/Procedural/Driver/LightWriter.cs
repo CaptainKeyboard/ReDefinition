@@ -83,7 +83,7 @@ namespace ReDefinition.Atmospheres
             // Scatterer's air in-scatter under the own clouds (PRUEFPROTOKOLL 297, 298): written here, in LateUpdate, after Scatterer's interpolation and
             // before any camera renders. Nothing published and no key: no engine call (the tests run the writer outside the game).
             float testScatter = Tuning.Get(TuneTestScatterExposure, 1f);
-            if (testScatter != 1f || ScattererAirUnderClouds.Wanted) ScattererAirUnderClouds.Drive(testScatter);
+            if (testScatter != 1f || ScattererAirExposure.Wanted) ScattererAirExposure.Drive(testScatter);
             if (level < OffBelow && !testing)
             {
                 ambientFactor = 1f;

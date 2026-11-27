@@ -83,3 +83,19 @@ def collect_consist(ctx):
 
 register_series("e40-consist", [Stage("shadow", ["-mode", "scene", "-scene", "cloud-shadow", "-shadownoise", "2"], size=(1280, 720), proxy=False, timeout=1800)],
                 collect_consist, exclusive=False, who="e40-consist")
+
+
+def collect_field(ctx):
+    """Master plan 47.U stage 1: the shadow of a cumulus type with a cloud form (the cloud field's bodies), shader against the CPU twin; pictures shadow-field-*.png."""
+    folder = ctx.folder("shadow")
+    metrics = [Metric.given(name, value, limit, verdict) for name, (value, limit, verdict) in ctx.player_metrics("shadow").items()]
+    pics = os.path.join(e40o.main_repo(), ".local", "work", "series-pictures", "47U")
+    os.makedirs(pics, exist_ok=True)
+    for name in sorted(os.listdir(folder)):
+        if name.endswith(".png") and "field" in name:
+            shutil.copyfile(os.path.join(folder, name), os.path.join(pics, name))
+    return metrics
+
+
+register_series("u1-field", [Stage("shadow", ["-mode", "scene", "-scene", "cloud-shadow", "-shadownoise", "3"], size=(1280, 720), proxy=False, timeout=1800)],
+                collect_field, exclusive=False, who="u1-field")

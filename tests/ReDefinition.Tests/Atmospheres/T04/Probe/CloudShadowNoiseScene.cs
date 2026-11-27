@@ -45,7 +45,7 @@ namespace ReDefinition.WeatherPlayer
                         {
                             var sn = new CloudShadowShapeNoise();
                             // The map frame of the scene: up is world +y, east +x (SetSun's matrix: rows 0 1 0, 1 0 0, 0 0 1).
-                            sn.Update(noise, currentSource, new[] { 0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f }, true);
+                            sn.Update(noise, currentSource, new[] { 0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f }, true, CloudFieldGpu.Data);
                             cpu.ShapeNoise = sn;
                         }
                         double e = elevation * Math.PI / 180.0;
@@ -102,7 +102,9 @@ namespace ReDefinition.WeatherPlayer
 
         // CONSIST: a cumulus-like cloud (600 m thick, the cfg's mediocris LIFT shape and edgePower 0.5, noise amount 1 at 500 m) over the same ground: the shadow without the lift (the
         // shadow before CONSIST) and with it, the shader against the CPU twin for the lift on. Pictures: shadow-consist-lift0 / lift1.
-        private IEnumerator RunMacroShape()
+        // form (master plan 47.U stage 1): above 0 the type carries that cloud form (CloudField's class), so the shader draws the cloud field's bodies and the CPU twin must stand
+        // them at the same places (CloudField.Cloud): one capture, the check "field.parity". 0: the lift's before and after, as since CONSIST.
+        private IEnumerator RunMacroShape(int form = 0)
         {
             const double elevation = 45.0;
             var noise = new LayerNoise();
@@ -112,11 +114,14 @@ namespace ReDefinition.WeatherPlayer
             NaturalMode(false);
             frame.ShapeNoise = true;
             frame.DiscTaps = 1;
-            SetMacroCloud();
+            SetMacroCloud(form);
+            // The field's texture and uniforms are the layer pass's globals (CloudFieldGpu.Apply in LayerRenderer.Apply); this scene draws the shadow alone.
+            if (form > 0) CloudFieldGpu.Apply();
+            Sink.Flag("field_ready", form <= 0 || CloudFieldGpu.Data != null);
             SetSun(elevation);
             double e = elevation * Math.PI / 180.0;
             double sx = Math.Sin(e), sy = Math.Cos(e);
-            foreach (int lift in new[] { 0, 1 })
+            foreach (int lift in form > 0 ? new[] { 1 } : new[] { 0, 1 })
             {
                 frame.MacroLift = lift == 1;
                 Pose(new CameraPose(new Vector3(-1300f, 1500f, 0f), 0f, 90f));
@@ -125,7 +130,7 @@ namespace ReDefinition.WeatherPlayer
                 RowRatio(out xs, out ratio);
                 var cpu = new CloudShadowField(currentSource, currentSource.Tables()) { StepsPerSpan = frame.StepsPerSpan, StepPolicy = frame.StepPolicy, DiscSamples = 1 };
                 var sn = new CloudShadowShapeNoise();
-                sn.Update(noise, currentSource, new[] { 0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f }, true);
+                sn.Update(noise, currentSource, new[] { 0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f }, true, CloudFieldGpu.Data);
                 cpu.ShapeNoise = sn;
                 var diffs = new List<double>();
                 double mean = 0.0;
@@ -144,6 +149,24 @@ namespace ReDefinition.WeatherPlayer
                 Sink.Info("consist.lift" + lift + ".parity_median", n > 0 ? diffs[n / 2] : double.NaN);
                 Sink.Info("consist.lift" + lift + ".parity_p90", n > 0 ? diffs[(int)(n * 0.9)] : double.NaN);
                 // Only the lift on is the twin's: the picture without it is the shadow before.
+                if (form > 0)
+                {
+                    // The bodies must be there (the factor along the row spans a range) and the twin must put them where the shader does.
+                    double lo = double.MaxValue, hi = double.MinValue;
+                    for (int i = 0; i < xs.Length; i++)
+                    {
+                        if (double.IsNaN(ratio[i]) || xs[i] > -150.0) continue;
+                        lo = Math.Min(lo, ratio[i]);
+                        hi = Math.Max(hi, ratio[i]);
+                    }
+                    Sink.AtLeast("field.bodies", n > 0 ? hi - lo : double.NaN, 0.10);
+                    // The limits are four times the first run's values (PRUEFPROTOKOLL 398: median 0.0014, p90 0.0052 over 1118 points): the two sides place the
+                    // clouds' edges at the same places; what is left is the GPU's 8-bit target and its filtered field read.
+                    Sink.AtMost("field.parity", n > 0 ? diffs[n / 2] : double.NaN, 0.006);
+                    Sink.AtMost("field.parity_p90", n > 0 ? diffs[(int)(n * 0.9)] : double.NaN, 0.02);
+                    SavePictures("field-form" + form);
+                    continue;
+                }
                 if (lift == 1) Sink.AtMost("consist.parity.lift1", n > 0 ? diffs[n / 2] : double.NaN, 0.05);
                 SavePictures("consist-lift" + lift);
             }
@@ -151,11 +174,12 @@ namespace ReDefinition.WeatherPlayer
             renderer.Dispose();
         }
 
-        private void SetMacroCloud()
+        private void SetMacroCloud(int form = 0)
         {
             var source = new LayerStackSource(0, R, true);
             currentSource = source;
             CloudTypeDef type = CloudTypeDef.Slab("cumulus", 0f, 1f);
+            type.Form = form;
             type.Lift = new Curve(new[] { 0f, 0.3f, 0.7f, 1f }, new[] { 0f, 0f, 0.067f, 0.168f });
             type.EdgePower = 0.5f;
             var def = new CloudLayerDef("macro", 0, 2000f, 2600f, new[] { type }, 1f / 600f)

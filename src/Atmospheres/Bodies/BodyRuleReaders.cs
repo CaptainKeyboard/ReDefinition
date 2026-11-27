@@ -269,7 +269,6 @@ namespace ReDefinition.Atmospheres
                     LightCellWidth = (float)Length(r, "lightCellWidth", "lightCellWidthDepths", horizontalDepthM, 0.0, 0.0, 1.0e6, horizontalScale),
                     RainType = r.Float("rainType", 1f, 0f, 1f), FilamentStretch = r.Float("filamentStretch", 1f, 1f, 50f), VerticalScale = r.Float("verticalScale", 0f, 0f, 1f),
                     ShapeSmoothing = r.Float("shapeSmoothing", 0f, 0f, 8f),
-                    CellPitchM = (float)Length(r, "cellPitch", "cellPitchDepths", horizontalDepthM, 0.0, 0.0, 1.0e6, horizontalScale),
                     CellBulge = r.Float("cellBulge", CloudLayerDef.DefaultCellBulge, 0f, 2f), CellBandM = s * r.Float("cellBand", CloudLayerDef.DefaultCellBandM, 1f, 1000f),
                     CellFine = r.Float("cellFine", CloudLayerDef.DefaultCellFine, 0f, 4f),
                     FilamentMinWindMs = r.Float("filamentMinWindMs", FilamentAxis.DefaultMinWindMs, 0f, 100f),

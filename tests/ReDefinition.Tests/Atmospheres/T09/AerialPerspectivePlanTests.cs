@@ -59,9 +59,33 @@ Scatterer_atmosphere
         public void ScatterersExposureIsScaledFromItsOwnValueAndNeverCompounds()
         {
             // PRUEFPROTOKOLL 298: a fresh interpolation is the base; where the value is still the one written last, the stored base stays
-            Assert.AreEqual(0.2f, ScattererAirUnderClouds.Base(0.2f, 0f, 0f, false), 1e-7f);
-            Assert.AreEqual(0.2f, ScattererAirUnderClouds.Base(0.1f, 0.2f, 0.1f, true), 1e-7f, "not interpolated: the stored base");
-            Assert.AreEqual(0.25f, ScattererAirUnderClouds.Base(0.25f, 0.2f, 0.1f, true), 1e-7f, "interpolated anew: the new value");
+            Assert.AreEqual(0.2f, ScattererAirExposure.Base(0.2f, 0f, 0f, false), 1e-7f);
+            Assert.AreEqual(0.2f, ScattererAirExposure.Base(0.1f, 0.2f, 0.1f, true), 1e-7f, "not interpolated: the stored base");
+            Assert.AreEqual(0.25f, ScattererAirExposure.Base(0.25f, 0.2f, 0.1f, true), 1e-7f, "interpolated anew: the new value");
+        }
+
+        [TestMethod]
+        public void TheAirFromSpaceKeepsScatterersLevelInsideTheAtmosphereAndTakesTheValueFromTwiceItsHeight()
+        {
+            // Master plan 47.2S: 1 up to the atmosphere's top (Kerbin 70 km), the value from twice that height on, linear between; a body without atmosphere and the value 1: no change.
+            const double top = 70000.0;
+            Assert.AreEqual(1f, ScattererAirExposure.SpaceFactor(0.0, top, 0.5f), 1e-7f);
+            Assert.AreEqual(1f, ScattererAirExposure.SpaceFactor(70000.0, top, 0.5f), 1e-7f);
+            Assert.AreEqual(0.75f, ScattererAirExposure.SpaceFactor(105000.0, top, 0.5f), 1e-6f);
+            Assert.AreEqual(0.5f, ScattererAirExposure.SpaceFactor(140000.0, top, 0.5f), 1e-7f);
+            Assert.AreEqual(0.5f, ScattererAirExposure.SpaceFactor(3.0e6, top, 0.5f), 1e-7f);
+            Assert.AreEqual(1f, ScattererAirExposure.SpaceFactor(3.0e6, 0.0, 0.5f), 1e-7f, "no atmosphere");
+            Assert.AreEqual(1f, ScattererAirExposure.SpaceFactor(3.0e6, top, 1f), 1e-7f, "off");
+            Assert.AreEqual(1f, ScattererAirExposure.SpaceFactor(3.0e6, top, float.NaN), 1e-7f);
+            Assert.AreEqual(0.05f, ScattererAirExposure.SpaceFactor(3.0e6, top, 0f), 1e-7f, "never to black");
+            // No step along a climb.
+            float last = 1f;
+            for (double h = 0.0; h <= 300000.0; h += 500.0)
+            {
+                float f = ScattererAirExposure.SpaceFactor(h, top, 0.3f);
+                Assert.IsTrue(f <= last + 1e-6f && last - f < 0.006f, "at " + h + " m: " + f + " after " + last);
+                last = f;
+            }
         }
 
         [TestMethod]
@@ -232,7 +256,7 @@ Scatterer_atmosphere
             Assert.AreEqual(0.7152f, AerialPerspectivePlan.ShaderLuma(new Color(0f, 1f, 0f)), 1e-6f);
         }
 
-        // Master plan 46.4: a march step sinks at most half a stratiform slab, and at most the smallest single cloud's height in a layer with a field type.
+        // Master plan 46.4: a march step sinks at most half a stratiform slab, and at most the smallest cloud's height in a layer with a field type.
         [TestMethod]
         public void TheSteepStepShareIsTheSmallestCloudOfAFieldLayer()
         {

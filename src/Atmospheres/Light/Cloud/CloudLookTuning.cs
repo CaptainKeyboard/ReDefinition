@@ -47,8 +47,6 @@ namespace ReDefinition.Atmospheres
         private static float sigma = 1f, softness = 1f, noiseSize = 1f, combine = DefaultCoverCombine, fadeFar, fadeNearShare = 0.5f, aerialPerspective = -1f, aerialPerspectiveStrength = 1f;
         private static float cellKm, cellLat, cellLon;
         private static float cumuliformForce = -1f, edgeForce, cavityForce = -1f, cumuliformFoot = 1f, cumuliformIso = 1f;
-        // cloud.field as last read (the type table's cumuliform, edge and cavity follow it, LayerDensity: a change must re-upload the table).
-        private static float fieldState = -1f;
         private static long stamp;
         private static readonly Dictionary<string, float> LayerShift = new Dictionary<string, float>(StringComparer.Ordinal);
         private static readonly Dictionary<string, float> TypeFairByName = new Dictionary<string, float>(StringComparer.Ordinal);
@@ -100,9 +98,7 @@ namespace ReDefinition.Atmospheres
             float hf = Clean(Tuning.Get(TuneCumuliform, -1f), -1f, -1f, CumuliformModel.PresetCount), ef = Clean(Tuning.Get(TuneEdgePower, 0f), 0f, 0f, 6f);
             float cf = Clean(Tuning.Get(TuneCavity, -1f), -1f, -1f, 1f), ft = Clean(Tuning.Get(TuneCumuliformFootLod, 1f), 1f, 0f, 1f), hi = Clean(Tuning.Get(TuneCumuliformIso, 1f), 1f, 0f, 1f);
             hf = hf < 0f ? -1f : (float)Math.Round(hf);
-            float fd = Tuning.Get(TuneField, FieldDefault) > 0.5f ? 1f : 0f;
-            bool changed = hf != cumuliformForce || ef != edgeForce || cf != cavityForce || ft != cumuliformFoot || hi != cumuliformIso || fd != fieldState;
-            fieldState = fd;
+            bool changed = hf != cumuliformForce || ef != edgeForce || cf != cavityForce || ft != cumuliformFoot || hi != cumuliformIso;
             cumuliformIso = hi;
             cumuliformForce = hf;
             edgeForce = ef;
@@ -281,21 +277,14 @@ namespace ReDefinition.Atmospheres
         internal static bool NoiseBlend { get { return Tuning.Get(TuneNoiseBlend, NoiseBlendDefault) > 0.5f; } }
         internal static float NoiseBlendExp { get { return Clean(Tuning.Get(TuneNoiseBlendExp, 8f), 8f, 1f, 32f); } }
         internal static float NoiseBlendCell { get { return Clean(Tuning.Get(TuneNoiseBlendCell, 1f), 1f, 0.25f, 16f); } }
-        // cloud.cells (CELLS, 2026-11-17): 1 puts the map's cloud share down as single clouds on the layers with a cellPitch (CloudLayerDef.CellPitchM, CloudCells.cginc); 0 reads the map
-        // as it is (the clouds are the map's smoothed texels moved by the noise). On by default: the owner's clouds are the single-cloud bodies (CellBody); the map's texels without
-        // them were rejected (owner 2026-11-19: "ICH WILL DIE RAUS HABEN"). The lattice's even arrangement is to be replaced by a realistic one from the weather map (plan: CLOUD FIELD).
-        internal const string TuneCells = "cloud.cells";
-        internal const float CellsDefault = 1f;
-        internal static bool Cells { get { return Tuning.Get(TuneCells, CellsDefault) > 0.5f; } }
-        // cloud.field (CLOUD FIELD, 2026-11-19): 1 draws the types with a cloud form (cfg key form: the cumulus family, altocumulus, stratocumulus, cumulonimbus calvus and the incus tower) as single
-        // clouds arranged by the weather map's share and one multi-scale field (CloudField.cs), without the lattice (cloud.cells is then not read on those types); 1 is the default
-        // (owner 2026-11-22: the lattice is only a tool to test single cloud types); 0 the lattice.
+        // THE CLOUD FIELD (owner 2026-11-19): the types with a cloud form (cfg key form: the cumulus family, altocumulus, stratocumulus, cumulonimbus calvus and the incus tower) are
+        // drawn as clouds arranged by the weather map's share and one multi-scale field (CloudField.cs). The map's smoothed texels as the clouds were rejected (owner 2026-11-19:
+        // "ICH WILL DIE RAUS HABEN"). The first placement (a lattice of discs: cloud.cells, cellPitch) and the switch cloud.field went with master plan 47.U stage 1 (owner 2026-11-27:
+        // no code for one kind of cloud only; the lattice was a test tool since 2026-11-22).
         // cloud.field.wind: the direction of the streets in degrees from east, counter-clockwise, in the map's frame (the class's stretch lengthens the field along it).
-        internal const string TuneField = "cloud.field", TuneFieldWind = "cloud.field.wind";
-        internal const float FieldDefault = 1f;
-        internal static bool Field { get { return Tuning.Get(TuneField, FieldDefault) > 0.5f; } }
+        internal const string TuneFieldWind = "cloud.field.wind";
         internal static float FieldWindDeg { get { return Clean(Tuning.Get(TuneFieldWind, 0f), 0f, -360f, 360f); } }
-        // The body of a single cloud in the viewer (CloudLayerDef.CellBulge, CellBandM, CellFine): cloud.cellBulge, cloud.cellBand and cloud.cellFine set it on every layer with cells where
+        // The body of a cloud in the viewer (CloudLayerDef.CellBulge, CellBandM, CellFine): cloud.cellBulge, cloud.cellBand and cloud.cellFine set it on every layer where
         // they are set (below 0, the default: each layer's own). Read every frame (LayerRenderer.Apply and CloudShadowRenderer, _CellE).
         internal const string TuneCellBulge = "cloud.cellBulge", TuneCellBand = "cloud.cellBand", TuneCellFine = "cloud.cellFine";
         internal static float CellBulgeFor(CloudLayerDef layer) { return Layered(TuneCellBulge, layer.CellBulge, 2f); }
@@ -308,32 +297,16 @@ namespace ReDefinition.Atmospheres
             return float.IsNaN(v) || float.IsInfinity(v) || v < 0f ? own : Math.Min(v, max);
         }
 
-        // cloud.cellTrace (A4, owner audit 2026-11-17): 1 lets the march leap the grid points beyond the reach of a single cloud's bulges, where the body's depth bounds the distance to its
-        // surface (CloudCells.cginc CellShellGap); the grid's phase is kept, so the picture is the grid march's. The first form, a sphere trace on the bulges' slope bound, ran out of its loop
-        // (player 2026-11-18, ceiling march: cover 0.065 against 0.318). On: the player's cover and spectra are equal on and off (gclock, sclock; ceiling and product marches), and K-T2
-        // perfN2560dlssqleap (2026-11-18, 2560x1440, DLSS Quality) gained 2 to 11 % fps per view (ground 37.6 to 38.4, inside 29.8 to 31.1, above 25.8 to 26.5, sky3 43.0 to 47.9).
-        internal const string TuneCellTrace = "cloud.cellTrace";
-        internal const float CellTraceDefault = 1f;
-        internal static bool CellTrace { get { return Tuning.Get(TuneCellTrace, CellTraceDefault) > 0.5f; } }
-
-        // cloud.cellShell (A4): 1 lets the march step finely inside a body's shell, where its surface can lie (the pixel's size there, at least the chosen look's 6 m, at most the grid step;
-        // CloudCells.cginc CELL_SHELL_STEP_MIN), so heads smaller than the grid step are not missed between two grid points. Off: the cover and the outline came back (player, sclock 0.296
-        // against the ceiling's 0.292), but the owner saw visible losses against the ceiling's picture, and it cost up to a fifth of the fps (K-T2 perfN2560dlssqleap: ground 37.6 to 29.9).
-        internal const string TuneCellShell = "cloud.cellShell";
-        internal const float CellShellDefault = 0f;
-        internal static bool CellShell { get { return Tuning.Get(TuneCellShell, CellShellDefault) > 0.5f; } }
-
         // The light volume (cloud.lightVolume and its levers, LightVolume.cs) was removed on 2026-11-25 (owner, master plan 44 step 5, PRUEFPROTOKOLL 261): every preset lights
         // the clouds with the full sun march.
 
-        // _CellE of a layer (CloudCells.cginc): x the bulges' reach, y the band in m, z the finer octaves' gain, w the flags (1 cloud.cellTrace, 4 cloud.cellShell).
+        // _CellE of a layer (CloudCells.cginc): x the bulges' reach, y the band in m, z the finer octaves' gain, w unused.
         internal static UnityEngine.Vector4 CellBodyVector(CloudLayerDef layer)
         {
             float bulge = layer == null ? CloudLayerDef.DefaultCellBulge : CellBulgeFor(layer);
             float band = layer == null ? CloudLayerDef.DefaultCellBandM : CellBandFor(layer);
             float fine = layer == null ? CloudLayerDef.DefaultCellFine : CellFineFor(layer);
-            float flags = (CellTrace ? 1f : 0f) + (CellShell ? 4f : 0f);
-            return new UnityEngine.Vector4(bulge, band, fine, flags);
+            return new UnityEngine.Vector4(bulge, band, fine, 0f);
         }
         internal static float CumuliformDetailHurst { get { return Clean(Tuning.Get(TuneCumuliformDetail, 0f), 0f, 0f, 2f); } }
         internal static bool CumuliformIso { get { Refresh(); return cumuliformIso > 0.5f; } }

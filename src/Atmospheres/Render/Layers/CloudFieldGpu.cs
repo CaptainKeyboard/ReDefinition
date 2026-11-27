@@ -17,11 +17,10 @@ namespace ReDefinition.Atmospheres
         // The channels of the field on the CPU (the twins' lookup); null until built.
         internal static float[] Data { get { return data; } }
 
-        // Writes the globals for this frame; builds the texture when the field is on and there is none.
+        // Writes the globals for this frame; builds the texture when there is none.
         internal static void Apply()
         {
-            bool on = CloudLookTuning.Field;
-            if (on && texture == null)
+            if (texture == null)
             {
                 data = CloudField.Build();
                 // With mip levels: the shaders read the field at the march's spacing (FieldCloud), so a far sample takes the field's mean over its spacing instead of one texel.
@@ -36,8 +35,8 @@ namespace ReDefinition.Atmospheres
             double a = CloudLookTuning.FieldWindDeg * System.Math.PI / 180.0;
             // x on, yz the street direction, w the smallest feature the field draws in m (a pixel footprint between an eighth and a quarter of it hands over to the field's
             // filtered share: FieldCloud's far view).
-            Shader.SetGlobalVector(IdP, new Vector4(on && texture != null ? 1f : 0f, (float)System.Math.Cos(a), (float)System.Math.Sin(a), 1500f));
-            if (on && texture != null)
+            Shader.SetGlobalVector(IdP, new Vector4(texture != null ? 1f : 0f, (float)System.Math.Cos(a), (float)System.Math.Sin(a), 1500f));
+            if (texture != null)
             {
                 Shader.SetGlobalTexture(IdField, texture);
                 for (int i = 0; i < classes.Length; i++)

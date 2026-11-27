@@ -13,11 +13,32 @@ namespace ReDefinition.Atmospheres
                                           double typeMap, LocalHeights heights, double raggedUnit, double coverageShare = -1.0)
         {
             if (t == null || !t.Any) return LayerDensity.ExtinctionWithShare(layer, table, altitudeM, coverageMap, typeMap, coverageShare);
-            double thickness = layer.ThicknessM;
-            double share = (altitudeM - layer.InnerAltitudeM) / thickness;
+            double lb, lt;
+            LocalBaseTop(layer, table, t, typeMap, heights, raggedUnit, out lb, out lt);
+            return ExtinctionBetween(layer, table, altitudeM, coverageMap, typeMap, coverageShare, lb, lt);
+        }
+
+        // The same with the type's local base and top given (LocalBaseTop).
+        private static double ExtinctionBetween(CloudLayerDef layer, LayerTypeTable table, double altitudeM, double coverageMap, double typeMap, double coverageShare, double lb, double lt)
+        {
+            double share = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             // coverageShare: the shape noise's share of the column (CloudShadowShapeNoise) in place of the plain threshold; below 0 it is not given.
             double s = coverageShare >= 0.0 ? coverageShare : LayerDensity.Share(layer, coverageMap, table, typeMap);
             if (s <= 0.0) return 0.0;
+            if (share < lb || share > lt) return 0.0;
+            int a, c;
+            double f;
+            table.Neighbours(typeMap, out a, out c, out f);
+            double h = (share - lb) / (lt - lb);
+            double profile = table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
+            return layer.EffectiveSigmaPerM * s * profile;
+        }
+
+        // The interpolated type's base and top at a place, as shares of the layer, with the height variation (LayerGeometry.LocalBaseTop): what the shader's TypeSlab leaves in
+        // ty.b and ty.tp (without the undulations and the top's short waves, which the CPU does not mirror).
+        internal static void LocalBaseTop(CloudLayerDef layer, LayerTypeTable table, HeightTuning t, double typeMap, LocalHeights heights, double raggedUnit, out double lb, out double lt)
+        {
+            double thickness = layer.ThicknessM;
             int a, c;
             double f, b, top;
             table.Neighbours(typeMap, out a, out c, out f);
@@ -26,13 +47,8 @@ namespace ReDefinition.Atmospheres
             table.Info(a, out ba, out ta, out ea);
             table.Info(c, out bc, out tc, out ec);
             double erosion = ea + (ec - ea) * f;
-            double lb, lt;
             LayerGeometry.LocalBaseTop(b, top, erosion, thickness, heights, raggedUnit, t.BaseRagged ? t.RaggedM : 0.0, t.MinThicknessM, out lb, out lt,
                                        -layer.InnerAltitudeM / thickness);
-            if (share < lb || share > lt) return 0.0;
-            double h = (share - lb) / (lt - lb);
-            double profile = table.ProfileAt(a, h) * (1.0 - f) + table.ProfileAt(c, h) * f;
-            return layer.EffectiveSigmaPerM * s * profile;
         }
 
         // The extinction with everything read from a source: the maps, the height maps (if the source has them) at a place.
@@ -56,11 +72,15 @@ namespace ReDefinition.Atmospheres
             CloudLayerDef layer = source.LayerAt(layerIndex);
             float cov, typ;
             source.SampleMaps(layerIndex, latDeg, lonDeg, out cov, out typ);
-            double shape = noise.Share(layerIndex, layer, x, y, z, cov, table, typ, (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM);
+            double layerShare = (altitudeM - layer.InnerAltitudeM) / layer.ThicknessM;
             var heightSource = source as ICloudHeightSource;
             HeightTuning t = heightSource == null ? null : heightSource.HeightOf(layerIndex);
-            if (t == null) return LayerDensity.ExtinctionWithShare(layer, table, altitudeM, cov, typ, shape);
-            return Extinction(layer, table, t, altitudeM, cov, typ, heightSource.SampleHeights(layerIndex, latDeg, lonDeg), 0.0, shape);
+            if (t == null || !t.Any) return LayerDensity.ExtinctionWithShare(layer, table, altitudeM, cov, typ, noise.Share(layerIndex, layer, x, y, z, cov, table, typ, layerShare));
+            // The type's LOCAL base and top, read once: a type with a form takes its body's height from them, as the shader does (master plan 47.U stage 1), and the
+            // extinction its height profile.
+            double lb, lt;
+            LocalBaseTop(layer, table, t, typ, heightSource.SampleHeights(layerIndex, latDeg, lonDeg), 0.0, out lb, out lt);
+            return ExtinctionBetween(layer, table, altitudeM, cov, typ, noise.Share(layerIndex, layer, x, y, z, cov, table, typ, layerShare, lb, lt), lb, lt);
         }
     }
 }

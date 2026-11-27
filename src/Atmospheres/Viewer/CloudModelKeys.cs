@@ -3,13 +3,14 @@ using System.Collections.Generic;
 namespace ReDefinition.Atmospheres.Viewer
 {
     // The keys and look presets of the new cloud model (package CLOUDR1) for the viewer's tables, registered through the CloudKeySource mechanism: the cumuliform volume (round lobes in a cascade),
-    // the crisp rim, the cavity, the hidden tiling, the first-hit experiment and the looks (Previous Look for A/B, 96 and 128 Steps). This is the one place the looks are defined (the viewer's preset list shows them
+    // the crisp rim, the cavity, the hidden tiling, the first-hit experiment and the looks (Model Parts Off for A/B, 96 and 128 Steps). This is the one place the looks are defined (the viewer's preset list shows them
     // next to Today; no cfg file holds a second copy). Every range is the clamp of the reader (CloudLookTuning); the markers say when a change shows (read at the reader named in each note).
     internal static class CloudModelKeys
     {
-        // The looks: the slot of the viewer's list that the 96-point look fills, the 128-point look and the look before the new model became the default. The march grid is the setting cloudSamples
+        // The looks: the slot of the viewer's list that the 96-point look fills, the 128-point look and the look with the model's parts off (until master plan 47.U stage 1 it also drew the map's texels as the clouds and was the look before the
+        // model; the clouds now stand where the field puts them in every look). The march grid is the setting cloudSamples
         // (the grid points of the profile); layers.gridFine (the registry's Quality group) multiplies it for a quick comparison.
-        internal const string Look96 = ViewerBuiltIns.NewModelSlot, Look128 = "128 Steps", LookBefore = "Previous Look";
+        internal const string Look96 = ViewerBuiltIns.NewModelSlot, Look128 = "128 Steps", LookPartsOff = "Model Parts Off";
 
         [CloudKeySource]
         internal static void Register(CloudKeyRegistrations r)
@@ -34,25 +35,14 @@ namespace ReDefinition.Atmospheres.Viewer
             // twin follows for the cloud shadow).
             r.Flag(CloudLookTuning.TuneNoiseBlend, CloudLookTuning.NoiseBlendDefault > 0.5f, KeySection.Shape,
                 "hides the tiling of the shape and cumuliform volumes by blending four randomly offset and rotated reads per lattice cell (the layer pass and the cloud shadow); on: the untiling displacement is not applied to them");
-            // CELLS: read every frame (LayerRenderer.Apply and CloudShadowRenderer.Apply write the layers' pitch or 0; the CPU shadow twin reads it per sample).
-            r.Flag(CloudLookTuning.TuneCells, CloudLookTuning.CellsDefault > 0.5f, KeySection.Shape,
-                "single clouds: the map's cloud share is put down as single clouds on the lattice of each layer's cellPitch (the cumulus layer); off: the map's smoothed texels are the clouds",
-                KeyLiveness.FrameHistory);
-            r.Flag(CloudLookTuning.TuneField, CloudLookTuning.FieldDefault > 0.5f, KeySection.Shape,
-                "the cumuliform types (form in the cfg) as single clouds placed by the weather map's share and a multi-scale field: a broad size spectrum, clusters and gaps, streets; off: as before",
-                KeyLiveness.FrameHistory);
             r.Key(CloudLookTuning.TuneFieldWind, 0f, KeySection.Shape,
                 "direction of the cloud streets in degrees from east, counter-clockwise in the map's frame", KeyLiveness.FrameHistory, KeyMarker.Live, -360f, 360f);
             r.Key(CloudLookTuning.TuneCellBulge, -1f, KeySection.Shape,
-                "how far the bulges move a single cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBulge)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
+                "how far the bulges move a cloud's surface, as a share of its shorter semi-axis (0 the bare body; below 0 each layer's cellBulge)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 2f);
             r.Key(CloudLookTuning.TuneCellBand, -1f, KeySection.Shape,
-                "width in m over which a single cloud's share rises at its surface, narrow is a sharp outline (below 0 each layer's cellBand)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 300f);
+                "width in m over which a cloud's share rises at its surface, narrow is a sharp outline (below 0 each layer's cellBand)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 300f);
             r.Key(CloudLookTuning.TuneCellFine, -1f, KeySection.Shape,
-                "gain of a single cloud's finer bulges, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
-            r.Flag(CloudLookTuning.TuneCellTrace, CloudLookTuning.CellTraceDefault > 0.5f, KeySection.Shape,
-                "single clouds: the march leaps the grid points beyond the reach of a body's bulges (the same picture, fewer samples)", KeyLiveness.FrameHistory);
-            r.Flag(CloudLookTuning.TuneCellShell, CloudLookTuning.CellShellDefault > 0.5f, KeySection.Shape,
-                "single clouds: fine steps inside a body's shell, where its surface can lie (heads smaller than the grid step are not missed)", KeyLiveness.FrameHistory);
+                "gain of a cloud's finer bulges, the heads on the heads (0 off; below 0 each layer's cellFine)", KeyLiveness.FrameHistory, KeyMarker.Live, -1f, 4f);
             r.Key(CloudHeightScale.TuneOn, CloudHeightScale.OnDefault, KeySection.Shape,
                 "height scale: 1 every cloud height a share of the body's measured troposphere (the sizes follow), 0 the layers as written", KeyLiveness.Second, KeyMarker.Live, 0f, 1f);
             r.Key(CloudHeightScale.TuneFactor, CloudHeightScale.FactorDefault, KeySection.Shape,
@@ -113,8 +103,8 @@ namespace ReDefinition.Atmospheres.Viewer
                 new PresetLayerValue(CloudLookTuning.TuneEdgePowerLayer, "", "cumulus", 2f),
                 new PresetLayerValue(CloudLookTuning.TuneCavityLayer, "", "cumulus", 0f)
             };
-            r.Preset(LookBefore, "the look before the new model became the default, for A/B against Today: no cumuliform volume, the rim exponent 2 (the layer's waterPower), no cavity, the tiling hidden by the untiling displacement, no eroded sun taps, no single clouds (the map's texels), 48 grid points",
-                new Dictionary<string, float> { { CloudLookTuning.TuneNoiseBlend, 0f }, { CloudLookTuning.TuneLightErosion, 0f }, { OwnCloudOptions.TuneCatmull, 0f }, { CloudLookTuning.TuneCells, 0f } },
+            r.Preset(LookPartsOff, "the cloud model's parts off, for A/B against Today (the clouds stay where the field puts them): no cumuliform volume, the rim exponent 2 (the layer's waterPower), no cavity, the tiling hidden by the untiling displacement, no eroded sun taps, 48 grid points",
+                new Dictionary<string, float> { { CloudLookTuning.TuneNoiseBlend, 0f }, { CloudLookTuning.TuneLightErosion, 0f }, { OwnCloudOptions.TuneCatmull, 0f } },
                 new Dictionary<string, double> { { AtmospheresSettings.Keys.CloudSamples, 48 } }, before);
             r.Preset(Look96, "Today's look with 96 grid points (the Medium profile; +1.2 ms against 48 at 1080p)", null, new Dictionary<string, double> { { AtmospheresSettings.Keys.CloudSamples, 96 } });
             r.Preset(Look128, "Today's look with 128 grid points (the High profile; +1.75 ms against 48 at 1080p)", null, new Dictionary<string, double> { { AtmospheresSettings.Keys.CloudSamples, 128 } });

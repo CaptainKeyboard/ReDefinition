@@ -29,7 +29,6 @@ namespace ReDefinition.WeatherPlayer
             if (shader == null) yield break;
             var renderer = new LayerRenderer();
             bool ok = renderer.Init(shader);
-            renderer.LatticeShader = Shader.Find(LayerRenderer.LatticeShaderName);
             Sink.Flag("far_sheet_compiled", ok);
             if (!ok) yield break;
             Directory.CreateDirectory(Output);

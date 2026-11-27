@@ -26,9 +26,7 @@
 // display stage, 5 the culling's tile map (T16), 6 the march with the cloud's distance in a second target (recon.trueDistance), 7 the march
 // drawn as one procedural triangle (recon.marchTriangle). The light volume's fill (pass 8) and blur (pass 9) were removed with the volume (master plan 44 steps 2 and 5).
 //
-// The code is ReDefinitionAtmospheresLayersCore.cginc (master plan 45.3): this shader is the product's, without the test lattice; the tools' lattice
-// (cloud.field off) is ReDefinitionAtmospheresLayersLattice.shader, the same passes with CLOUD_LATTICE defined. Their pass blocks are kept the same
-// (LayerShaderPassesTests).
+// The code is ReDefinitionAtmospheresLayersCore.cginc (master plan 45.3).
 Shader "ReDefinition/AtmospheresLayers"
 {
     SubShader

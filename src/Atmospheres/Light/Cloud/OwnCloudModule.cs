@@ -565,10 +565,6 @@ namespace ReDefinition.Atmospheres
                     AtmospheresLog.WarnOnce("own clouds: " + r.Problem + "; the own clouds are not drawn");
                     return false;
                 }
-                // The tools' lattice shader (cloud.field off, master plan 45.3); without it the lattice is not drawn and the product's field draws instead.
-                string latticeError;
-                r.LatticeShader = AtmosphereShaders.Get(LayerRenderer.LatticeShaderName, out latticeError);
-                if (r.LatticeShader == null) AtmospheresLog.Say("own clouds: the lattice shader is not loaded (" + latticeError + "); cloud.field 0 draws the field");
                 depthMat = new Material(depth) { hideFlags = HideFlags.HideAndDontSave };
                 depthCb = new CommandBuffer { name = "ReDefinition layer depth" };
                 // The reconstruction and its edge mode need their shaders; without them the plain pass draws (the setting stays off in effect).
@@ -638,7 +634,7 @@ namespace ReDefinition.Atmospheres
             // The CPU readers of the stack (the hook's field) take the pass's shape noise whether or not the shadow is drawn; the rotation is the frame's.
             for (int r = 0; r < 3; r++)
                 for (int k = 0; k < 3; k++) worldToMapRows[r * 3 + k] = f.WorldToMap[r, k];
-            shadowNoise.Update(renderer.Noise, stack, worldToMapRows, OwnCloudOptions.ShadowShapeNoise);
+            shadowNoise.Update(renderer.Noise, stack, worldToMapRows, OwnCloudOptions.ShadowShapeNoise, CloudFieldGpu.Data);
             if (shadowIntegration == null) return;
             bool on = OwnCloudOptions.ShadowActive(OwnCloudOptions.LiveSettings,CloudSourceKind.ReDefinition, stack != null ? stack.LayerCount : 0);
             shadowIntegration.Enabled = on;
@@ -1647,7 +1643,7 @@ namespace ReDefinition.Atmospheres
             // The ring's nine reads of the CPU field in one frame cost about 5 ms of the main thread (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
             // fps loss): ONE point is read per frame in turn (the camera's, then the ring's), the share is the mean of the points' latest values; the whole ring is fresh
             // after nine frames, the cost even, no frame takes them all. A new body starts the points afresh.
-            float skyShare = 1f;
+            float skyShare = 1f, cameraTau = -1f;
             if (OwnCloudOpticalDepth.Bound)
             {
                 if (!ReferenceEquals(b, skyShareBody))
@@ -1663,6 +1659,7 @@ namespace ReDefinition.Atmospheres
                 double a = 2.0 * Math.PI * Math.Max(k - 1, 0) / OwnCloudProbeLight.RingPoints, r = k == 0 ? 0.0 : ringDeg;
                 double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
                 float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
+                if (k == 0) cameraTau = tau;
                 skyPointShare[k] = tau < 0f ? -1f : (float)OwnCloudProbeLight.DiffuseShare(tau);
                 double sum = 0.0;
                 int n = 0;
@@ -1678,7 +1675,11 @@ namespace ReDefinition.Atmospheres
             OwnCloudProbeLight.Apply(skyShare);
             lastSkyShare = skyShare;
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
-            ScattererAirUnderClouds.Publish(skyShare, b);
+            ScattererAirExposure.Publish(skyShare, b);
+            // Master plan 47.2S: the air's and the sea's level seen from above the atmosphere (light.spaceAir; 1: Scatterer's own).
+            float spaceAir = ScattererAirExposure.SpaceFactor(altitude, b.atmosphere ? b.atmosphereDepth : 0.0, Tuning.Get(ScattererAirExposure.TuneSpaceAir, 1f));
+            ScattererAirExposure.PublishSpace(spaceAir, b);
+            LogCameraLight(now, sunTransmission, cameraTau, skyShare, spaceAir);
             // The own aerial perspective under the clouds takes the same diffuse share as Scatterer's air and KSP's probe (PRUEFPROTOKOLL 302; the review 284:
             // one law for the same air): the sun path's share failed at a low sun and at a cloud's edge (295).
             f.Far.CameraLitShare = skyShare;

@@ -8,9 +8,9 @@ src/Atmospheres/Render/Layers/Core/LayerDensity.cs
 src/Atmospheres/Render/Layers/Core/LayerStackSource.cs
 src/Atmospheres/Render/Layers/Core/CloudWater.cs
 src/Atmospheres/Render/Layers/Core/CloudSoftDensity.cs
-# CELLS: the single clouds' C# twin (the cloud shadow's CPU field reads the map value through it).
+# The clouds' forms on the CPU: the body's share and the map's cover share (the cloud shadow's CPU field reads them).
 src/Atmospheres/Render/Layers/Core/CloudCells.cs
-# CLOUD FIELD: the single clouds arranged by the weather map's share and one multi-scale field instead of the lattice (the default since 2026-11-22); the renderer binds it every frame.
+# CLOUD FIELD: the clouds of the types with a form, arranged by the weather map's share and one multi-scale field; the renderer binds it every frame.
 src/Atmospheres/Render/Layers/Core/CloudField.cs
 src/Atmospheres/Render/Layers/CloudFieldGpu.cs
 src/Atmospheres/Render/Layers/LayerMapStore.cs
@@ -18,6 +18,8 @@ src/Atmospheres/Render/Layers/LayerMapStore.GpuSlew.cs
 src/Atmospheres/Render/Layers/MapSlewField.cs
 # OPT1: the layer maps' GPU slew, included by the layer shader, the cloud shadow and the cloud motion include.
 unity/Assets/ReDefinitionAtmospheres/**/MapSlew.cginc
+# The distance of a raw scene depth from the camera's own projection, included by the cloud shadow, the layer depth and the reconstruction shader.
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresSceneDepth.cginc
 # The test switches' variant (CLOUD_DEV): the macro every cloud shader include reads, and the C# table that sets the keyword.
 unity/Assets/ReDefinitionAtmospheres/**/CloudDev.cginc
 src/Atmospheres/Render/Layers/CloudDevVariant.cs
@@ -35,4 +37,3 @@ src/Common/**/PrecipScale.cs
 src/Common/**/Forecast.cs
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayers.shader
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayersCore.cginc
-unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLayersLattice.shader

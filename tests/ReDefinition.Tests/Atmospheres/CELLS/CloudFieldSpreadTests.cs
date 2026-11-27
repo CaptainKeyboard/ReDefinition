@@ -5,7 +5,7 @@ using ReDefinition.Atmospheres;
 namespace ReDefinition.Tests.Atmospheres.CELLS
 {
     // Master plan 46.4, the far view's middle stage: the field's spread inside a texel of each mip level (CloudField.MipSpread), from which FieldCloud takes the
-    // share of a pixel's footprint inside the single clouds.
+    // share of a pixel's footprint inside the clouds.
     [TestClass]
     public class CloudFieldSpreadTests
     {

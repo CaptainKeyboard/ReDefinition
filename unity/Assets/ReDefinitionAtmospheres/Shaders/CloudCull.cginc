@@ -160,7 +160,7 @@ float4 _CullA;   // x the tile pass is on (skip of empty), y unused, z the tile 
 float4 _CullB;   // x, y unused, z the layer cap distance in m (0: off), w the spans kept at any distance
 float4 _CullD;   // x unused, y the pixel's angular size times its scale, z, w unused
 float4 _CullT;   // x, y the tile map's size in tiles, z, w the full target's size in pixels
-float4 _CullL[4];   // x unused, y the soft density's clear-sky K of the map value (0: off), z the layer's water exponent minus 1, w the pitch of the layer's cloud cells in m (0: none)
+float4 _CullL[4];   // x unused, y the soft density's clear-sky K of the map value (0: off), z the layer's water exponent minus 1, w unused
 sampler2D _CullTiles;
 UNITY_DECLARE_TEX2DARRAY(_CullMax0);
 UNITY_DECLARE_TEX2DARRAY(_CullMax1);

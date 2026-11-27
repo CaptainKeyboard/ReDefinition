@@ -26,7 +26,6 @@ namespace ReDefinition.WeatherPlayer
             if (shader == null || depthShader == null) yield break;
             var renderer = new LayerRenderer();
             bool ok = renderer.Init(shader);
-            renderer.LatticeShader = Shader.Find(LayerRenderer.LatticeShaderName);
             Sink.Flag("light_compiled", ok);
             if (!ok) yield break;
             var depthMaterial = new Material(depthShader);

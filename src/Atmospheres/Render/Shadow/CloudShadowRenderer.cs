@@ -68,8 +68,6 @@ namespace ReDefinition.Atmospheres
         internal static readonly string TextureNameShadows = "ReDefinitionCloudShadows";
         internal static readonly string TextureNameDepth = "ReDefinitionCloudShadowsDepth";
 
-        // The shader's local keyword of the test lattice (passes 1 and 4), on while cloud.field is off.
-        internal const string LatticeKeyword = "CLOUD_LATTICE";
 
         private static readonly int IdPlanet = Shader.PropertyToID("_CsPlanet"), IdWorldToMap = Shader.PropertyToID("_CsWorldToMap"),
             IdSun = Shader.PropertyToID("_CsSun"), IdParams = Shader.PropertyToID("_CsParams"), IdParams2 = Shader.PropertyToID("_CsParams2"), IdLayerA = Shader.PropertyToID("_CsLayerA"),
@@ -83,7 +81,7 @@ namespace ReDefinition.Atmospheres
 
         private readonly Vector4[] layerA = new Vector4[CloudLayerDef.MaxLayers], layerB = new Vector4[CloudLayerDef.MaxLayers],
             layerC = new Vector4[CloudLayerDef.MaxLayers], layerD = new Vector4[CloudLayerDef.MaxLayers],
-            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers], cellS = new Vector4[CloudLayerDef.MaxLayers],
+            noiseD = new Vector4[CloudLayerDef.MaxLayers], noiseOff = new Vector4[CloudLayerDef.MaxLayers], cellE = new Vector4[CloudLayerDef.MaxLayers],
             formP = new Vector4[CloudLayerDef.MaxLayers];
 
         // The layer pass's noise (volumes, offsets, drift): the shadow reads the shape share from the same volumes (CloudShadowFrame.ShapeNoise). null: no noise.
@@ -202,7 +200,7 @@ namespace ReDefinition.Atmospheres
                     int cumuliform = table.CumuliformOfType(t);
                     if (cumuliform > 0 && Noise != null) Noise.RequestCumuliform();
                     info[l * CloudLayerDef.MaxTypes + t] = new Color(b, top, table.EdgeOfType(t), cumuliform);
-                    // w: the type's cloud form (cloud.field, CloudField.cs), as the layer pass's second row: the shadow draws the field's single clouds where the pass does.
+                    // w: the type's cloud form (CloudField.cs), as the layer pass's second row: the shadow draws the field's clouds where the pass does.
                     info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(table.SmoothingOfType(t), 0f, 0f, table.FormOfType(t));
                 }
             }
@@ -227,30 +225,12 @@ namespace ReDefinition.Atmospheres
             int steps = Mathf.Clamp(f.StepsPerSpan, 1, 24);
             m.SetVector(IdParams, new Vector4(steps, Mathf.Clamp(f.DiscTaps, 1, 8), Mathf.Clamp01(f.Floor), layerCount));
             // The steps of each layer's spans: the policy's count (the CPU twin CloudShadowField takes the same number), read from the layer as it stands.
-            // y: the pitch of the layer's cloud cells (CELLS; 0 while cloud.cells is off), z: the layer's seed, both as the layer pass has them (the seed is the pass's _NoiseOffset.w, which
-            // this material holds only while the shape noise is bound; a 24-bit number, exact as a float).
-            bool cells = CloudLookTuning.Cells && Noise != null;
-            for (int l = 0; l < layerCount; l++)
-            {
-                layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
-                layerD[l].y = cells && uploadedSource != null ? uploadedSource.LayerAt(l).CellPitchM : 0f;
-                layerD[l].z = Noise != null ? NoiseSeeds.LayerSeed(Noise.Switches.Seed, l) : 0f;
-            }
-            // The single cloud's body per layer, as the layer pass has it (CloudCells.cginc CellBody).
+            // y, z: unused (until master plan 47.U stage 1 the test lattice's pitch and seed).
+            for (int l = 0; l < layerCount; l++) layerD[l].x = uploadedSource == null ? steps : CloudShadowStepPolicy.Count(f.StepPolicy, steps, uploadedSource.LayerAt(l));
+            // The cloud's body per layer, as the layer pass has it (CloudCells.cginc CellBody).
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(uploadedSource != null && l < layerCount ? uploadedSource.LayerAt(l) : null);
             m.SetVectorArray(LayerRenderer.IdCellE, cellE);
-            // The map-driven sky's connected stratiform types, as the layer pass has them.
-            for (int l = 0; l < CloudLayerDef.MaxLayers; l++)
-                cellS[l] = uploadedSource != null && l < layerCount ? MapSkyRegions.StratiformTypes(uploadedSource.LayerAt(l)) : Vector4.zero;
-            m.SetVectorArray(LayerRenderer.IdCellS, cellS);
-            // The shadow casts the clouds the layer pass draws: the CLOUD FIELD's single clouds (the field's texture and uniforms are globals of CloudFieldGpu), or with cloud.field off the
-            // test lattice, which is the shader's variant so the product's shader holds none of its code.
-            bool lattice = !CloudLookTuning.Field;
-            if (lattice != m.IsKeywordEnabled(LatticeKeyword))
-            {
-                if (lattice) m.EnableKeyword(LatticeKeyword);
-                else m.DisableKeyword(LatticeKeyword);
-            }
+            // The shadow casts the clouds the layer pass draws: the cloud field's (its texture and uniforms are globals of CloudFieldGpu).
             bool reach = f.EmptyReachOn && f.EmptyReach != null;
             if (reach) m.SetTexture(IdCovReach, f.EmptyReach);
             m.SetVector(IdParams2, new Vector4(Mathf.Clamp01(f.DiffuseShare), Mathf.Clamp01(f.ForwardDirectShare), f.ShapeNoise && f.MacroLift && Noise != null ? 1f : 0f, reach ? 1f : 0f));

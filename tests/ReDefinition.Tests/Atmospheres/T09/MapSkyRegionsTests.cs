@@ -63,7 +63,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
         {
             CloudLayerDef cu = Layers()[1];
             MapSkyRegions.Parts thin = Plan(One(0.4f, 0f, 800, 1000, 1800)), deep = Plan(One(0.4f, 0f, 800, 4800, 6000));
-            Assert.AreEqual(0.4f, thin.Lattice[0], 1e-6f);
+            Assert.AreEqual(0.4f, thin.Rising[0], 1e-6f);
             Assert.AreEqual(0f, thin.Sc[0]);
             byte c, tThin, tDeep;
             Draw(thin, 1, out c, out tThin);
@@ -81,10 +81,10 @@ namespace ReDefinition.Tests.Atmospheres.T09
             // stable layer below the base: capped
             MapSkyRegions.Parts a = Plan(One(0.6f, 0f, 1200, 1200, 900));
             Assert.AreEqual(0.6f, a.Sc[0], 1e-6f, "above the lattice's fair share all of it is sheet");
-            Assert.AreEqual(0f, a.Lattice[0], 1e-6f);
+            Assert.AreEqual(0f, a.Rising[0], 1e-6f);
             MapSkyRegions.Parts aLow = Plan(One(0.1f, 0f, 1200, 1200, 900));
             Assert.AreEqual(0.1f * 0.4f, aLow.Sc[0], 1e-6f, "a small capped cumuliform is mostly lattice");
-            Assert.AreEqual(0.06f, aLow.Lattice[0], 1e-6f);
+            Assert.AreEqual(0.06f, aLow.Rising[0], 1e-6f);
             byte c, t;
             Draw(a, 1, out c, out t);
             Assert.AreEqual(0, t, "the stratiform type (Stratocumulus, the first)");
@@ -128,7 +128,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
             for (double d = congM - 500; d <= calvusM + 500; d += 250)
             {
                 MapSkyRegions.Parts p = Plan(One(0.5f, 0f, 1000, 1000 + d, 1000 + d + 10, reach: 0.5f));
-                Assert.AreEqual(0.5f, p.Tall[0] + p.Lattice[0], 1e-5f);
+                Assert.AreEqual(0.5f, p.Tall[0] + p.Rising[0], 1e-5f);
                 Assert.IsTrue(p.Tall[0] >= last - 1e-6f, "the tall share rises with the depth");
                 Assert.IsTrue(p.Tall[0] - last < 0.5f * 250f / (calvusM - congM) + 1e-3f || last < 0f, "no jump");
                 last = p.Tall[0];
@@ -169,12 +169,9 @@ namespace ReDefinition.Tests.Atmospheres.T09
         }
 
         [TestMethod]
-        public void OnlyTheCumuliformLayerHasStratiformTypesAndTheRootsFollowTheBase()
+        public void TheRootsFollowTheBase()
         {
             CloudLayerDef[] l = Layers();
-            Assert.AreEqual(0f, MapSkyRegions.StratiformTypes(l[0]).x);
-            Assert.AreEqual(1f, MapSkyRegions.StratiformTypes(l[1]).x);
-            Assert.AreEqual(0f, MapSkyRegions.StratiformTypes(l[2]).x);
             MapSkyRegions.Parts p = Plan(One(0.4f, 0f, 600, 1600, 1800));
             Assert.AreEqual(600f - l[1].InnerAltitudeM, MapSkyRegions.Roots(l[1], p)[0], 1e-3f);
             MapSkyRegions.Parts high = Plan(One(0.4f, 0f, 9000, 9100, 9500));

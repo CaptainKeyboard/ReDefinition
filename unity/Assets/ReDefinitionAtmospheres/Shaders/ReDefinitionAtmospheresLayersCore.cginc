@@ -1,6 +1,5 @@
-// The layer pass's shared code (master plan 45.3): the product shader ReDefinitionAtmospheresLayers.shader and the tools' lattice shader
-// ReDefinitionAtmospheresLayersLattice.shader include it in their CGINCLUDE; the lattice shader defines CLOUD_LATTICE before it, so the product's
-// shader holds no lattice variant. The file's description of the march stands at the head of ReDefinitionAtmospheresLayers.shader.
+// The layer pass's code (master plan 45.3): ReDefinitionAtmospheresLayers.shader includes it in its CGINCLUDE. The file's description of the march stands at the
+// head of that shader. (Until master plan 47.U stage 1 a second shader, the test lattice's, included it with CLOUD_LATTICE defined.)
         #include "UnityCG.cginc"
         #include "CloudDev.cginc"
         #include "MapSlew.cginc"
@@ -135,7 +134,7 @@
 
         // ---- shape and erosion (package T02) ----
         #include "ReDefinitionAtmospheresNoise.cginc"
-        // ---- single clouds from the map's share (CELLS) ----
+        // ---- the clouds' forms: the bodies the cloud field places from the map's share ----
         #include "CloudCells.cginc"
         // ---- far view (package T06: aerial perspective, the shape's mean over the noise at wide spacing) ----
         #include "ReDefinitionAtmospheresFarView.cginc"
@@ -249,18 +248,14 @@
             // slab the gap leads to, where the height variation made the sample empty before the slab test (read by the steep view's landing only, master plan 46.4).
             float slabM;
             // What the noise and cell helpers left at the point (their own scratch globals, copied once in LayerDensityEx): the erosion detail's value (PUFF's bulge light),
-            // the cumuliform volume's cavity channel and its type strength (CLOUDR1 P3), whether a single cloud's body was read, the least horizontal distance to another
-            // body (CellProfile), and the depth the march may leap inside a body's shell without meeting its surface (CellShellGap; 0 where no body was read).
+            // the cumuliform volume's cavity channel and its type strength (CLOUDR1 P3).
             float noiseD;
             float cavity;
             float cavityK;
-            bool bodyRead;
-            float cellOther;
-            float shellGap;
             // The optical depth straight up to the type's top through a plane-parallel deck of the type at the point (PRUEFPROTOKOLL 273, 307): the layer's extinction times
             // the type's height in m times the profile's column above the point (TypeColumn), faded like the density. 0 where the read ended before the shape (and for the light march).
             float column;
-            // The field's far mean at the point (master plan 46.4, ShapeShare): its weight (0: the single clouds alone) and the extinction per m inside one of the field's clouds
+            // The field's far mean at the point (master plan 46.4, ShapeShare): its weight (0: the clouds alone) and the extinction per m inside one of the field's clouds
             // there (the layer's times the type's profile), which the light takes in the density's place (the light of a far sample is that of a cloud, not of a thin medium).
             float farW;
             float farSigma;
@@ -269,7 +264,7 @@
         // The march's scratch for the density read (master plan 46.4): the cosine between the view ray and the local vertical at the sample (the far mean's chord), and what
         // ShapeShare found of the field's far mean (copied into DensityRead by LayerDensityEx).
         // Per layer: x the share of a cloud slab's thickness a march step may sink or climb (0: no cap; LayerRenderer: 0.5, and 0.15 for a layer with a puffy type, whose
-        // smallest single cloud is 0.15 of the type's height); y the thickness in m of the layer's thinnest type (the slab taken where a sample read none).
+        // smallest cloud is 0.15 of the type's height); y the thickness in m of the layer's thinnest type (the slab taken where a sample read none).
         float4 _StepV[4];
         static float gRayVertical = 1.0;
         static float gFarW = 0.0;
@@ -287,11 +282,11 @@
 
         // ---- the density read in its parts (master plan 44 step 4: LayerDensityCore calls them in order; the statements are the former single function's) ----
         // No part takes a struct as out or inout: fxc's copy-back of such a parameter read components whose writes the optimiser had dropped (a field no later code reads,
-        // e.g. TypeRead.puff in the lattice variant), and its validator failed the variant with X8000 "source component in temp not initialized" (PRUEFPROTOKOLL 259).
+        // e.g. TypeRead.puff in a variant that did not read it), and its validator failed the variant with X8000 "source component in temp not initialized" (PRUEFPROTOKOLL 259).
         // A part returns its struct, or takes the struct by value and moves single values inout.
 
-        // What the maps say at the point: the coverage after the clear-sky rule (and the cells' put-down in the lattice variant), the type value, the map's uv clamped for the
-        // read and raw (the cells and the height maps take it), the map slice (below 0: the layer has no maps); empty: the coverage bound (or the lattice's cells) already
+        // What the maps say at the point: the coverage after the clear-sky rule, the type value, the map's uv clamped for the
+        // read and raw (the cloud field and the height maps take it), the map slice (below 0: the layer has no maps); empty: the coverage bound already
         // make the point empty.
         struct MapRead
         {
@@ -332,30 +327,7 @@
                     m.empty = true;
                     return m;
                 }
-                // CELLS: the map's share put down as single clouds (CloudCells.cginc). Where the bound above failed the share is 0, so the map's empty reach stays exact; here the discs give
-                // their own: no disc begins within it, and outside every disc the value cannot reach the threshold (the same bound). _CullL[li].w is the pitch (0: no cells).
-                // The map-driven sky (_CellS per layer, zero where a round draws no sheet): the type is read before the cells and a stratiform type is drawn connected (CellStratiformWeight).
                 m.typeValue = SlewedMap(UNITY_SAMPLE_TEX2DARRAY_LOD(_TypeMaps, float3(m.uv, m.slice), 0).rg, _MapReachType, m.slice);
-                float stratiformW = CellStratiformWeight(li, m.typeValue);
-                // The lattice (cloud.field off) is a test function for single cloud types, never the product: its code is only in the tools' shader
-                // ReDefinitionAtmospheresLayersLattice.shader, which defines CLOUD_LATTICE (master plan 45.3; LayerRenderer switches the material to it while cloud.field
-                // is off; without it the march pass is 19 % shorter and holds 10 fewer registers).
-#if defined(CLOUD_LATTICE)
-                [branch] if (_CullL[li].w > 0.0)
-                {
-                    float cellReach, wMap;
-                    float edgeC = max(_LayerB[li].z, 1e-4);
-                    gCellBodyX = CellBodyReachX(li);
-                    m.cov = CellCover(m.cov, m.uvRaw, _CullL[li].w, _PlanetR + 0.5 * (inner + outer), _LayerB[li].y, edgeC, _LayerD[li].x, light != 0 ? 0.0 : gNoiseFoot,
-                                      (uint)_NoiseOffset[li].w, stratiformW, cellReach, wMap);
-                    if (DEV(_CostP.x, 1.0) > 0.5 && m.cov + _LayerB[li].y - 1.0 + CoverageNoiseBound(li) + 0.5 * edgeC <= 0.0)
-                    {
-                        emptyM = wMap <= 0.0 ? 0.7 * cellReach : 0.0;
-                        m.empty = true;
-                        return m;
-                    }
-                }
-#endif
             }
             return m;
         }
@@ -442,7 +414,7 @@
             return true;
         }
 
-        // The share of the point that is cloud (0: none): the type's lift of the threshold, the field's single clouds, the coverage bound, the shape noise and the erosion, the
+        // The share of the point that is cloud (0: none): the type's lift of the threshold, the field's clouds, the coverage bound, the shape noise and the erosion, the
         // cells' bodies. pf: the type's profile texel at the height (r the density, g the erosion gain, b the extra noise amount, a the lift); h the height share in the type.
         float ShapeShare(int li, float3 pc, float share, float cov, float slice, float2 uvRaw, float inner, float outer, int light, TypeRead ty, out float4 pf, out float h)
         {
@@ -455,9 +427,8 @@
             // gradient of Schneider's cloudscapes (SIGGRAPH 2015: the coverage is reduced by the height signal of the cloud type); the code is the project's own.
             h = (share - ty.b) / (ty.tp - ty.b);
             pf = lerp(TypeProfile4(li, ty.ta, h), TypeProfile4(li, ty.tb, h), ty.f);
-            // CLOUD FIELD: a puffy type's single cloud from the field (FieldCloud, CloudCells.cginc; the cloud shadow reads the same function).
-            bool fieldBody = false;
-            // THE FIELD'S FAR MEAN (master plan 46.4): where the single clouds lie below the pixel (gFieldFar) the point holds the mean of the field, a clumpy medium: the share f_h of
+            // CLOUD FIELD: a puffy type's cloud from the field (FieldCloud, CloudCells.cginc; the cloud shadow reads the same function).
+            // THE FIELD'S FAR MEAN (master plan 46.4): where the clouds lie below the pixel (gFieldFar) the point holds the mean of the field, a clumpy medium: the share f_h of
             // the level is inside clouds of the type's own extinction sigma_c and of the mean chord Lc along the ray, the rest is clear air. A ray crosses a cloud in each chord
             // length with the probability f_h, so the mean transmittance over L is (1 - f_h (1 - exp(-sigma_c Lc)))^(L / Lc), an extinction of -ln(1 - f_h (1 - exp(-tau_c))) / Lc:
             // sigma_c in a closed field, f_h sigma_c for thin clouds, and for thick ones the cover f_h per chord (a field of small thick clouds is its cover of bright cloud, not a
@@ -465,17 +436,16 @@
             // body's volume over its projected area along the ray (2/3 of its height seen from above, 4/3 of its horizontal semi-axis from the side). farShare is that extinction
             // over sigma_c (the caller multiplies by the layer's extinction and the profile).
             float farW = 0.0, farShare = 0.0;
-#if !defined(CLOUD_LATTICE)
             [branch] if (ty.puff > 0 && slice >= 0)
             {
                 float typeHeightM = (ty.tp - ty.b) * (outer - inner);
-                // The light march reads the single clouds themselves (no footprint) while the pixel resolves them; where the far mean has begun it reads the mean too
+                // The light march reads the clouds themselves (no footprint) while the pixel resolves them; where the far mean has begun it reads the mean too
                 // (PRUEFPROTOKOLL 356): a cloud below the pixel shades a sample or does not by chance, a grain from orbit; the mean extinction along the light's path
                 // is that shade's mean (the same clumpy law, the chord along the light: gRayVertical is the light march's there).
                 // The light's footprint grows from 0 at the far window's start to the pixel's at its end, so that its read of the field does not step where the
-                // window begins (the idea check 358: a full footprint right at the edge read the single clouds from a blurred mip level at once). The light's own far
+                // window begins (the idea check 358: a full footprint right at the edge read the clouds from a blurred mip level at once). The light's own far
                 // weight follows that footprint (FieldCloud), so it rises over the upper part of the window only (footprints 0.2 to 0.25 of the smallest feature, the
-                // view's over 0.125 to 0.25): meant, no step at either end; below it the light reads the single clouds through the footprint's mip level (PRUEFPROTOKOLL 372).
+                // view's over 0.125 to 0.25): meant, no step at either end; below it the light reads the clouds through the footprint's mip level (PRUEFPROTOKOLL 372).
                 float fieldFoot = light != 0 ? gNoiseFoot * saturate((gNoiseFoot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : gNoiseFoot;
                 int fieldCloud = FieldCloud(li, ty.puff, uvRaw, cov, coverage, edge, _LayerD[li].x, fieldFoot, _PlanetR + 0.5 * (inner + outer), h, typeHeightM);
                 farW = gFieldFar;
@@ -493,11 +463,9 @@
                     gFarSigma = _LayerB[li].x * pf.x;
                 }
                 if (fieldCloud == 0 || farW >= 1.0) return farW * farShare;
-                fieldBody = fieldCloud > 0;
             }
-#endif
             cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
-            // CELLS: the body of a single cloud (CellBody) where the cells alone draw (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
+            // THE BODY of a cloud the field placed (CellBody), where the field's read says a body draws (not where the map's own value takes part: the closed cloud layer and the far view): its own height shape
             // replaces the type's lift, so the lift's bound below is not asked; outside the body the share is 0.
             bool body = gCellX >= 0.0 && gCellW <= 0.0;
             // COST (T01c): the coverage shape is zero where even the noise's highest value cannot lift the map above the threshold; the
@@ -524,10 +492,8 @@
             float s = NoiseShare(li, pc, covN, coverage, edgeN, amountN, erosionN, light);
             [branch] if (body)
             {
-                float2 fine = _CellE[li].z > 0.0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
+                float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 ? CellFineBulges(li, pc) : float2(0.0, 0.0);   // a read of the noise volume: none while the volumes are not bound
                 s = CellBody(li, h, s, fine, (ty.tp - ty.b) * (outer - inner));
-                // The field's distance in m is estimated from the gradient, not exact: the march does not leap over a body's shell on it.
-                if (fieldBody) gBodyRead = false;
             }
             return lerp(s, farShare, farW);
         }
@@ -543,9 +509,6 @@
             dr.noiseD = 0;
             dr.cavity = 1;
             dr.cavityK = 0;
-            dr.bodyRead = false;
-            dr.cellOther = 1e9;
-            dr.shellGap = 0;
             dr.column = 0;
             dr.farW = 0;
             dr.farSigma = 0;
@@ -553,7 +516,6 @@
             gFarSigma = 0.0;
             gCellX = -1.0;
             gCellW = 1.0;
-            gBodyRead = false;
             gNoiseD = _NoiseS.w;
             gCumuliformPreset = 0;
             gCumuliformCav = 1;
@@ -610,9 +572,6 @@
             dr.noiseD = gNoiseD;
             dr.cavity = gCumuliformCav;
             dr.cavityK = gCumuliformCavK;
-            dr.bodyRead = gBodyRead;
-            dr.cellOther = gCellOther;
-            dr.shellGap = CellShellGap(li);
             dr.farW = gFarW;
             dr.farSigma = gFarSigma;
             return density;
@@ -774,7 +733,6 @@
                 float sunTau = 0.0, upTau = 0.0, tauSince = 0.0;
                 bool haveSun = false;
                 float sinceLight = 0.0;
-                float shellLeft = (float)count;   // A4: the fine steps a span may take inside bodies' shells (cloud.cellShell)
                 // THE STEEP VIEW (master plan 46.4, PRUEFPROTOKOLL 341, 344, 346). The grid step grows with the distance (12 m x (1 + t / 1 km): 3.6 km at 300 km), and seen
                 // steeply from above every cloud slab is thinner than that from about 15 km on: a slab was hit or missed by chance (the cover fell with the distance) and a hit
                 // lay at a random depth of the step, tens of optical depths deep, where the sun's light is gone (dark clouds from orbit). So a step sinks or climbs at most the
@@ -790,25 +748,13 @@
                     float dtv = dt;
                     if (spanG > 0.0) dtv = dt * (1.0 + spanG * max(t - growFrom, 0.0));
                     // With the points by distance the footprint of the shape is the pixel's size at the sample, not the step along the ray: the step is long far away, and a footprint
-                    // of that length would replace a body by the map's mean (CellCover) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
+                    // of that length would replace a cloud's body by the field's mean (FieldCloud's far view) where the pixel still resolves it. The jittered grid and the history integrate along the ray.
                     if (spanG > 0.0) gNoiseFoot = max(dt, _CullD.y * t);
                     float vertical = max(abs(dot(d, pc)) / max(length(pc), 1.0), 1e-3);
                     gRayVertical = vertical;
                     DensityRead dr;
                     float dens = LayerDensity(li, pc, alt, t, share, dr) * spanF;
                     float capStep = _StepV[li].x > 0.0 ? max(_StepV[li].x * (dr.slabM != 0.0 ? abs(dr.slabM) : _StepV[li].y) / vertical, dt) : 1e30;
-                    // A4 (owner audit 2026-11-17, cloud.cellTrace): beyond the reach of a single cloud's bulges the body's depth changes by at most 1 per m, so no surface lies within that
-                    // depth (dr.shellGap) nor within the reach of a neighbour's body (dr.cellOther, less the band). The march leaps the whole grid steps that fit in it, so the grid's phase (its
-                    // jitter, which spreads the entry over the frames) is kept and the picture is the grid march's, only cheaper; the entry is then found as before. A sphere trace on the
-                    // bulges' slope bound (about 55 m per m for a 1 km body) crept up to every cloud over hundreds of steps and ran out of its loop (the ceiling march lost 80 % of its cover).
-                    float traceGap = -1.0;
-                    [branch] if (fmod(_CellE[li].w, 2.0) > 0.5 && dr.bodyRead && !(dens > 0))
-                    {
-                        float band = CellBand(li);
-                        float gap = min(dr.shellGap, dr.cellOther - 4.0 * band);
-                        // Only where it leaps further than the empty reach of the coverage (the grid's own skip below) would.
-                        if (gap >= 2.0 * dtv && floor(gap / dtv) > floor(dr.emptyM / dtv)) traceGap = dtv * floor(gap / dtv);
-                    }
                     float2 topAlt = float2(dr.topAlt, dr.baseAlt);   // the type's top and base at the sample
                     float slabM = dr.slabM > 0.0 ? dr.slabM : _CullL[li].x;
                     float bulgeD = dr.noiseD;
@@ -816,37 +762,6 @@
                     float cavity = 1.0;
                     [branch] if (dr.cavityK > 0.0) cavity = pow(max(dr.cavity, 0.02), 4.0 * dr.cavityK);
                     r.steps += 1;
-                    // A4 (cloud.cellShell): within the bulges' reach of a body (no shell gap) an empty sample is followed by a fine one: the pixel's size there, at least CELL_SHELL_STEP_MIN,
-                    // at most the grid step. A head smaller than the grid step lies between two grid points and was missed; the fine steps are spent where a surface can lie, the leap
-                    // above saves them elsewhere. A span takes at most as many fine steps as it has grid points (a grazing ray runs kilometres in a shell), then the grid takes over.
-                    // The fine samples follow the jittered grid point they start from, so the entry still spreads over the frames.
-                    float shellStep = -1.0;
-                    [branch] if (fmod(floor(_CellE[li].w * 0.25), 2.0) > 0.5 && dr.bodyRead && !(dens > 0) && traceGap <= 0.0 && shellLeft > 0.0 && dr.shellGap <= 0.0)
-                    {
-                        float fine = clamp(_CullD.y * t, CELL_SHELL_STEP_MIN, dtv);
-                        if (fine < dtv)
-                        {
-                            shellStep = fine;
-                            shellLeft -= 1.0;
-                        }
-                    }
-                    if (shellStep > 0.0)
-                    {
-                        tLast = t;
-                        arrived = 1.0;
-                        leap = 1.0;
-                        t += shellStep;
-                        continue;
-                    }
-                    if (traceGap > 0.0)
-                    {
-                        // A4: the grid points within the gap are empty; the last of them is where an entry after the leap is walked back to (as the reach skip below).
-                        tLast = t + traceGap - dtv;
-                        arrived = 1.0;
-                        leap = 1.0;
-                        t += traceGap;
-                        continue;
-                    }
                     if (!(dens > 0))
                     {
                         // E40 C1: the grid points within the empty reach of this sample are empty too: leap over them (dr.emptyM is 0 where no reach was read).

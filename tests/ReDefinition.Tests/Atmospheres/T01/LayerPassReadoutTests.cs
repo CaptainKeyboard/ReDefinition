@@ -76,8 +76,8 @@ namespace ReDefinition.Tests.Atmospheres.T01
             public Vector4[] Array(string name) { return name == "_LayerA" ? new[] { new Vector4(1f, 2f, 3f, 4f), Vector4.one } : null; }
             public Matrix4x4 Matrix(string name) { return Matrix4x4.identity; }
             public string Texture(string name) { return name == "_CovMaps" ? "512x256x4" : null; }
-            public bool KeywordOn(string name) { return name == "CLOUD_LATTICE"; }
-            public string[] KeywordsOn() { return new[] { "CLOUD_LATTICE" }; }
+            public bool KeywordOn(string name) { return name == "CLOUD_DEV"; }
+            public string[] KeywordsOn() { return new[] { "CLOUD_DEV" }; }
         }
 
         // A source whose vector array read throws (an array never set on the material) and whose keyword list is unknown.
@@ -98,7 +98,7 @@ namespace ReDefinition.Tests.Atmospheres.T01
             string json = LayerPassReadout.Uniforms(new Throwing());
             StringAssert.Contains(json, "\"_CullL\": null");
             StringAssert.Contains(json, "\"readFailures\": [\"_CullL: ArgumentException: no such array\"]");
-            StringAssert.Contains(json, "\"CLOUD_LATTICE\": false");
+            StringAssert.Contains(json, "\"CLOUD_DEV\": false");
             StringAssert.Contains(json, "\"keywordsOn\": null");
             Assert.AreEqual(json.Count(c => c == '{'), json.Count(c => c == '}'), "balanced braces");
         }
@@ -115,8 +115,8 @@ namespace ReDefinition.Tests.Atmospheres.T01
             StringAssert.Contains(json, "\"_WorldToMap\": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]");
             StringAssert.Contains(json, "\"_CovMaps\": \"512x256x4\"");
             StringAssert.Contains(json, "\"_NoiseShape\": null");
-            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_LATTICE\": true, \"CLOUD_DEV\": false}");
-            StringAssert.Contains(json, "\"keywordsOn\": [\"CLOUD_LATTICE\"]");
+            StringAssert.Contains(json, "\"keywords\": {\"CLOUD_DEV\": true}");
+            StringAssert.Contains(json, "\"keywordsOn\": [\"CLOUD_DEV\"]");
             StringAssert.Contains(json, "\"readFailures\": []");
             Assert.AreEqual(json.Count(c => c == '{'), json.Count(c => c == '}'), "balanced braces");
             Assert.AreEqual(json.Count(c => c == '['), json.Count(c => c == ']'), "balanced brackets");

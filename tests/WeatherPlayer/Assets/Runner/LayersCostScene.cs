@@ -62,7 +62,6 @@ namespace ReDefinition.WeatherPlayer
             LayersJobFile file = JsonUtility.FromJson<LayersJobFile>(File.ReadAllText(Path.Combine(input, "jobs.json")));
             var renderer = new LayerRenderer();
             if (!renderer.Init(shader)) { Sink.Flag("layers_compiled", false); yield break; }
-            renderer.LatticeShader = Shader.Find(LayerRenderer.LatticeShaderName);
             var dummy = new RenderTexture(4, 4, 0, RenderTextureFormat.RFloat);
             dummy.Create();
             RenderTexture.active = dummy;

@@ -77,7 +77,6 @@ namespace ReDefinition.WeatherPlayer
                     LightIsotropy = jl.lightIsotropy,
                     LightPlateau = jl.lightPlateau,
                     LightCellWidth = jl.lightCellWidth,
-                    CellPitchM = jl.cellPitch,
                     CellBulge = jl.cellBulge >= 0f ? jl.cellBulge : CloudLayerDef.DefaultCellBulge,
                     CellBandM = jl.cellBand >= 0f ? jl.cellBand : CloudLayerDef.DefaultCellBandM,
                     CellFine = jl.cellFine >= 0f ? jl.cellFine : CloudLayerDef.DefaultCellFine,

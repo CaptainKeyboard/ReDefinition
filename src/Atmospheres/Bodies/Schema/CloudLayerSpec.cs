@@ -165,9 +165,7 @@ namespace ReDefinition.Atmospheres
         internal float RainType { get; set; } = 1f;
         // How much longer the noise features are along the body's axis than across it (cfg key filamentStretch; 1: isotropic): see CloudLayerDef.FilamentStretch.
         internal float FilamentStretch { get; set; } = 1f;
-        // The pitch of the layer's cloud cells in m (cfg key cellPitch; 0: no cells): see CloudLayerDef.CellPitchM.
-        internal float CellPitchM { get; set; }
-        // The body of a single cloud (cfg keys cellBulge, cellBand, cellFine): see CloudLayerDef.CellBulge.
+        // The body of a cloud (cfg keys cellBulge, cellBand, cellFine): see CloudLayerDef.CellBulge.
         internal float CellBulge { get; set; } = CloudLayerDef.DefaultCellBulge;
         internal float CellBandM { get; set; } = CloudLayerDef.DefaultCellBandM;
         internal float CellFine { get; set; } = CloudLayerDef.DefaultCellFine;
@@ -248,7 +246,6 @@ namespace ReDefinition.Atmospheres
                 LightCellWidth = LightCellWidth,
                 RainType = RainType,
                 FilamentStretch = FilamentStretch,
-                CellPitchM = CellPitchM,
                 CellBulge = CellBulge,
                 CellBandM = CellBandM,
                 CellFine = CellFine,
