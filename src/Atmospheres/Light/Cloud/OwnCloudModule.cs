@@ -1676,8 +1676,8 @@ namespace ReDefinition.Atmospheres
             lastSkyShare = skyShare;
             // Scatterer's air under the clouds in-scatters the same diffuse share (PRUEFPROTOKOLL 298), written in the next LateUpdate.
             ScattererAirExposure.Publish(skyShare, b);
-            // Master plan 47.2S: the air's and the sea's level seen from above the atmosphere (light.spaceAir; 1: Scatterer's own).
-            float spaceAir = ScattererAirExposure.SpaceFactor(altitude, b.atmosphere ? b.atmosphereDepth : 0.0, Tuning.Get(ScattererAirExposure.TuneSpaceAir, 1f));
+            // Master plan 47.2S: the air's and the sea's level seen from above the atmosphere (the setting spaceAirLevel; 1: Scatterer's own).
+            float spaceAir = ScattererAirExposure.SpaceFactor(altitude, b.atmosphere ? b.atmosphereDepth : 0.0, AtmospheresSettings.SpaceAirLevel);
             ScattererAirExposure.PublishSpace(spaceAir, b);
             LogCameraLight(now, sunTransmission, cameraTau, skyShare, spaceAir);
             // The own aerial perspective under the clouds takes the same diffuse share as Scatterer's air and KSP's probe (PRUEFPROTOKOLL 302; the review 284:

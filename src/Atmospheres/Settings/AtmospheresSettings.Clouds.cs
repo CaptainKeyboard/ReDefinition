@@ -67,6 +67,7 @@ namespace ReDefinition.Atmospheres
             internal const string CloudDiffusionDecay = "cloudDiffusionDecay";
             internal const string CloudAerialPerspective = "cloudAerialPerspective";
             internal const string CloudFarShapeMean = "cloudFarShapeMean";
+            internal const string SpaceAirLevel = "spaceAirLevel";
             internal const string CloudFarMinSamples = "cloudFarMinSamples";
             internal const string CloudFarPolicy = "cloudFarPolicy";
             internal const string CloudFarMapFade = "cloudFarMapFade";
@@ -84,6 +85,7 @@ namespace ReDefinition.Atmospheres
         internal static bool CloudLightCache => B(Keys.CloudLightCache);
         internal static bool CloudShadows => B(Keys.CloudShadows);
         internal static float SceneWhiteBalance => F(Keys.SceneWhiteBalance);
+        internal static float SpaceAirLevel => F(Keys.SpaceAirLevel);
         internal static bool RtOwnClouds => B(Keys.RtOwnClouds);
         internal static int RtOwnCloudsLayerCap => I(Keys.RtOwnCloudsLayerCap);
         internal static bool CloudFarMapFade => B(Keys.CloudFarMapFade);
@@ -161,6 +163,11 @@ namespace ReDefinition.Atmospheres
                 // The scene's white balance (owner 2026-11-19, audit A2): the whole picture balanced after the upscaler by the sun's tint raised to this strength
                 // (0 none, 1 the full tint), in place of the clouds' own white point (SceneWhiteBalance). The owner found the full balance too strong on every body.
                 SettingDef.Float("sceneWhiteBalance", 0.25, 0.0, 1.0, CL, "Scene White Balance", OWN),
+                // The air and the sea seen from above the atmosphere (master plan 47.2S; owner 2026-11-27: a setting of ours, never a patch of Scatterer's config): the
+                // share of Scatterer's own level its air and sky are drawn with from twice the atmosphere's height outward (1 up to the atmosphere's top, linear between;
+                // ScattererAirExposure). 1 is Scatterer's own picture. The default is measured (PRUEFPROTOKOLL 399): the sea's level S of the limb view falls from 0.146 to
+                // 0.083 and of the disc view from 0.125 to 0.062, inside the range of the reference pictures (0.035 to 0.106).
+                SettingDef.Float("spaceAirLevel", 0.6, 0.3, 1.0, CL, "Air From Space", OWN),
 
                 // The sun march and the look fixes of T03v2: off, the march is the owner's look of 2026-11-19 (12 km); on, the short one (4 km) the parity rows measured.
                 // (It replaced cloudSunMarchLong on 2026-11-23: the old key's files say False, which would now mean 4 km; a new key reads its default on every install.)

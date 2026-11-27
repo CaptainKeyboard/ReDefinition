@@ -265,7 +265,7 @@
       "opacity_micromaps": null,
       "frame_generation": ["fsr"],
       "latency": ["none"],
-      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "ReDefinition", "atmo.ownClouds": "True", "atmo.layerStepQuality": "Medium", "atmo.cloudNoise": "True", "atmo.cloudNoiseUntile": "True", "atmo.cloudNoiseCurl": "True", "atmo.cloudNoiseTier": "Medium", "atmo.cloudNoiseDistanceLod": "True", "atmo.cloudFineDetail": "True", "atmo.cloudLightQuality": "High", "atmo.cloudSunTint": "True", "atmo.cloudAmbientTaps": "False", "atmo.cloudLightCache": "False", "atmo.cloudRotation": "True", "atmo.sceneWhiteBalance": "0.25", "atmo.cloudShadows": "True", "atmo.cloudShadowQuality": "Medium", "atmo.cloudReconMode": "Full"},
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.cloudSource": "ReDefinition", "atmo.ownClouds": "True", "atmo.layerStepQuality": "Medium", "atmo.cloudNoise": "True", "atmo.cloudNoiseUntile": "True", "atmo.cloudNoiseCurl": "True", "atmo.cloudNoiseTier": "Medium", "atmo.cloudNoiseDistanceLod": "True", "atmo.cloudFineDetail": "True", "atmo.cloudLightQuality": "High", "atmo.cloudSunTint": "True", "atmo.cloudAmbientTaps": "False", "atmo.cloudLightCache": "False", "atmo.cloudRotation": "True", "atmo.sceneWhiteBalance": "0.25", "atmo.spaceAirLevel": "0.6", "atmo.cloudShadows": "True", "atmo.cloudShadowQuality": "Medium", "atmo.cloudReconMode": "Full"},
       "tweaks": [
         {"id": "weather-ownClouds", "name": "Own Volumetric Clouds false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.ownClouds": "False"}},
         {"id": "weather-layerStepQuality", "name": "Own Cloud Step Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.layerStepQuality": "Low"}},
@@ -281,6 +281,7 @@
         {"id": "weather-cloudLightCache", "name": "Cloud Light Cache true", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudLightCache": "True"}},
         {"id": "weather-cloudRotation", "name": "Cloud Rotation false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudRotation": "False"}},
         {"id": "weather-sceneWhiteBalance", "name": "Scene White Balance 0", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.sceneWhiteBalance": "0"}},
+        {"id": "weather-spaceAirLevel", "name": "Air From Space 1", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.spaceAirLevel": "1"}},
         {"id": "weather-cloudShadows", "name": "Cloud Shadows false", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudShadows": "False"}},
         {"id": "weather-cloudShadowQuality", "name": "Cloud Shadow Quality Low", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudShadowQuality": "Low"}},
         {"id": "weather-cloudReconMode", "name": "Cloud Reconstruction Block, Cloud Resolution 4", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.cloudReconMode": "Block", "atmo.cloudResolution": "4"}},

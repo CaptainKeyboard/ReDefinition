@@ -47,7 +47,7 @@ namespace ReDefinition.Atmospheres
         // The grid points the start began with (the profile's), read before the first variant changes them.
         private double baseSamples = double.NaN, baseShadows = double.NaN, baseRays = double.NaN, baseRagged = double.NaN, baseVariation = double.NaN,
             baseStepGrowth = double.NaN, baseSkipEmpty = double.NaN, baseLightCache = double.NaN, baseSceneWb = double.NaN,
-            baseCloudRotation = double.NaN, baseShadowQuality = double.NaN;
+            baseCloudRotation = double.NaN, baseShadowQuality = double.NaN, baseSpaceAir = double.NaN;
 
         private bool PerfStart
         {
@@ -116,8 +116,10 @@ namespace ReDefinition.Atmospheres
                 case "noshell2":
                 case "nocloud":
                 case "nocloud2":
+                case "air100":
                 case "air60":
                 case "air30":
+                case "airoff":
                 case "nodepth":
                 case "noprecip":
                 case "fshort":
@@ -194,6 +196,7 @@ namespace ReDefinition.Atmospheres
             baseSkipEmpty = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudSkipEmpty);
             baseLightCache = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudLightCache);
             baseSceneWb = AtmospheresSettings.Number(AtmospheresSettings.Keys.SceneWhiteBalance);
+            baseSpaceAir = AtmospheresSettings.Number(AtmospheresSettings.Keys.SpaceAirLevel);
             baseCloudRotation = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudRotation);
             baseShadowQuality = AtmospheresSettings.Number(AtmospheresSettings.Keys.CloudShadowQuality);
             foreach (string key in FeatureKeys) baseFeatures[key] = AtmospheresSettings.Number(key);
@@ -243,6 +246,7 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.CloudSkipEmpty, baseSkipEmpty);
             SetSetting(AtmospheresSettings.Keys.CloudLightCache, baseLightCache);
             SetSetting(AtmospheresSettings.Keys.SceneWhiteBalance, baseSceneWb);
+            SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, baseSpaceAir);
             SetSetting(AtmospheresSettings.Keys.CloudRotation, baseCloudRotation);
             SetSetting(AtmospheresSettings.Keys.CloudShadowQuality, baseShadowQuality);
             foreach (KeyValuePair<string, double> f in baseFeatures) SetSetting(f.Key, f.Value);
@@ -408,9 +412,12 @@ namespace ReDefinition.Atmospheres
                 // is what the 3D clouds cost at a height.
                 case "nocloud":
                 case "nocloud2": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); break;
-                // Master plan 47.2S: no cloud of any kind (as nocloud2) with the air's level from space at 0.6 and 0.3 of Scatterer's (light.spaceAir): the sea's level S against the factor.
-                case "air60": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); ForceTuning(ScattererAirExposure.TuneSpaceAir, 0.6f); break;
-                case "air30": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); ForceTuning(ScattererAirExposure.TuneSpaceAir, 0.3f); break;
+                // Master plan 47.2S: no cloud of any kind (as nocloud2) with the air's level from space at 1, 0.6 and 0.3 of Scatterer's (the setting spaceAirLevel): the
+                // sea's level S against the factor. airoff: the clouds drawn, the setting at 1 (Scatterer's own air), against plain's default.
+                case "air100": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 1.0); break;
+                case "air60": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.6); break;
+                case "air30": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
+                case "airoff": SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 1.0); break;
                 // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the
                 // tile then: the scene's depth cuts it there; none: something is drawn over the pass or the maps are empty there.
                 case "nodepth": OwnShell.ProbeHidden = true; OwnCloudModule.ProbeNoSceneDepth = true; perfNoDepth = true; break;

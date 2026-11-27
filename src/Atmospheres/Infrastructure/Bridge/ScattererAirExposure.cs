@@ -60,8 +60,6 @@ namespace ReDefinition.Atmospheres
         // THE AIR FROM SPACE (master plan 47.2S; owner 2026-11-26 / 27: a foreign value is written only as a setting of ours, never as a fixed patch): seen from above the
         // atmosphere Scatterer's air and sea are brighter against the clouds than the reference pictures show. The space factor scales the body's scatteringExposure AND
         // skyExposure the same way the share under the clouds scales the first: on Scatterer's interpolated copy of the frame, never on its config. 1: no change.
-        // light.spaceAir: the factor far above the atmosphere (1: off, Scatterer's own level).
-        internal const string TuneSpaceAir = "light.spaceAir";
         // The least space factor: the air and the sea are never switched off.
         internal const float MinSpace = 0.05f;
         private static float spaceFactor = 1f;

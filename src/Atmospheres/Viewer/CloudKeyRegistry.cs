@@ -370,7 +370,6 @@ namespace ReDefinition.Atmospheres.Viewer
             N(LightWriter.TuneTestSunScale, 1f, note: "measurement: the scene's sun under the own clouds times this"),
             N(LightWriter.TuneTestAmbientScale, 1f, note: "measurement: the scene's ambient under the own clouds times this"),
             N(LightWriter.TuneTestScatterExposure, 1f, note: "measurement: Scatterer's in-scatter exposure times this"),
-            N(ScattererAirExposure.TuneSpaceAir, 1f, note: "the air's and the sea's level seen from above the atmosphere, as a share of Scatterer's own (1: unchanged; full from twice the atmosphere's height)"),
             N(TestLightTerms.TuneShScale, 1f, note: "measurement: the SH ambient probe times this"),
             N(TestLightTerms.TuneProbeScale, 1f, note: "measurement: the reflection probes' intensity times this"),
             N(TestLightTerms.TuneDefaultReflection, 1f, note: "measurement: 0 makes the default reflection a black cube"),
