@@ -120,6 +120,9 @@ namespace ReDefinition.Atmospheres
                 case "air60":
                 case "air30":
                 case "airoff":
+                case "ls3":
+                case "ls4":
+                case "lc10":
                 case "nodepth":
                 case "noprecip":
                 case "fshort":
@@ -418,7 +421,11 @@ namespace ReDefinition.Atmospheres
                 case "air60": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.6); break;
                 case "air30": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
                 case "airoff": SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 1.0); break;
-                // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the
+                // PRUEFPROTOKOLL 401 (the deck start below 48 fps, the light march is the cost): the march to the sun every 3rd and 4th lit step of a span instead of
+                // every 2nd (layers.lightStride), and the reuse for every step that weighs less than a tenth of the pixel instead of a twentieth (layers.lightCutoff).
+                case "ls3": ForceTuning(OwnCloudOptions.TuneLightStride, 3f); break;
+                case "ls4": ForceTuning(OwnCloudOptions.TuneLightStride, 4f); break;
+                case "lc10": ForceTuning(OwnCloudOptions.TuneLightCutoff, 0.10f); break;                // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the
                 // tile then: the scene's depth cuts it there; none: something is drawn over the pass or the maps are empty there.
                 case "nodepth": OwnShell.ProbeHidden = true; OwnCloudModule.ProbeNoSceneDepth = true; perfNoDepth = true; break;
                 case "noprecip": ApiBridge.ProbeSkipOwners.Add("precipitation"); break;

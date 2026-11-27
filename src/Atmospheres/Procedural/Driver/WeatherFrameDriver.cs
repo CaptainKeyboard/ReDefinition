@@ -23,6 +23,10 @@ namespace ReDefinition.Atmospheres
         private bool broken;
         private int bodyIndex = -1;
         private double lastUt = double.NaN;
+        // The frames between two reads of the clouds' optical depth over the camera, and the last read.
+        private const int DepthEvery = 3;
+        private int depthWait;
+        private float lastDepth;
         private PrecipBand loggedBand = PrecipBand.None;
         private PrecipType loggedType = PrecipType.None;
         private int loggedExternal;
@@ -48,13 +52,22 @@ namespace ReDefinition.Atmospheres
             if (broken) return;
             try
             {
+                // Timed in its parts (PRUEFPROTOKOLL 401: 0.66 ms a frame as one number, single frames to 36 ms).
                 WeatherView view = WeatherHooks.View;
                 DriverInput input;
+                long cpu = ModuleCpuTiming.Begin();
                 bool have = Gather(out input);
+                ModuleCpuTiming.End("frameDriver.gather", cpu);
+                cpu = ModuleCpuTiming.Begin();
                 composer.Compose(ref input, view);
+                ModuleCpuTiming.End("frameDriver.compose", cpu);
+                cpu = ModuleCpuTiming.Begin();
                 if (have) light.Update(view, SunLight());
                 else light.Update(view, null);
+                ModuleCpuTiming.End("frameDriver.light", cpu);
+                cpu = ModuleCpuTiming.Begin();
                 LogChanges(view);
+                ModuleCpuTiming.End("frameDriver.log", cpu);
             }
             catch (Exception e)
             {
@@ -134,7 +147,14 @@ namespace ReDefinition.Atmospheres
             input.BodyKind = PrecipTypeModel.BodyKind(climate.Precip);
             input.CloudMapsVersion = CloudMapsState.Version;
             input.CloudLayerName = CloudMapsState.LayerName;
-            input.OpticalDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
+            // The clouds' optical depth over the camera is a march of the CPU's cloud field: read every DepthEvery-th frame (it was every frame, a part of the 0.47 ms a
+            // frame this method cost, PRUEFPROTOKOLL 402); a jump to another body reads at once.
+            if (input.Jump || --depthWait <= 0)
+            {
+                depthWait = DepthEvery;
+                lastDepth = CloudDepthRule.Resolve(WeatherHooks.CloudOpticalDepth, lat, lon, alt, ut, sample.OpticalDepthVertical);
+            }
+            input.OpticalDepth = lastDepth;
             input.VisibilityExtinctionColour = climate.Look.VisibilityExtinctionColour;
             input.PrecipExtinctionGroundColour = climate.Look.PrecipExtinctionGroundColour;
             input.PrecipExtinctionSkyColour = climate.Look.PrecipExtinctionSkyColour;

@@ -58,6 +58,20 @@ namespace ReDefinition.Atmospheres
         }
     }
 
+    // The weather modules' main-thread timing (src/Atmospheres/Infrastructure/Registry/ModuleCpuTiming.cs), which the linked layer renderer marks its upload with: the game's
+    // class writes a line a second to the game's log; the player has no such report and times nothing.
+    internal static class ModuleCpuTiming
+    {
+        internal static long Begin()
+        {
+            return 0L;
+        }
+
+        internal static void End(string name, long started)
+        {
+        }
+    }
+
     // The cloud shadow on Scatterer's ocean (src/Atmospheres/Render/Shadow/ScattererOceanCloudShadow.cs), which the linked CloudShadowIntegration holds: the game's class sets a
     // delegate of Scatterer by reflection and declares a foreign-code contract, which the player has neither the mod nor the checker for. Here it does nothing (no Scatterer, no ocean).
     internal sealed class ScattererOceanCloudShadow

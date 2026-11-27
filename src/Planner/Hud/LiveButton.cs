@@ -108,6 +108,11 @@ namespace ReDefinition.Planner.Hud
         }
 
         private float busyUntil;
+        // The seconds between two looks at the top strip while nothing moved it, and what the last look saw of the things that move it.
+        private const float LookEveryS = 10f;
+        private int lookWidth, lookHeight;
+        private bool lookMap;
+        private float lookScale;
 
         // Whether the mouse is on the button.
         private bool PointerOver(RectTransform rect)
@@ -135,11 +140,19 @@ namespace ReDefinition.Planner.Hud
             if (rect == null || root == null) return;
             // The menu and the tooltip open under the button and would count as a control in its place; the place is kept while they are up.
             if (LiveMenu.IsOpen || PointerOver(rect)) busyUntil = Time.unscaledTime + 1.5f;
-            if (Time.unscaledTime > nextLook && Time.unscaledTime > busyUntil)
+            // The look at the top strip walks its graphics: a frame of 16 to 18 ms when it was taken every second (the perf monitor, 2026-11-27). It is taken when what
+            // moves the strip changed (the window's size, the interface's scale, the map view) and every LookEveryS seconds otherwise (another mod's button that came).
+            bool inMap = MapView.MapIsEnabled;
+            float scale = GameSettings.UI_SCALE;
+            bool moved = Screen.width != lookWidth || Screen.height != lookHeight || inMap != lookMap || scale != lookScale;
+            if ((moved || Time.unscaledTime > nextLook) && Time.unscaledTime > busyUntil)
             {
-                nextLook = Time.unscaledTime + 1f;
+                nextLook = Time.unscaledTime + LookEveryS;
+                lookWidth = Screen.width;
+                lookHeight = Screen.height;
+                lookMap = inMap;
+                lookScale = scale;
                 // In the map view the top frame with the gauge is drawn away: the button stands past the time panel there, not where the gauge was.
-                bool inMap = MapView.MapIsEnabled;
                 beside = inMap ? null : BesideGauge();
                 List<KeyValuePair<string, Vector2>> items = TopStripItems();
                 float? gauge = beside;
@@ -317,22 +330,27 @@ namespace ReDefinition.Planner.Hud
             {
                 asked = Time.unscaledTime + 1f;
                 possible = vessel != null && MechJebDriver.CanFly(vessel);
-                reason = possible ? null : MechJebDriver.Unavailable;
             }
             bool able = flying || possible;
-            face.sprite = flying ? lit : dark;
-            face.color = able ? Color.white : new Color(1f, 1f, 1f, 0.45f);
-            button.interactable = able;
-            // What the autopilot does now is asked twice a second: it is read from MechJeb by reflection.
-            if (Time.unscaledTime > nextActivity)
+            Sprite sprite = flying ? lit : dark;
+            if (!ReferenceEquals(face.sprite, sprite)) face.sprite = sprite;
+            Color colour = able ? Color.white : new Color(1f, 1f, 1f, 0.45f);
+            if (face.color != colour) face.color = colour;
+            if (button.interactable != able) button.interactable = able;
+            // The tooltip's text is made only while the pointer is over the button, where alone it can be read: why MechJeb is not available and what the autopilot
+            // does now are read by reflection (the perf monitor, 2026-11-27: this method cost 0.43 ms a frame, in single frames of 16 to 18 ms every second).
+            if (tooltip != null && PointerOver((RectTransform)face.transform))
             {
-                nextActivity = Time.unscaledTime + 0.5f;
-                activity = AutopilotActivity.Describe(vessel) ?? "";
-            }
-            if (tooltip != null)
-            {
+                // What the autopilot does now is asked twice a second.
+                if (Time.unscaledTime > nextActivity)
+                {
+                    nextActivity = Time.unscaledTime + 0.5f;
+                    activity = AutopilotActivity.Describe(vessel) ?? "";
+                    reason = possible ? null : MechJebDriver.Unavailable;
+                }
                 string title = flying ? "Autopilot On" : able ? "Autopilot Off" : "Autopilot (" + (reason ?? "No MechJeb") + ")";
-                tooltip.textString = title + (activity.Length > 0 ? "\n" + activity : "") + "\nRight-Click: Menu";
+                string text = title + (activity.Length > 0 ? "\n" + activity : "") + "\nRight-Click: Menu";
+                if (tooltip.textString != text) tooltip.textString = text;
             }
             Place();
         }

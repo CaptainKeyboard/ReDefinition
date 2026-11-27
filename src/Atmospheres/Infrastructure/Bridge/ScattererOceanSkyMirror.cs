@@ -55,14 +55,19 @@ namespace ReDefinition.Atmospheres
                         return;
                     }
                 }
+                // The search walks every object of the scene: with ocean nodes found it is repeated only after ten times the interval, and at once when one is gone.
                 if (Time.realtimeSinceStartup >= rescanAt)
                 {
-                    rescanAt = Time.realtimeSinceStartup + RescanSeconds;
                     nodes = UnityEngine.Object.FindObjectsOfType(nodeType);
+                    rescanAt = Time.realtimeSinceStartup + (nodes.Length > 0 ? 10f * RescanSeconds : RescanSeconds);
                 }
                 foreach (UnityEngine.Object n in nodes)
                 {
-                    if (n == null) continue;
+                    if (n == null)
+                    {
+                        rescanAt = 0f;
+                        continue;
+                    }
                     var m = materialField.GetValue(n) as Material;
                     if (m == null || !m.IsKeywordEnabled(On)) continue;
                     m.DisableKeyword(On);

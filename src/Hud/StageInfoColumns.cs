@@ -251,8 +251,45 @@ namespace ReDefinition.Hud
         // in the same frame.
         private void LateUpdate()
         {
-            Arrange();
+            // Arranging every stage in every frame cost the main thread 1.9 ms a frame in flight (the perf monitor, 2026-11-27), with nothing to arrange in almost all of
+            // them: it is done in every frame only while the stages change (a stage came or went, a line came or went, a panel slides) and two frames after, and every
+            // QuietEvery-th frame otherwise, which takes up whatever the signs do not show.
+            if (Changing() || --quiet <= 0)
+            {
+                quiet = QuietEvery;
+                Arrange();
+            }
             if (Arranged != null) Arranged();
+        }
+
+        // Frames between two arrangements while nothing changes, and the frames arranged after the last change (the slide's end state is laid out a frame later).
+        private const int QuietEvery = 10, AfterChange = 2;
+        private int quiet, after, lastStages = -1, lastLines = -1;
+
+        // Whether the stages change in this frame or did so within the last AfterChange frames.
+        private bool Changing()
+        {
+            StageManager manager = StageManager.Instance;
+            if (manager == null || manager.Stages == null) return false;
+            int stages = manager.Stages.Count, lines = 0;
+            bool sliding = false;
+            foreach (StageGroup group in manager.Stages)
+            {
+                if (group == null) continue;
+                if (StageGroupFields.PanelSliding(group)) sliding = true;
+                List<StageGroupInfoItem> infos = StageGroupFields.Infos(group);
+                if (infos != null) lines += infos.Count;
+            }
+            if (sliding || stages != lastStages || lines != lastLines)
+            {
+                lastStages = stages;
+                lastLines = lines;
+                after = AfterChange;
+                return true;
+            }
+            if (after <= 0) return false;
+            after--;
+            return true;
         }
 
         // Every stage's details and icons for the frame, the stack's width and its hover area; a failure leaves them as they are.

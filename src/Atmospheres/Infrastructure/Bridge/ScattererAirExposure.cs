@@ -48,7 +48,9 @@ namespace ReDefinition.Atmospheres
 
     internal static class ScattererAirExposure
     {
-        private const float RescanSeconds = 1f;
+        private const float RescanSeconds = 1f, FoundRescanSeconds = 10f;
+        // The bodies the last search was made for.
+        private static CelestialBody scannedOwn, scannedSpace;
         private static Type nodeType;
         private static FieldInfo settingsField, exposureField, skyField, managerField, bodyField;
         private static UnityEngine.Object[] nodes = new UnityEngine.Object[0];
@@ -149,24 +151,37 @@ namespace ReDefinition.Atmospheres
                         return;
                     }
                 }
+                // The search walks every object of the scene (the same search held a frame for 3.3 ms in the raytracing's ocean bridge): with nodes found it is repeated
+                // only after FoundRescanSeconds, at once when one of them is gone (the loop below) or the clouds' or the camera's body changed, and every RescanSeconds
+                // while none is found.
+                if (!ReferenceEquals(publishedBody, scannedOwn) || !ReferenceEquals(spaceBody, scannedSpace)) rescanAt = 0f;
                 if (Time.realtimeSinceStartup >= rescanAt)
                 {
-                    rescanAt = Time.realtimeSinceStartup + RescanSeconds;
+                    scannedOwn = publishedBody;
+                    scannedSpace = spaceBody;
                     nodes = UnityEngine.Object.FindObjectsOfType(nodeType);
+                    rescanAt = Time.realtimeSinceStartup + (nodes.Length > 0 ? FoundRescanSeconds : RescanSeconds);
                     // Entries of nodes that are gone (a scene or body switch) are dropped.
                     if (state.Count > 0) Prune();
                 }
                 float share = Mathf.Max(0f, factor);
                 // Without the space contract (skyField is null then) both of its fields keep Scatterer's level: the factor is never half applied.
                 float spaceNow = skyField != null ? Mathf.Clamp(space, MinSpace, 1f) : 1f;
+                bool sawNode = false, sawOurs = false;
                 foreach (UnityEngine.Object n in nodes)
                 {
-                    if (n == null) continue;
+                    if (n == null)
+                    {
+                        rescanAt = 0f;
+                        continue;
+                    }
+                    sawNode = true;
                     bool own = OfBody(n, publishedBody), far = spaceNow != 1f && spaceBody != null && OfBody(n, spaceBody);
                     object settings = settingsField.GetValue(n);
                     if (settings == null) continue;
                     float[] s;
                     bool have = state.TryGetValue(settings, out s);
+                    if (own || far) sawOurs = true;
                     if (!own && !far)
                     {
                         // A node that is ours no longer (the clouds' or the camera's body changed, the space factor is back at 1 while another body's share is
@@ -206,6 +221,8 @@ namespace ReDefinition.Atmospheres
                         AtmospheresLog.Say("Scatterer's air: scatteringExposure on " + nodes.Length + " sky node(s), " + b.ToString("0.000") + " -> " + written.ToString("0.000"));
                     }
                 }
+                // Nodes are known but none is of the body asked for (Scatterer makes a body's node as the camera nears it): looked for at the short interval.
+                if (sawNode && !sawOurs) rescanAt = Mathf.Min(rescanAt, Time.realtimeSinceStartup + RescanSeconds);
             }
             catch (Exception e)
             {

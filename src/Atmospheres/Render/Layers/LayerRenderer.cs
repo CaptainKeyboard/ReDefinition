@@ -442,6 +442,8 @@ namespace ReDefinition.Atmospheres
         // Writes the frame's numbers (not the camera) into the material.
         internal void Apply(LayerFrame f)
         {
+            // Timed (PRUEFPROTOKOLL 401: the pass's recording costs the main thread 1.2 ms a frame, single frames 22 ms; which part of it was not known).
+            long cpuApply = ModuleCpuTiming.Begin();
             Material m = material;
             m.SetFloat(IdPlanetR, (float)radius);
             m.SetVector(IdPlanetCenter, f.PlanetCenter);
@@ -505,15 +507,20 @@ namespace ReDefinition.Atmospheres
             m.SetVectorArray(IdStepV, stepV);
             for (int l = 0; l < CloudLayerDef.MaxLayers; l++) cellE[l] = CloudLookTuning.CellBodyVector(l < layerCount ? cellLayer[l] : null);
             m.SetVectorArray(IdCellE, cellE);
+            long cpuReach = ModuleCpuTiming.Begin();
             if (f.EmptyReach && Maps.Coverage != null) Reach.Refresh(Maps, layerCount, layerB, layerD, cullL, SpreadReach ? 1 : CloudLayerDef.MaxLayers);
             m.SetTexture(IdCovReach, Reach.Texture(f.EmptyReach));
+            ModuleCpuTiming.End("cloudPass.apply.reach", cpuReach);
+            long cpuNoise = ModuleCpuTiming.Begin();
             Noise.SetPole(f.WorldToMap.GetRow(2));
             Noise.Bind(m, layerCount);
+            ModuleCpuTiming.End("cloudPass.apply.noise", cpuNoise);
             // The sky probe's vector lives in its faces' property blocks (OwnCloudSkyProbe); the material holds the product value, so that the variant's read below finds it
             // (a vector the material never held made the engine log "Material doesn't have a color property '_SkyProbeP'" four times a frame, PRUEFPROTOKOLL 343).
             m.SetVector(IdSkyProbeP, Vector4.zero);
             // The test switches' variant from the values just uploaded (the reconstruction sets it again after its own uploads and the edge draw).
             CloudDevVariant.Apply(m, CloudDevVariant.Layer);
+            ModuleCpuTiming.End("cloudPass.apply", cpuApply);
         }
 
         // The intervals of the last Upload as text (the probe's row and the log): per layer "table <inner>-<outer>" in m.

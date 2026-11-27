@@ -211,7 +211,14 @@ namespace ReDefinition.Atmospheres
         private float lastSkyShare = 1f;
         // The air's diffuse share under the own clouds (skyShare, PRUEFPROTOKOLL 302, 311): the camera's point and the ring's, one read per frame in turn; -1 not read yet.
         private readonly float[] skyPointShare = new float[OwnCloudProbeLight.RingPoints + 1];
-        private int skyShareNext;
+        private int skyShareNext, skyShareWait;
+        // The frames between two reads of a sky share point and between two marches of the CPU's cloud field to the sun, the share by which the sun's transmission that
+        // is handed on moves towards the last march's a frame, and that march's state.
+        private const int SkyShareEvery = 3, SunMarchEvery = 4;
+        private const float SunMarchBlend = 0.35f;
+        private int sunMarchWait;
+        private float sunTransmissionLatest = 1f, sunTransmissionShown = 1f;
+        private CelestialBody sunMarchBody;
         private CelestialBody skyShareBody;
         private Material depthMaterial;
         private CommandBuffer depthCommands;
@@ -499,20 +506,30 @@ namespace ReDefinition.Atmospheres
             {
                 FillFrame(cam, pendingBody, pendingClimate, pendingField, pendingUt, pendingNow);
                 ModuleCpuTiming.End("cloudPass.fill", cpuStart);
-                long cpuFilled = ModuleCpuTiming.Begin();
+                // The parts are timed one by one (PRUEFPROTOKOLL 401: together they were the largest main-thread cost of the weather modules, 1.2 ms a frame with single
+                // frames of 20 to 30 ms, and one label did not say which of them).
+                long cpuPart = ModuleCpuTiming.Begin();
                 FillShadow(pendingBody, frame);
+                ModuleCpuTiming.End("cloudPass.shadowFill", cpuPart);
+                cpuPart = ModuleCpuTiming.Begin();
                 Record(cam, pendingBody);
+                ModuleCpuTiming.End("cloudPass.record", cpuPart);
+                cpuPart = ModuleCpuTiming.Begin();
                 // The own clouds in what the sea and the land mirror: a part of a face of the own sky probe every few frames (master plan 46.1 part 4, PRUEFPROTOKOLL 315, 365).
                 skyProbe.Update(renderer.Material, lastSkyShare);
+                ModuleCpuTiming.End("cloudPass.skyProbe", cpuPart);
+                cpuPart = ModuleCpuTiming.Begin();
                 // Scatterer's ocean mirrors that probe instead of its own clear sky while it runs (stage C, PRUEFPROTOKOLL 317).
                 ScattererOceanSkyMirror.Apply(skyProbe.Active);
                 // The sea's mirror image of the own clouds through Deferred's reflections (stage D, PRUEFPROTOKOLL 322).
                 seaMirror.Update(skyProbe.Cube, pendingBody != null ? (Vector3)pendingBody.position : Vector3.zero);
+                ModuleCpuTiming.End("cloudPass.mirrors", cpuPart);
+                cpuPart = ModuleCpuTiming.Begin();
                 if (FrameOrigin != 0) PinLogFrame(cam);
                 recordedFrame = Time.frameCount;
                 if (motionFrame == recordedFrame) DrawMotion();
                 PublishStats(pendingNow);
-                ModuleCpuTiming.End("cloudPass.shadowRecordMotion", cpuFilled);
+                ModuleCpuTiming.End("cloudPass.motion", cpuPart);
             }
             catch (Exception e)
             {
@@ -1627,17 +1644,38 @@ namespace ReDefinition.Atmospheres
             f.Far.InscatterNear = AerialPerspectivePlan.ExemptFromWhitePoint(nearRadiance, f.OutputWhiteTint, f.OutputGamma);
             // The sun's direct transmission through the own layers at the camera, from the CPU's cloud field along the sun: Scatterer's sun flare is dimmed by the
             // direct beam (master plan 46.1, ScattererFlareClouds). The air's share is the diffuse share below (skyShare).
-            float sunTransmission = 1f;
-            if (sunBody != null && OwnCloudOpticalDepth.Bound)
+            // The march of the CPU's cloud field towards the sun cost 0.39 ms in EVERY frame (PRUEFPROTOKOLL 402). The clouds and the camera move little in a frame: it is
+            // marched every SunMarchEvery-th frame, and what is handed on (the flare's dimming) moves towards the last result by a share a frame, so that it has no steps.
+            float sunTransmission = sunTransmissionShown;
+            long cpuSunT = ModuleCpuTiming.Begin();
+            if (sunBody == null || !OwnCloudOpticalDepth.Bound)
             {
+                sunTransmissionLatest = 1f;
+                sunTransmissionShown = sunTransmission = 1f;
+            }
+            else if (!ReferenceEquals(b, sunMarchBody) || --sunMarchWait <= 0)
+            {
+                bool first = !ReferenceEquals(b, sunMarchBody);
+                sunMarchBody = b;
+                sunMarchWait = SunMarchEvery;
                 double sla = b.GetLatitude(sunBody.position) * Math.PI / 180.0, slo = b.GetLongitude(sunBody.position) * Math.PI / 180.0;
                 Vector3d camWorld = camPos;
-                sunTransmission = OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
-                                                                         Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla));
+                sunTransmissionLatest = OwnCloudOpticalDepth.SunTransmissionAt(b.GetLatitude(camWorld), b.GetLongitude(camWorld), altitude,
+                                                                               Math.Cos(sla) * Math.Cos(slo), Math.Cos(sla) * Math.Sin(slo), Math.Sin(sla));
+                if (first) sunTransmissionShown = sunTransmissionLatest;
             }
+            if (sunBody != null && OwnCloudOpticalDepth.Bound)
+            {
+                sunTransmissionShown += (sunTransmissionLatest - sunTransmissionShown) * SunMarchBlend;
+                sunTransmission = sunTransmissionShown;
+            }
+            ModuleCpuTiming.End("cloudPass.fill.sunMarch", cpuSunT);
+            long cpuBridges = ModuleCpuTiming.Begin();
             ScattererFlareClouds.Apply(sunTransmission);
             ReflectionCameraWatch.Sync();
             OwnProbeTest.Sync();
+            ModuleCpuTiming.End("cloudPass.fill.bridges", cpuBridges);
+            long cpuShare = ModuleCpuTiming.Begin();
             // KSP's reflection probe, the scene's environment light (PRUEFPROTOKOLL 294, 295): by the diffuse share of the vertical optical depth over the camera and
             // a ring round it (the sky light follows the depth overhead, not the sun's path).
             // The ring's nine reads of the CPU field in one frame cost about 5 ms of the main thread (PRUEFPROTOKOLL 311: cloudPass.fill 150-196 ms a second, the night's
@@ -1650,17 +1688,24 @@ namespace ReDefinition.Atmospheres
                 {
                     skyShareBody = b;
                     for (int i = 0; i < skyPointShare.Length; i++) skyPointShare[i] = -1f;
+                    skyShareWait = 0;
                 }
-                int k = skyShareNext;
-                skyShareNext = (skyShareNext + 1) % skyPointShare.Length;
-                Vector3d camAt = camPos;
-                double ala = b.GetLatitude(camAt), alo = b.GetLongitude(camAt);
-                double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI;
-                double a = 2.0 * Math.PI * Math.Max(k - 1, 0) / OwnCloudProbeLight.RingPoints, r = k == 0 ? 0.0 : ringDeg;
-                double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
-                float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
-                if (k == 0) cameraTau = tau;
-                skyPointShare[k] = tau < 0f ? -1f : (float)OwnCloudProbeLight.DiffuseShare(tau);
+                // One point every SkyShareEvery-th frame (it was one a frame, 0.40 ms in every frame, PRUEFPROTOKOLL 402): the ring is fresh after 27 frames, about
+                // half a second, and the light of the sky under the clouds does not change faster than that.
+                if (--skyShareWait <= 0)
+                {
+                    skyShareWait = SkyShareEvery;
+                    int k = skyShareNext;
+                    skyShareNext = (skyShareNext + 1) % skyPointShare.Length;
+                    Vector3d camAt = camPos;
+                    double ala = b.GetLatitude(camAt), alo = b.GetLongitude(camAt);
+                    double ringDeg = OwnCloudProbeLight.RingM / b.Radius * 180.0 / Math.PI;
+                    double a = 2.0 * Math.PI * Math.Max(k - 1, 0) / OwnCloudProbeLight.RingPoints, r = k == 0 ? 0.0 : ringDeg;
+                    double pla = ala + r * Math.Sin(a), plo = alo + r * Math.Cos(a) / Math.Max(0.01, Math.Cos(ala * Math.PI / 180.0));
+                    float tau = OwnCloudOpticalDepth.Read(pla, plo, altitude, ut);
+                    if (k == 0) cameraTau = tau;
+                    skyPointShare[k] = tau < 0f ? -1f : (float)OwnCloudProbeLight.DiffuseShare(tau);
+                }
                 double sum = 0.0;
                 int n = 0;
                 for (int i = 0; i < skyPointShare.Length; i++)
@@ -1671,6 +1716,7 @@ namespace ReDefinition.Atmospheres
                 }
                 if (n > 0) skyShare = (float)(sum / n);
             }
+            ModuleCpuTiming.End("cloudPass.fill.skyShare", cpuShare);
             // KSP's probe scaled by the share: the fallback while the own sky probe cannot run (it replaces KSP's probe while it does, PRUEFPROTOKOLL 314-316).
             OwnCloudProbeLight.Apply(skyShare);
             lastSkyShare = skyShare;
@@ -1874,8 +1920,10 @@ namespace ReDefinition.Atmospheres
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkBegin);
                 // The light cache is filled by the reconstruction's record, at the head of the march (LayerReconstructor.Record).
                 Stats.LightCacheOn = lightCache != null && lightCache.Enabled;
+                long cpuDriver = ModuleCpuTiming.Begin();
                 driver.Record(renderer.Commands, renderer, frame, cam, depth, BuiltinRenderTextureType.CameraTarget, OwnCloudPlan.FrameNumber(Time.frameCount, FrameOrigin), scene,
                               CloudBridgeLights.ResetRequests, weatherCuts, structureVersion);
+                ModuleCpuTiming.End("cloudPass.record.driver", cpuDriver);
                 if (CloudBridgeLights.Mark != null) CloudBridgeLights.Mark(renderer.Commands, CloudBridgeLights.MarkEnd);
                 Stats.ReconFrames++;
                 Stats.Mode = "reconstruct";
