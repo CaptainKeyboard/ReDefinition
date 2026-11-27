@@ -38,10 +38,13 @@ def cam(elev, az):
     return np.array([math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e)])
 
 
-def run(tau, sun_elev, photons, g1=0.85, g2=-0.3, w1=0.92, albedo=0.9999, seed=5, height=1200.0, batch=200000):
+def run(tau, sun_elev, photons, g1=0.85, g2=-0.3, w1=0.92, albedo=0.9999, seed=5, height=1200.0, batch=200000, sky=False):
+    """sky (master plan 47.1 A1, PRUEFPROTOKOLL 366): the slab under a uniform sky instead of the sun. The photons enter cosine-weighted over the upper hemisphere
+    (the flux of a sky of radiance L_sky through the top is pi L_sky), and the radiances are over L_sky: what a white card facing up shows under that sky. L1 is
+    then the sky's light scattered once, L2 the rest; sun_elev is not used."""
     sigma = tau / height
     rng = np.random.default_rng(seed)
-    mu0 = math.sin(math.radians(sun_elev))
+    mu0 = 1.0 if sky else math.sin(math.radians(sun_elev))
     ldir = np.array([math.cos(math.radians(sun_elev)), 0.0, mu0])
     cams = [cam(e, a) for e, a in VIEWS]
     L1 = np.zeros(len(cams))
@@ -53,7 +56,13 @@ def run(tau, sun_elev, photons, g1=0.85, g2=-0.3, w1=0.92, albedo=0.9999, seed=5
         n = min(batch, photons - done)
         done += n
         z = np.full(n, height)
-        d = np.tile(-ldir, (n, 1))
+        if sky:
+            ct = np.sqrt(rng.uniform(size=n))
+            st = np.sqrt(np.maximum(1.0 - ct * ct, 0.0))
+            ph = rng.uniform(size=n) * 2.0 * math.pi
+            d = np.stack([st * np.cos(ph), st * np.sin(ph), -ct], axis=1)
+        else:
+            d = np.tile(-ldir, (n, 1))
         order = 0
         pos = np.zeros((n, 3))
         pos[:, 2] = z
@@ -152,8 +161,14 @@ def compare_source(res, overrides=None):
 
 
 def cmd_run(a):
-    res = run(a.tau, a.sun, a.photons, g1=a.g1, g2=a.g2, w1=a.w1, seed=a.seed)
+    res = run(a.tau, a.sun, a.photons, g1=a.g1, g2=a.g2, w1=a.w1, seed=a.seed, sky=a.sky)
     os.makedirs(a.out, exist_ok=True)
+    if a.sky:
+        # Its own name (not slab_*: compare reads those as the sun's walks).
+        np.savez(os.path.join(a.out, "sky_tau%g.npz" % a.tau), **res)
+        print("tau %g under a uniform sky: radiance over the sky's (a white card facing up: 1); views %s" % (a.tau, VIEWS))
+        print("  " + " ".join("%.4f" % v for v in (res["L1"] + res["L2"])))
+        return
     np.savez(os.path.join(a.out, "slab_tau%g_sun%g.npz" % (a.tau, a.sun)), **res)
     print_reference(res)
     compare(res)
@@ -189,6 +204,7 @@ def main():
     r.add_argument("--g2", type=float, default=-0.3)
     r.add_argument("--w1", type=float, default=0.92)
     r.add_argument("--seed", type=int, default=5)
+    r.add_argument("--sky", action="store_true", help="a uniform sky instead of the sun (the radiances over the sky's)")
     r.add_argument("--out", required=True)
     c = sub.add_parser("compare")
     c.add_argument("dir")
