@@ -14,6 +14,7 @@ Shader "ReDefinition/AtmospheresLayerDepth"
             #pragma fragment frag
             #pragma target 3.5
             #include "UnityCG.cginc"
+            #include "ReDefinitionAtmospheresSceneDepth.cginc"
 
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
             // The greatest depth in m that counts (0: none; master plan 46.4, PRUEFPROTOKOLL 349). While the body's ground is not drawn in flight (its PQS is off and the
@@ -40,7 +41,9 @@ Shader "ReDefinition/AtmospheresLayerDepth"
             #else
                 if (raw >= 1.0 - 1e-7) return 0;
             #endif
-                float z = LinearEyeDepth(raw);
+                // By the projection the camera renders with, not by its plane properties (ReDefinitionAtmospheresSceneDepth.cginc: LinearEyeDepth read every far depth
+                // kilometres too near and the march ended before the far clouds over the ground).
+                float z = SceneEyeDepth(raw);
                 if (_LayerDepthMaxM > 0.0 && z > _LayerDepthMaxM) return 0;
                 return z;
             }

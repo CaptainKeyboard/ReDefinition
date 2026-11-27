@@ -502,7 +502,7 @@ namespace ReDefinition.Atmospheres
                 long cpuFilled = ModuleCpuTiming.Begin();
                 FillShadow(pendingBody, frame);
                 Record(cam, pendingBody);
-                // The own clouds in what the sea and the land mirror: one face of the own sky probe a frame (master plan 46.1 part 4, PRUEFPROTOKOLL 315).
+                // The own clouds in what the sea and the land mirror: a part of a face of the own sky probe every few frames (master plan 46.1 part 4, PRUEFPROTOKOLL 315, 365).
                 skyProbe.Update(renderer.Material, lastSkyShare);
                 // Scatterer's ocean mirrors that probe instead of its own clear sky while it runs (stage C, PRUEFPROTOKOLL 317).
                 ScattererOceanSkyMirror.Apply(skyProbe.Active);
@@ -1820,7 +1820,25 @@ namespace ReDefinition.Atmospheres
                 depthMaterial.SetFloat(DepthIds.MaxM,AerialPerspectivePlan.SceneDepthMaxM(b.pqsController != null && b.pqsController.isActive, unload));
             }
             // Measurement: one read of the last frame's scene depth where a probe asked (OwnCloudModule.DepthStats.cs).
-            DepthStatsIfAsked(((Vector3d)cam.transform.position - b.position).magnitude - b.Radius);
+            if (ProbeDepthStats)
+            {
+                Vector3d fromCentre = (Vector3d)cam.transform.position - b.position;
+                // The camera's planes and path with it: a far surface's depth is as exact as the buffer the path gives the camera (near over distance in its bits).
+                string cameraInfo = cam.name + " near " + cam.nearClipPlane.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " far "
+                                      + cam.farClipPlane.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " m, " + cam.actualRenderingPath
+                                      + (SystemInfo.usesReversedZBuffer ? ", reversed z" : ", forward z") + ", ground " + (b.pqsController != null && b.pqsController.isActive ? "loaded" : "not loaded")
+                                      + ", " + DepthProjectionText(cam);
+                // Three places of the picture off the vessel (which stands in the centre): what the sea level's sphere gives there along the camera's forward axis.
+                var sea = new double[DepthStatPoints.Length / 2];
+                Vector3d forward = ((Vector3d)cam.transform.forward).normalized;
+                for (int k = 0; k < sea.Length; k++)
+                {
+                    Vector3d dir = ((Vector3d)cam.ViewportPointToRay(new Vector3(DepthStatPoints[2 * k], DepthStatPoints[2 * k + 1], 0f)).direction).normalized;
+                    double t = SphereAlongRay(fromCentre, dir, b.Radius);
+                    sea[k] = t > 0.0 ? t * Vector3d.Dot(dir, forward) : -1.0;
+                }
+                DepthStatsIfAsked(fromCentre.magnitude - b.Radius, sea, cameraInfo);
+            }
             depthCommands.Clear();
             LayerReconstructor.Sub(depthCommands, "before the scene depth copy");
             depthCommands.Blit(BuiltinRenderTextureType.None, depthTarget, depthMaterial);

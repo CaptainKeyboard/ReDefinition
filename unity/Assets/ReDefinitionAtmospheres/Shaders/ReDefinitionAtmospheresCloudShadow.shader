@@ -27,6 +27,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
 
         CGINCLUDE
         #include "UnityCG.cginc"
+        #include "ReDefinitionAtmospheresSceneDepth.cginc"
         #include "MapSlew.cginc"
 
         static const int MAXL = 4;
@@ -388,7 +389,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
 
         float3 WorldPosFromDepth(float2 uv, float rawDepth)
         {
-            float depth = Linear01Depth(rawDepth);
+            // The distance before the eye by the projection the camera renders with (ReDefinitionAtmospheresSceneDepth.cginc): Linear01Depth times the far plane
+            // read a far ground 3 to 8 % too near, a point kilometres above the sea, which the low clouds do not shade.
+            float eye = SceneEyeDepth(rawDepth);
 #if defined(UNITY_REVERSED_Z)
             rawDepth = 1 - rawDepth;
 #endif
@@ -398,7 +401,7 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             camPos.xyz /= camPos.w;
             float3 rayDirection = normalize(camPos.xyz);
             float aa = dot(rayDirection, float3(0.0, 0.0, -1.0));
-            camPos.xyz = rayDirection * depth / aa * _ProjectionParams.z;
+            camPos.xyz = rayDirection * eye / aa;
             camPos.z = -camPos.z;
             float4 worldPos = mul(unity_CameraToWorld, float4(camPos.xyz, 1.0));
             return worldPos.xyz / worldPos.w;

@@ -18,15 +18,43 @@ namespace ReDefinition.Atmospheres
             internal static readonly int MaxM = Shader.PropertyToID("_LayerDepthMaxM");
         }
 
+        // What the shaders' SceneEyeDepth makes of the camera's projection (ReDefinitionAtmospheresSceneDepth.cginc reads unity_CameraProjection; this is the
+        // same arithmetic on the matrix the camera holds as it culls), for the measurement's log line.
+        private static string DepthProjectionText(Camera cam)
+        {
+            Matrix4x4 p = cam.projectionMatrix;
+            float a, b;
+            SceneDepthPlan.Terms(p.m22, p.m23, out a, out b);
+            bool usable = SceneDepthPlan.Usable(p.m32, p.m33, a, b);
+            CultureInfo inv = CultureInfo.InvariantCulture;
+            return "depth by " + (usable ? "the projection" : "the planes (the projection is not of the perspective kind)") + " (a " + a.ToString("R", inv) + ", b "
+                   + b.ToString("R", inv) + ", its far plane " + SceneDepthPlan.ImpliedFar(a, b).ToString("0", inv) + " m)";
+        }
+
         internal static bool ProbeDepthStats;
         // What the read is for, in the log line (the probe's view and variant).
         internal static string ProbeDepthStatsTag = "";
 
-        private void DepthStatsIfAsked(double cameraAltitudeM)
+        // The distance along a ray (unit direction d from the point o, planet-relative) to the sphere of the radius r, or -1 where the ray misses it or starts inside.
+        internal static double SphereAlongRay(Vector3d o, Vector3d d, double r)
+        {
+            double b = Vector3d.Dot(o, d), c = Vector3d.Dot(o, o) - r * r;
+            double disc = b * b - c;
+            if (disc <= 0.0 || c <= 0.0) return -1.0;
+            double t = -b - Math.Sqrt(disc);
+            return t > 0.0 ? t : -1.0;
+        }
+
+        // The places of the picture the depth is compared at (viewport x, y from the lower left; pairs): left and right of the vessel at the middle height, and below it.
+        internal static readonly float[] DepthStatPoints = { 0.25f, 0.5f, 0.75f, 0.5f, 0.5f, 0.2f };
+
+        // seaForwardM: for each place of DepthStatPoints the distance of the sea level's sphere along the camera's forward axis (the depth there if the sea is what the
+        // camera sees; -1: the ray misses the body). PRUEFPROTOKOLL 374, 375: from 130 km the decks were not drawn while their shadows lay on the sea.
+        private void DepthStatsIfAsked(double cameraAltitudeM, double[] seaForwardM, string cameraInfo)
         {
             if (!ProbeDepthStats || depthTarget == null || !depthTarget.IsCreated()) return;
             ProbeDepthStats = false;
-            string tag = ProbeDepthStatsTag;
+            string tag = ProbeDepthStatsTag + ", " + cameraInfo;
             int w = depthTarget.width, h = depthTarget.height;
             AsyncGPUReadback.Request(depthTarget, 0, TextureFormat.RFloat, request =>
             {
@@ -39,13 +67,39 @@ namespace ReDefinition.Atmospheres
                     }
                     float[] data = request.GetData<float>().ToArray();
                     AtmospheresLog.Say("own clouds: scene depth (" + tag + "), camera " + cameraAltitudeM.ToString("0", CultureInfo.InvariantCulture) + " m up, " + w + "x" + h + ": "
-                                       + DepthStatsText(data, w, h));
+                                       + DepthStatsText(data, w, h) + DepthPointsText(data, w, h, DepthStatPoints, seaForwardM));
                 }
                 catch (Exception e)
                 {
                     AtmospheresLog.Say("own clouds: scene depth read (" + tag + ") failed: " + e.Message);
                 }
             });
+        }
+
+        // "; at (0.25, 0.50): D m, the sea's sphere G m (D / G); ...": the depth at places of the picture (viewport x, y from the lower left, pairs) against what the
+        // sea level's sphere gives there along the camera's forward axis. Over the open sea the two are the same; over land the depth is shorter by what the land
+        // stands above the sea. The middle of the 3 x 3 pixels round the place is taken (one pixel may be the vessel's or a tree's).
+        internal static string DepthPointsText(float[] data, int w, int h, float[] points, double[] seaForwardM)
+        {
+            if (data == null || w <= 0 || h <= 0 || data.Length < w * h || points == null || seaForwardM == null) return "";
+            CultureInfo inv = CultureInfo.InvariantCulture;
+            var text = new StringBuilder(160);
+            var near = new System.Collections.Generic.List<float>(9);
+            for (int k = 0; k + 1 < points.Length && k / 2 < seaForwardM.Length; k += 2)
+            {
+                int px = Mathf.Clamp((int)(points[k] * w), 1, w - 2), py = Mathf.Clamp((int)(points[k + 1] * h), 1, h - 2);
+                near.Clear();
+                for (int y = py - 1; y <= py + 1; y++)
+                    for (int x = px - 1; x <= px + 1; x++) near.Add(data[y * w + x]);
+                near.Sort();
+                float d = near[4];
+                double sea = seaForwardM[k / 2];
+                text.Append("; at (").Append(points[k].ToString("0.00", inv)).Append(", ").Append(points[k + 1].ToString("0.00", inv)).Append("): ")
+                    .Append(d > 0f && d < 1e9f ? d.ToString("0", inv) + " m" : "no depth").Append(", the sea's sphere ")
+                    .Append(sea > 0.0 ? sea.ToString("0", inv) + " m" : "not met");
+                if (d > 0f && d < 1e9f && sea > 0.0) text.Append(" (").Append((d / sea).ToString("0.0000", inv)).Append(")");
+            }
+            return text.ToString();
         }
 
         // "upper left: n px of N, least / middle / greatest m; ..." for the four quarters (the texture's row 0 is the picture's bottom). A depth of 0 is the sky.

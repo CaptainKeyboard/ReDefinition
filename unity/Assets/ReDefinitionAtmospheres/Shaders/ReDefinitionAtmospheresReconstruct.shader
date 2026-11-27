@@ -43,6 +43,7 @@ Shader "ReDefinition/AtmospheresReconstruct"
         sampler2D_float _AgeTex;    // the history's sample count (pass 3's second target of the last frame): the marched samples each pixel's history holds
 
         #include "ReDefinitionAtmospheresCloudMotion.cginc"
+        #include "ReDefinitionAtmospheresSceneDepth.cginc"
 
         struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
 
@@ -444,7 +445,9 @@ Shader "ReDefinition/AtmospheresReconstruct"
             float visible = 1.0;
             if (!sky)
             {
-                float scene = LinearEyeDepth(raw);
+                // The same reading as the march's scene depth (ReDefinitionAtmospheresSceneDepth.cginc): by the plane properties a far ground read 3 to 8 % too near,
+                // and a far cloud just above it would count as hidden and lose its motion vector.
+                float scene = SceneEyeDepth(raw);
                 float cloud = depth * dot(d, _CamForward.xyz);
                 visible = saturate((scene - cloud) / max(0.05 * scene, 1.0) + 0.5);
             }

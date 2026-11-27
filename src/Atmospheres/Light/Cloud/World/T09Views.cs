@@ -47,6 +47,19 @@ namespace ReDefinition.Atmospheres
             new T09View { Name = "far10000", AglM = 10000000.0, PitchDeg = double.NaN, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 }
         };
 
+        // The approach views (master plan 46.4, the probe's -t09ApproachViews; the owner: nothing may pop on the approach): one place seen 60 degrees below the
+        // horizontal from 400 km down to 130 km, the centre ray's distance from about 460 km to 150 km: through the band in which the field's far mean gives way
+        // to the single clouds (312 to 156 km of distance at 1707 x 960).
+        internal static readonly T09View[] Approach =
+        {
+            new T09View { Name = "app400", AglM = 400000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "app320", AglM = 320000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "app260", AglM = 260000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "app210", AglM = 210000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "app170", AglM = 170000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 },
+            new T09View { Name = "app130", AglM = 130000.0, PitchDeg = -60.0, HeadingDeg = 90.0, CameraDistM = 150.0, HeldToleranceM = 1000.0, PlaceAttempts = 2 }
+        };
+
         // The layer mask that draws no layer (a bit above every layer index).
         internal const int NoLayersMask = 1 << 20;
 
