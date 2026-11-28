@@ -55,7 +55,13 @@ def globe(cloud, lon0_deg, size=720):
     lon = np.radians(lon0_deg) + np.arctan2(u, z)
     col = ((np.degrees(lon) + 180.0) % 360.0) / 360.0 * W
     row = (0.5 - lat / np.pi) * H
-    c = cloud[np.clip(row.astype(int), 0, H - 1), np.clip(col.astype(int), 0, W - 1)]
+    # bilinear between the texels' centres, as the shader reads the map (the longitude wraps)
+    fr, fc = row - 0.5, col - 0.5
+    r0, c0 = np.floor(fr).astype(int), np.floor(fc).astype(int)
+    tr, tc = fr - r0, fc - c0
+    ra, rb = np.clip(r0, 0, H - 1), np.clip(r0 + 1, 0, H - 1)
+    ca, cb = c0 % W, (c0 + 1) % W
+    c = (cloud[ra, ca] * (1 - tc) + cloud[ra, cb] * tc) * (1 - tr) + (cloud[rb, ca] * (1 - tc) + cloud[rb, cb] * tc) * tr
     # the sea at 0.06, the cloud at 0.85, a little limb darkening; display gamma 2.2
     lum = (0.06 + (0.85 - 0.06) * c) * (0.55 + 0.45 * z)
     lum = np.where(inside, lum, 0.0)
@@ -95,6 +101,13 @@ def main():
             print("  composite%-6s mean %.3f  clear (below 0.1) %.3f  closed (above 0.7) %.3f" % (suffix, float((c * weights).sum() / weights.sum()),
                                                                                              float(((c < 0.1) * weights).sum() / weights.sum()),
                                                                                              float(((c > 0.7) * weights).sum() / weights.sum())))
+            precip = load(folder, tag + "precip")
+            if precip is not None:
+                # rain and its cloud: the share of the planet where precipitation falls (from the level of flurries, 0.04, and of light rain, 0.20) under a composite below 0.1
+                for level in (0.04, 0.20):
+                    print("  composite%-6s precipitation from %.2f on %.3f of the planet, under a clear sky on %.3f" % (
+                        suffix, level, float(((precip >= level) * weights).sum() / weights.sum()),
+                        float((((precip >= level) & (c < 0.1)) * weights).sum() / weights.sum())))
             views = np.hstack([globe(c, 0.0), globe(c, 180.0)])
             Image.fromarray(views).save(os.path.join(out, t + "_globe" + suffix + ".png"))
         while len(tiles) % 4:

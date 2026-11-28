@@ -100,6 +100,7 @@ namespace ReDefinition.Tests.Atmospheres.T09
                 BodyClimate climate;
                 GeneratorField field = KerbinField(seed, out climate);
                 CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
+                TrialMeso(layers, Environment.GetEnvironmentVariable("MAPSKY_MESO"));
                 int body = FieldFixture.BodyIndex;
                 WeatherMapKind[] kinds =
                 {
@@ -198,6 +199,57 @@ namespace ReDefinition.Tests.Atmospheres.T09
             finally
             {
                 LayerWindOptions.SteeringOverride = null;
+            }
+        }
+
+        // Trial values of the layers' MESO keys for a dump, without touching the body file: MAPSKY_MESO = "<layer name part>:key=value,key=value;<layer name part>:..." (a layer
+        // whose name contains the part takes the values; the keys are the cfg's).
+        private static void TrialMeso(CloudLayerDef[] layers, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            foreach (string block in text.Split(';'))
+            {
+                int colon = block.IndexOf(':');
+                if (colon < 0) continue;
+                string part = block.Substring(0, colon).Trim();
+                foreach (CloudLayerDef l in layers)
+                {
+                    if (l.Meso == null || l.Name.IndexOf(part, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    foreach (string pair in block.Substring(colon + 1).Split(','))
+                    {
+                        string[] kv = pair.Split('=');
+                        if (kv.Length != 2) continue;
+                        float v = float.Parse(kv[1].Trim(), CultureInfo.InvariantCulture);
+                        CloudMesoSpec m = l.Meso;
+                        switch (kv[0].Trim())
+                        {
+                            case "scaleDepths": m.ScaleDepths = v; break;
+                            case "scaleKm": m.ScaleKm = v; break;
+                            case "scaleSystems": m.ScaleSystems = v; break;
+                            case "octaves": m.Octaves = (int)v; break;
+                            case "amount": m.Amount = v; break;
+                            case "edge": m.Edge = v; break;
+                            case "shoulder": m.Shoulder = v; break;
+                            case "cells": m.Cells = v > 0f; break;
+                            case "stretch": m.Stretch = v; break;
+                            case "rainKeep": m.RainKeep = v; break;
+                            case "rainMin": m.RainMin = v; break;
+                            case "scatter": m.Scatter = v; break;
+                            case "scatterDepths": m.ScatterDepths = v; break;
+                            case "scatterSoft": m.ScatterSoft = v; break;
+                            case "rainKeepFrom": m.RainKeepFrom = v; break;
+                            case "rainKeepFullAt": m.RainKeepFullAt = v; break;
+                            case "rainMinFrom": m.RainMinFrom = v; break;
+                            case "rainMinFullAt": m.RainMinFullAt = v; break;
+                            // the low stratiform rule's keys (lowStratiformPrecipFrom and so on), for a layer that has the rule
+                            case "precipFrom": if (l.LowStratiform != null) l.LowStratiform.PrecipFrom = v; break;
+                            case "precipFullAt": if (l.LowStratiform != null) l.LowStratiform.PrecipFullAt = v; break;
+                            case "rainFloor": if (l.LowStratiform != null) l.LowStratiform.RainFloor = v; break;
+                            case "rainFloorFullAt": if (l.LowStratiform != null) l.LowStratiform.RainFloorFullAt = v; break;
+                            default: Assert.Fail("MAPSKY_MESO: no key " + kv[0]); break;
+                        }
+                    }
+                }
             }
         }
 
