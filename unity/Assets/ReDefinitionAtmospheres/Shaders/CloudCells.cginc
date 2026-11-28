@@ -40,11 +40,14 @@ float CellShare(float cov, float coverage, float edge, float amount)
     return (CellAnti(x0 + 0.5 * a) - CellAnti(x0 - 0.5 * a)) / a;
 }
 
-// What the field's read (FieldCloud) leaves for the body (CellBody; gCellX below 0: no body read): the point's horizontal coordinate in the body times CELL_EDGE_X, the cloud's core
+// What the field's read and the reach test (FieldCloud, FieldBody) leave for the body (CellBody; gCellX below 0: no body read): the point's horizontal coordinate in the body times CELL_EDGE_X, the cloud's core
 // strength and the body's horizontal semi-axis over CELL_EDGE_X, in m.
 static float gCellX = -1.0;
 static float gCellCore = 0.0;
 static float gCellR = 0.0;
+// The point's height in the body (FieldBody): 0 its base, 1 its surface at the body's middle, by the type's OUTLINE (master plan 47.U stage 3): the height over the body's
+// top where the type has no outline curve (the half ellipsoid), the curve's equivalent height where it has one (the caller's FormHeight).
+static float gCellHv = 0.0;
 
 // The finer bulge octaves of a cloud's body: the cumuliform field (the shape volume's green channel, preset bulge) read at 0.37 and 0.137 of its period at the noise lattice's true vertical scale
 // (as the cumuliform lookup, so the heads are round), each centred on 0. The reads are straight (no blend), offset from each other and from the first octave. Needs the noise include's lookup.
@@ -64,13 +67,14 @@ float2 CellFineBulges(int li, float3 pc)
 // footprint's half width the field hands on (CELL_EDGE_X times gCellR, see CELL_EDGE_X above), vertical the cloud's own height (a share of the type's height typeHeightM from the core
 // strength). Its depth below the surface in m, approximated as (1 - the ellipsoid's radial coordinate) times the shorter semi-axis, is moved by the bulges: the first octave (bulge: the
 // layer's blended noise rank, 0..1) by up to _CellE.x of that semi-axis, the finer ones (fine, centred on 0) in proportion to their size, so the heads on the heads are smaller in the same
-// ratio (the cumulus's fractal surface). h: the height share of the type at the point.
-float CellBody(int li, float h, float bulge, float2 fine, float typeHeightM)
+// ratio (the cumulus's fractal surface). The point's height in the body is gCellHv (the type's outline; a body of another outline is the half ellipsoid at the height
+// where that one is as wide, so the bulges and the band act on every outline alike).
+float CellBody(int li, float bulge, float2 fine, float typeHeightM)
 {
     float4 e = _CellE[li];
     float top = clamp(gCellCore / 0.5, 0.15, 1.0);
     float semiH = max(top * typeHeightM, 1.0), semiR = max(CELL_EDGE_X * gCellR, 1.0);
-    float xv = gCellX / CELL_EDGE_X, hv = h / top;
+    float xv = gCellX / CELL_EDGE_X, hv = gCellHv;
     float axis = min(semiR, semiH);
     float qBase = (1.0 - sqrt(xv * xv + hv * hv)) * axis;
     float band = CellBand(li);
@@ -80,14 +84,29 @@ float CellBody(int li, float h, float bulge, float2 fine, float typeHeightM)
 }
 
 // CLOUD FIELD (CloudField.cs, CloudFieldGpu.cs; globals for the layer pass and the cloud shadow alike): _CloudField r the rank-uniform multi-scale field u, g its gradient (rank per km), b its
-// coarse rank; _FieldP x on, yz the streets' direction, w the smallest feature in m; _FieldC the puff classes (x aspect, y top gain, z scale, w street stretch).
+// coarse rank; _FieldP x on, yz the streets' direction, w the smallest feature in m; _FieldC the form slots (x aspect, y top gain, z scale, w street stretch; CloudField.SlotOf: the classes and the types' own numbers).
 sampler2D _CloudField;
 float4 _FieldP;
-float4 _FieldC[8];
+float4 _FieldC[16];
+
+// The form at a place between two neighbouring types (the weight f of the second): the nearer type's four numbers (the twin: LayerTypeTable.FormAtTypeValue); x 0 where
+// the nearer type has none. wa, wb: what the type tables carry of the two types' forms (the slot, plus a half where the type has an outline curve;
+// LayerTypeTable.FormInfoOfType); gFormOutline: the nearer type has an outline curve (the caller reads it for the point's height in the body).
+static float gFormOutline = 0.0;
+float4 TypeForm(float wa, float wb, float f)
+{
+    float w = f < 0.5 ? wa : wb;
+    int slot = (int)w;
+    gFormOutline = frac(w) > 0.25 ? 1.0 : 0.0;
+    if (slot <= 0) return float4(0.0, 0.0, 0.0, 0.0);
+    return _FieldC[slot];
+}
 
 // The field's far view (master plan 46.4, PRUEFPROTOKOLL 340, 341, 344, 357), set by FieldCloud for the caller: gFieldFar the weight of the far mean (0: the clouds alone),
 // gFieldTop the body's top there as a share of the type's height, gFieldRC that body's horizontal semi-axis in m (both from the coarse channel at the footprint's mip level).
 static float gFieldFar, gFieldTop, gFieldRC;
+// The point's place across the body (0 its middle, 1 the footprint's edge) and the cloud's core strength, from FieldCloud for FieldBody.
+static float gFieldXv = 0.0, gFieldCore = 0.0;
 // The far mean's cover at a height (FieldFarShare below): the field's share with the map's surplus (gFieldF; below 0: no share), the field's mean and spread over the
 // footprint (gFieldMean, gFieldSpread: the middle stage) and the field's rise across one body radius (gFieldG: the gradient times the radius, in rank).
 static float gFieldF = -1.0, gFieldMean, gFieldSpread, gFieldG;
@@ -98,6 +117,7 @@ static float gFieldF = -1.0, gFieldMean, gFieldSpread, gFieldG;
 // lowered by that much. At the base it is the footprint's cloud share; a dense field's merged interior stays full up to the top, separate clouds thin toward it.
 // Until master plan 47.U stage 2 it was share x (1 - hv^2), every cloud a separate dome whatever the share: from space a field of a share of 0.8 to 1 was a third
 // thinner than the near view's merged bodies (PRUEFPROTOKOLL 401: the clouds' level C fell from 0.63 to 0.57 when the map's sheet no longer drew those shares).
+// hv is the point's height in the body by the type's outline (the caller's FormHeight): another outline closes the same share of the half width at its equivalent height.
 float FieldFarShare(float hv)
 {
     if (gFieldF < 0.0 || hv >= 1.0) return 0.0;
@@ -116,14 +136,14 @@ float _FieldV[FIELD_SPREAD_LEVELS];
 // whatever the field); its body is CellBody's with the distance to the footprint's edge in m, (f - u) over the gradient of u: a dome of the
 // class's aspect over the type's flat base, its top lifted in the clusters' cores (the coarse channel). The field carries every share: the closed cloud layer is the field at a share of 1, its bodies merged
 // (until master plan 47.U stage 2 the map's own value was drawn above a share of 0.8, the map's texels as blocks).
-// Returns 0 outside the body's reach (the density is 0), 1 inside it with the cell read's globals (gCellX, gCellR, gCellCore) set for CellBody. uv: the layer map's
-// coordinate (not clamped); rm: the layer's mid radius in m; h: the type's height share at the point; typeHeightM: the type's height in m. The field is read at the mip level of the march's
+// Returns 0 where the map has no share (the density is 0), 1 where it has one: the caller then takes the point's height in the body from the type's outline and asks
+// FieldBody (the reach test; it sets the cell read's globals for CellBody). fc: the type's form (TypeForm). uv: the layer map's
+// coordinate (not clamped); rm: the layer's mid radius in m; typeHeightM: the type's height in m. The field is read at the mip level of the march's
 // spacing (foot): without it the field's 50 to 200 m texels alias into a speckle at distance.
 // Where the pixel's footprint (foot, 0: none) nears the field's smallest feature the clouds lie below the pixel: the caller blends by gFieldFar to the clumpy medium of
 // ShapeShare with FieldFarShare, the share of the footprint inside the clouds (the field's filtered picture, the middle stage below; the map's share where the footprint spans the whole field). Until 2026-11-26 the map's own value was handed to the threshold there, which drew the map's 7.4 km texels as the clouds (dots and blocks from orbit).
-int FieldCloud(int li, int puff, float2 uv, float cov, float coverage, float edge, float amount, float foot, float rm, float h, float typeHeightM)
+int FieldCloud(int li, float4 fc, float2 uv, float cov, float coverage, float edge, float amount, float foot, float rm, float typeHeightM)
 {
-    float4 fc = _FieldC[puff];
     float fShare = CellShare(cov, coverage, edge, amount);
     // THE FIELD CARRIES EVERY SHARE (master plan 47.U stage 2): the closed layer is the field at a share of 1, its clouds merged. Where the map lies above what a full
     // cover needs (the share is 1 from cov + coverage - 1 = half the edge plus half the noise's swing on), the surplus carries on above 1: the field's highest places,
@@ -164,13 +184,23 @@ int FieldCloud(int li, int puff, float2 uv, float cov, float coverage, float edg
     }
     // No share of the region is cloud: nothing, whatever the field holds there (its lowest places are below any share above 0 only).
     if (fShare <= 0.0) return 0;
-    float xv = 1.0 - clamp(dm / rC, -2.0, 1.0), hv = h / topF;
-    float axis = min(rC, semiH);
+    gFieldXv = 1.0 - clamp(dm / rC, -2.0, 1.0);
+    gFieldCore = coreF;
+    return 1;
+}
+
+// The second step after FieldCloud returned 1 (the twin: CloudField.Body): the point's height in the body, hv (the caller's FormHeight at the point's height over
+// gFieldTop: the type's outline), and the body's reach. 0: outside the reach (the density is 0); 1: inside, with the cell read's globals set for CellBody.
+int FieldBody(int li, float hv, float typeHeightM)
+{
+    float semiH = max(gFieldTop * typeHeightM, 1.0);
+    float axis = min(gFieldRC, semiH);
     float swing = _CellE[li].x * axis * (0.5 + 0.5 * _CellE[li].z * (0.37 + 0.137));
-    if ((1.0 - sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * CellBand(li) < 0.0) return 0;
-    gCellX = CELL_EDGE_X * xv;
-    gCellR = rC / CELL_EDGE_X;
-    gCellCore = coreF;
+    if ((1.0 - sqrt(gFieldXv * gFieldXv + hv * hv)) * axis + swing + 0.5 * CellBand(li) < 0.0) return 0;
+    gCellX = CELL_EDGE_X * gFieldXv;
+    gCellR = gFieldRC / CELL_EDGE_X;
+    gCellCore = gFieldCore;
+    gCellHv = hv;
     return 1;
 }
 

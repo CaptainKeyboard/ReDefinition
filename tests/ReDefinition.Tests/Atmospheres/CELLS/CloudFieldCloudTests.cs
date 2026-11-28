@@ -28,7 +28,78 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
 
         private static int At(double cov, double u, double v, double h, out CloudCells.CellRead read)
         {
-            return CloudField.Cloud(FieldData, Size, Mediocris, 1.0, 0.0, cov, Coverage, Edge, Amount, u, v, Rm, h, TypeHeightM, Bulge, Band, Fine, out read);
+            // The two steps of the readers: the field's read, then the body's reach at the point's height in the body (no outline curve: the height over the body's top).
+            if (CloudField.Cloud(FieldData, Size, Mediocris, 1.0, 0.0, cov, Coverage, Edge, Amount, u, v, Rm, TypeHeightM, out read) == 0) return 0;
+            return CloudField.Body(ref read, h / read.Top, TypeHeightM, Bulge, Band, Fine);
+        }
+
+        // Master plan 47.U stage 2: the four form numbers are keys of the type.
+        [TestMethod]
+        public void ATypeWithoutNumbersOfItsOwnHasItsClassesSlotAndOwnNumbersGetASlotOfTheirOwn()
+        {
+            int mediocris = CloudField.ClassOf("mediocris");
+            Assert.AreEqual(mediocris, CloudField.SlotOf("mediocris", -1f, -1f, -1f, -1f));
+            Assert.AreEqual(0, CloudField.SlotOf("none", -1f, -1f, -1f, -1f));
+            int own = CloudField.SlotOf("mediocris", 1.7f, -1f, -1f, -1f);
+            Assert.IsTrue(own >= CloudField.Classes.Length, "a slot after the classes'");
+            Assert.AreEqual(own, CloudField.SlotOf("mediocris", 1.7f, -1f, -1f, -1f), "the same numbers, the same slot");
+            float[] numbers = CloudField.Form(own), cls = CloudField.Classes[mediocris];
+            Assert.AreEqual(1.7f, numbers[0]);
+            Assert.AreEqual(cls[1], numbers[1]);
+            Assert.AreEqual(cls[2], numbers[2]);
+            Assert.AreEqual(cls[3], numbers[3]);
+            // A type with no class and numbers of its own has a form (the none class's numbers where it sets none).
+            int bare = CloudField.SlotOf("none", 3f, 0.1f, -1f, -1f);
+            Assert.IsTrue(bare > 0);
+            Assert.AreEqual(1f, CloudField.Form(bare)[2]);
+        }
+
+        [TestMethod]
+        public void ANumberOfZeroIsNotATypesOwn()
+        {
+            // An aspect, a scale or a stretch of 0 would divide by zero in the lookup: the class's own stands. A top gain of 0 is a number (no lift of the top).
+            Assert.AreEqual(CloudField.ClassOf("humilis"), CloudField.SlotOf("humilis", 0f, -1f, 0f, 0f));
+            int flat = CloudField.SlotOf("humilis", -1f, 0f, -1f, -1f);
+            Assert.IsTrue(flat >= CloudField.Classes.Length);
+            Assert.AreEqual(0f, CloudField.Form(flat)[1]);
+        }
+
+        // Master plan 47.U stage 3: the outline of a type with a form, in the type table as the shaders read it.
+        [TestMethod]
+        public void TheTypeTableCarriesTheNearerTypesFormAndItsOutline()
+        {
+            CloudTypeDef dome = CloudTypeDef.Slab("dome", 0.1f, 0.9f), deck = CloudTypeDef.Slab("deck", 0.1f, 0.9f), bare = CloudTypeDef.Slab("bare", 0.1f, 0.9f);
+            dome.Form = CloudField.ClassOf("mediocris");
+            deck.Form = CloudField.ClassOf("stratocumulus");
+            // The whole footprint up to 0.8 of the height, closed at the top.
+            deck.Outline = new Curve(new[] { 0f, 0.8f, 1f }, new[] { 1f, 1f, 0f });
+            // An outline without a form draws nothing: the type keeps its lift.
+            bare.Outline = new Curve(new[] { 0f, 1f }, new[] { 1f, 1f });
+            var table = new LayerTypeTable(new CloudLayerDef("l", 1, 1000f, 3000f, new[] { dome, deck, bare }, 0.001f));
+            int near;
+            CollectionAssert.AreEqual(CloudField.Classes[dome.Form], table.FormAtTypeValue(0.2, out near));
+            Assert.AreEqual(0, near);
+            CollectionAssert.AreEqual(CloudField.Classes[deck.Form], table.FormAtTypeValue(0.3, out near));
+            Assert.AreEqual(1, near);
+            Assert.IsNull(table.FormAtTypeValue(0.9, out near));
+            Assert.AreEqual(2, near);
+            // The shaders' info value: the slot, plus a half where the type has a form and an outline.
+            Assert.AreEqual((float)dome.Form, table.FormInfoOfType(0));
+            Assert.AreEqual(deck.Form + 0.5f, table.FormInfoOfType(1));
+            Assert.AreEqual(0f, table.FormInfoOfType(2));
+            // The point's height in the body. No outline curve: the height over the body's top itself, above the top too.
+            Assert.AreEqual(0.4, table.FormHeight(0, 0.4), 1e-12);
+            Assert.AreEqual(1.3, table.FormHeight(0, 1.3), 1e-12);
+            // The deck: the whole footprint is the half ellipsoid's base (0) up to 0.8; at 0.9 the width is 0.5, the half ellipsoid's at sqrt(0.75); closed at the top (1), and
+            // the height runs on above it.
+            Assert.AreEqual(0.0, table.FormHeight(1, 0.5), 1e-6);
+            Assert.AreEqual(Math.Sqrt(0.75), table.FormHeight(1, 0.9), 0.02);
+            Assert.AreEqual(1.0, table.FormHeight(1, 1.0), 1e-6);
+            Assert.AreEqual(1.25, table.FormHeight(1, 1.25), 1e-6);
+            // The baked channel: the outline's equivalent height for the deck, the lift for the others.
+            Assert.AreEqual(0.0, deck.BakedLiftAt(0.5), 1e-6);
+            Assert.AreEqual(1.0, deck.BakedLiftAt(1.0), 1e-6);
+            Assert.AreEqual(bare.LiftAt(0.5), bare.BakedLiftAt(0.5), 1e-12);
         }
 
         [TestMethod]
@@ -66,7 +137,7 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
                 if (read.XBest / CloudCells.EdgeX > 0.5) continue;   // well inside the footprint
                 bodies++;
                 Assert.IsTrue(read.Body, "a body's read is a body");
-                Assert.IsTrue(CloudCells.CellBody(read, 0.0, 0.5, 0.0, 0.0, TypeHeightM, Bulge, Band, Fine) > 0.99, "the base inside the footprint is cloud");
+                Assert.IsTrue(CloudCells.CellBody(read, 0.5, 0.0, 0.0, TypeHeightM, Bulge, Band, Fine) > 0.99, "the base inside the footprint is cloud");
                 // Three times the type's height above the base no body reaches (its top is at most the type's height, the bulges' swing at most half the shorter semi-axis).
                 CloudCells.CellRead r2;
                 if (At(cov, u, v, 3.0, out r2) == 0) above++;
@@ -119,7 +190,8 @@ namespace ReDefinition.Tests.Atmospheres.CELLS
             double u, v, a = windDeg * Math.PI / 180.0;
             Place(xM, yM, out u, out v);
             CloudCells.CellRead read;
-            int cloud = CloudField.Cloud(FieldData, Size, cls, Math.Cos(a), Math.Sin(a), CovOf(0.5), Coverage, Edge, Amount, u, v, Rm, 0.0, TypeHeightM, Bulge, 1e6, Fine, out read);
+            int cloud = CloudField.Cloud(FieldData, Size, cls, Math.Cos(a), Math.Sin(a), CovOf(0.5), Coverage, Edge, Amount, u, v, Rm, TypeHeightM, out read);
+            if (cloud != 0) cloud = CloudField.Body(ref read, 0.0, TypeHeightM, Bulge, 1e6, Fine);
             Assert.AreEqual(1, cloud, "with a band this wide every place is within a body's reach");
             return read;
         }

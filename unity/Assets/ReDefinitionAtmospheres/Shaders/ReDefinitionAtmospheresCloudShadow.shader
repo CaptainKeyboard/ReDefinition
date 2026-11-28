@@ -157,8 +157,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0)).x;
         }
 
-        // The type's puff class (the second row's w, CloudShadowRenderer; 0: none): the CLOUD FIELD's clouds (CloudField.cs) as the layer pass draws them.
-        float TypePuff(int li, int type)
+        // The type's form slot (the second row's w, CloudShadowRenderer; 0: none; TypeForm reads the slot's numbers): the CLOUD FIELD's clouds (CloudField.cs) as the layer pass draws them.
+        // Plus a half where the type has an outline curve (LayerTypeTable.FormInfoOfType).
+        float TypeFormInfo(int li, int type)
         {
             return tex2Dlod(_CsTypeInfo, float4((type + 0.5) / MAXT, (li + MAXL + 0.5) / (2.0 * MAXL), 0, 0)).w;
         }
@@ -228,10 +229,14 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             float typeAmount = _CsNoiseD[li].x * (1.0 + pf.b);
             // CLOUD FIELD: the layer pass's clouds (FieldCloud, CloudCells.cginc), so the shadow on the ground is cast by the clouds the sky shows. The shadow's points are far from
             // the march's spacing (no foot).
-            int puff = (int)(f < 0.5 ? TypePuff(li, ta) : TypePuff(li, tb));
-            [branch] if (puff > 0 && slice >= 0)
+            float4 form = TypeForm(TypeFormInfo(li, ta), TypeFormInfo(li, tb), f);
+            [branch] if (form.x > 0.0 && slice >= 0)
             {
-                if (FieldCloud(li, puff, uvField, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0, _CsPlanetR + 0.5 * (inner + outer), h, (tp - b) * (outer - inner)) == 0) return 0;
+                if (FieldCloud(li, form, uvField, cov, _CsLayerB[li].y, edge, _CsNoiseD[li].x, 0.0, _CsPlanetR + 0.5 * (inner + outer), (tp - b) * (outer - inner)) == 0) return 0;
+                // The point's height in the body by the type's outline, as the layer pass takes it (master plan 47.U stage 3).
+                float hv = h / gFieldTop;
+                [branch] if (gFormOutline > 0.5) hv = TypeProfile(li, f < 0.5 ? ta : tb, min(hv, 1.0)).a + max(hv - 1.0, 0.0);
+                if (FieldBody(li, hv, (tp - b) * (outer - inner)) == 0) return 0;
             }
             cov -= _CsParams2.z * pf.a * (_CsLayerB[li].y + typeBound + 0.5 * edge);
             // THE BODY of a cloud the field placed, where the field's read says a body draws, as the layer pass draws it (CellBody on the bulges' rank: the threshold at the noise's mean, a unit edge, the
@@ -244,9 +249,9 @@ Shader "ReDefinition/AtmospheresCloudShadow"
             [branch] if (body)
             {
                 float rank = NoiseShareNear(li, pc, 1.0 - _CsLayerB[li].y, _CsLayerB[li].y, 1.0, _CsNoiseD[li].x > 0.0 ? 1.0 : 0.0, 0.0);
-                // The finer bulges are a read of the noise volume: none while the volumes are not bound (_NoiseP.x 0), as the rank above is the mean then.
-                float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
-                s = CellBody(li, h, rank, fine, (tp - b) * (outer - inner));
+                // The finer bulges are not read (PRUEFPROTOKOLL 408: the shadow pass cost the dense sky's view from above 2 fps, and two of a body sample's reads were these):
+                // the shadow reads the body as the layer pass's light march reads it (its taps take no finer bulges either), the heads on the heads are below the shadow's size.
+                s = CellBody(li, rank, float2(0.0, 0.0), (tp - b) * (outer - inner));
             }
             else s = NoiseShareNear(li, pc, cov, _CsLayerB[li].y, edge, typeAmount, 0.0);
             if (s <= 0) return 0;

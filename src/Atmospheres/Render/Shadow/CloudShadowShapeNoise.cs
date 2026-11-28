@@ -134,8 +134,9 @@ namespace ReDefinition.Atmospheres
             CloudCells.CellRead read = default(CloudCells.CellRead);
             // CLOUD FIELD: a type with a form stands where the field puts it, as the layer pass and the cloud shadow's shader draw it (CloudField.Cloud, the twin of the shader's
             // FieldCloud). It needs the type and the height at the point; a caller without them, and the frames before the field is built, read the map's threshold below.
-            int form = field != null && table != null && !double.IsNaN(layerShare) ? table.FormAtTypeValue(typeValue) : 0;
-            if (form > 0)
+            int formType = 0;
+            float[] form = field != null && table != null && !double.IsNaN(layerShare) ? table.FormAtTypeValue(typeValue, out formType) : null;
+            if (form != null)
             {
                 // The shaders' coverage bound, asked before the field is read: where even the noise's highest value cannot lift the map above the threshold there is no cloud
                 // (the cloud shadow shader's noiseBound with the layer's largest extra noise amount; without it the field's lowest ranks kept a body's rim at a share of 0).
@@ -155,10 +156,13 @@ namespace ReDefinition.Atmospheres
                     double latDeg = Math.Asin(Math.Max(-1.0, Math.Min(1.0, z / r))) * (180.0 / Math.PI);
                     double lonDeg = Math.Atan2(y, x) * (180.0 / Math.PI);
                     double u = (lonDeg - layer.MapShiftDeg + 180.0) / 360.0, v = (90.0 - latDeg) / 180.0;
-                    int cloud = CloudField.Cloud(field, fieldSize, CloudField.Classes[form], fieldCos, fieldSin, covMap, layer.EffectiveCoverage,
+                    int cloud = CloudField.Cloud(field, fieldSize, form, fieldCos, fieldSin, covMap, layer.EffectiveCoverage,
                                                  Math.Max(layer.EffectiveEdgeSoftness, 1e-4f), layerAmount, u, v, layerRm[layerIndex],
-                                                 (layerShare - b) / (tp - b), (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), CloudLookTuning.CellBulgeFor(layer),
-                                                 CloudLookTuning.CellBandFor(layer), CloudLookTuning.CellFineFor(layer), out read);
+                                                 (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), out read);
+                    // The point's height in the body by the type's outline, then the body's reach (the shaders' FormHeight and FieldBody).
+                    if (cloud != 0)
+                        cloud = CloudField.Body(ref read, table.FormHeight(formType, (layerShare - b) / (tp - b) / read.Top), (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM),
+                                                CloudLookTuning.CellBulgeFor(layer), CloudLookTuning.CellBandFor(layer), CloudLookTuning.CellFineFor(layer));
                     // The field carries every share of a type with a form (the closed layer too): outside every body nothing, inside one the body.
                     return cloud == 0 ? 0.0 : BodyShare(layerIndex, layer, x, y, z, table, typeValue, layerShare, b, tp, amount, ref read);
                 }
@@ -199,7 +203,6 @@ namespace ReDefinition.Atmospheres
                                  ref CloudCells.CellRead read)
         {
             if (layerShare < b || layerShare > tp || !(tp > b)) return 0.0;
-            double h = (layerShare - b) / (tp - b);
             double wx = worldToMap[0] * x + worldToMap[3] * y + worldToMap[6] * z;
             double wy = worldToMap[1] * x + worldToMap[4] * y + worldToMap[7] * z;
             double wz = worldToMap[2] * x + worldToMap[5] * y + worldToMap[8] * z;
@@ -208,7 +211,7 @@ namespace ReDefinition.Atmospheres
             // Without the shape noise the bulges are at their mean (the shaders' rank with the amount 0 is 0.5): the bare body.
             if (volumes == null)
             {
-                double bare = CloudCells.CellBody(read, h, 0.5, 0.0, 0.0, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
+                double bare = CloudCells.CellBody(read, 0.5, 0.0, 0.0, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
                 return bare <= 0.0 ? 0.0 : CloudWater.Pow(bare, layer.EffectiveWaterPowerAt(table, typeValue));
             }
             NoiseLayerParams prm = TypeParams(layerIndex, table, typeValue);
@@ -217,32 +220,10 @@ namespace ReDefinition.Atmospheres
             // the layer has noise at all), so that the share is the noise's value itself. Until master plan 47.U stage 1 the layer's own amount was passed here: right only for a
             // layer of amount 1 (the cumulus layer), wrong for the cumulonimbus layer's 0.4 (the review of the stage found it).
             double rank = CloudShapeModel.Share(volumes, ref prm, wx, wy, wz, 1.0 - coverage, coverage, 1.0, noise ? 1.0 : 0.0, 0.0, false);
-            double fineX = 0.0, fineY = 0.0;
-            if (gain > 0.0 && layer.EffectiveNoiseScaleM > 0f) FineBulges(volumes.Cumuliform, prm, wx, wy, wz, out fineX, out fineY);
-            double s = CloudCells.CellBody(read, h, rank, fineX, fineY, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
+            // The finer bulges are not read, as in the shadow shader (PRUEFPROTOKOLL 408): the shadow's body is the one the layer pass's light march reads.
+            double s = CloudCells.CellBody(read, rank, 0.0, 0.0, (tp - b) * (layer.OuterAltitudeM - layer.InnerAltitudeM), bulge, band, gain);
             if (s <= 0.0) return 0.0;
             return CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, typeValue));
-        }
-
-        // The finer bulge octaves of a cloud's body (the shader's CellFineBulges): the cumuliform field of preset 1 (the shape volume's green channel on the GPU) read straight at 0.37 and 0.137
-        // of its period, at the lattice's true vertical scale, each centred on 0. No cumuliform volume (no type asked for a cumuliform preset): both 0.
-        private static void FineBulges(CumuliformVolumeSet cumuliform, NoiseLayerParams prm, double px, double py, double pz, out double fine1, out double fine2)
-        {
-            fine1 = fine2 = 0.0;
-            if (cumuliform == null || cumuliform.Levels == null || cumuliform.Levels.Length == 0) return;
-            prm.Untile = false;
-            prm.FlowX = prm.FlowY = prm.FlowZ = 0.0;
-            double qx, qy, qz;
-            CloudShapeModel.LookupPoint(ref prm, px, py, pz, out qx, out qy, out qz);
-            double rl = Math.Max(Math.Sqrt(px * px + py * py + pz * pz), 1.0);
-            double iso = prm.SphereScale > 0.0 ? (1.0 - prm.SphereScale) * (rl - prm.ReferenceRadiusM) / rl : 0.0;
-            qx += px * iso;
-            qy += py * iso;
-            qz += pz * iso;
-            double period = CumuliformModel.PeriodScales * prm.ScaleM;
-            double p1 = 0.37 * period, p2 = 0.137 * period;
-            fine1 = CloudShapeModel.Trilinear(cumuliform.Levels[0], cumuliform.N, 4, 0, qx / p1 + 0.31, qy / p1 + 0.57, qz / p1 + 0.83) - 0.5;
-            fine2 = CloudShapeModel.Trilinear(cumuliform.Levels[0], cumuliform.N, 4, 0, qx / p2 + 0.71, qy / p2 + 0.13, qz / p2 + 0.47) - 0.5;
         }
     }
 }

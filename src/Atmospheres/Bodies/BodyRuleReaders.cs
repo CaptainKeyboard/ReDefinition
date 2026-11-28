@@ -340,6 +340,8 @@ namespace ReDefinition.Atmospheres
                 // FORM { EROSION { key = height gain } AMOUNT { key = height extra } } (master plan 43; CloudTypeDef.FormErosion): both 0 to 8.
                 FormErosion = ScaleCurve(r.Child("FORM").Child("EROSION")),
                 FormAmount = ScaleCurve(r.Child("FORM").Child("AMOUNT")),
+                // FORM { OUTLINE { key = height width } } (master plan 47.U stage 3; CloudTypeDef.Outline): the width 0 to 1.
+                Outline = ProfileCurve(r.Child("FORM").Child("OUTLINE"), "outline"),
                 BaseGain = r.Float("baseGain", 0.3f, 0f, 1f),
                 RiseShare = r.Float("riseShare", 0.5f, 0f, 1f),
                 DensityScale = r.Float("densityScale", 1f, 0.001f, 100f),
@@ -348,7 +350,8 @@ namespace ReDefinition.Atmospheres
                 Cumuliform = CumuliformModel.PresetOf(r.String("cumuliform", "none")),
                 EdgePower = r.Float("edgePower", 0f, 0f, 6f),
                 Cavity = r.Float("cavity", 0f, 0f, 1f),
-                Form = CloudField.ClassOf(r.String("form", "none")),
+                Form = CloudField.SlotOf(r.String("form", "none"), r.Float("formAspect", -1f, -1f, 20f), r.Float("formTopGain", -1f, -1f, 1f), r.Float("formScale", -1f, -1f, 8f),
+                                         r.Float("formStretch", -1f, -1f, 8f)),
                 TopClose = r.Float("topClose", CloudTypeDef.DefaultTopClose, 0f, 1f),
                 Outflow = r.Float("outflow", 0f, 0f, 1f),
                 UndulatusAmount = r.Float("undulatusAmount", 0f, 0f, 1f),

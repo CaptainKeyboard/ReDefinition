@@ -333,7 +333,7 @@
         }
 
         // The cloud type at the point: the two neighbouring types of the table and the weight between them, the type's base and top (shares of the layer), its erosion, the
-        // water exponent and the single-cloud preset (puff, the nearer type's).
+        // water exponent and the type's form (TypeForm, CloudCells.cginc).
         struct TypeRead
         {
             int ta;
@@ -343,7 +343,7 @@
             float tp;
             float erosionType;
             float waterPow;
-            int puff;
+            float4 form;   // the type's form (TypeForm: x aspect, y top gain, z scale, w stretch; x 0: none)
         };
 
         // The type. Also sets the noise helpers' gNoiseSm, gCumuliformPreset and gCumuliformCavK for the shape read (their scratch globals).
@@ -363,11 +363,11 @@
             gNoiseSm = lerp(ia.w, ib.w, ty.f);
             // CLOUDR1: the type's cumuliform preset (the nearer of the two types), the exponent of its density rim and its cavity strength; not read where no type has one.
             ty.waterPow = 1.0 + _CullL[li].z;   // the layer's water exponent (stored minus 1: 0 = none)
-            ty.puff = 0;
+            ty.form = float4(0.0, 0.0, 0.0, 0.0);
             [branch] if (_CumuliformP.w > 0.5 || _FieldP.x > 0.5)
             {
                 float4 ja = TypeInfo2(li, ty.ta), jb = TypeInfo2(li, ty.tb);
-                ty.puff = (int)(ty.f < 0.5 ? ja.w : jb.w);
+                ty.form = TypeForm(ja.w, jb.w, ty.f);
                 gCumuliformPreset = (int)(ty.f < 0.5 ? ja.x : jb.x);
                 gCumuliformCavK = lerp(ja.z, jb.z, ty.f);
                 ty.waterPow = lerp(ja.y > 0 ? ja.y : ty.waterPow, jb.y > 0 ? jb.y : ty.waterPow, ty.f);
@@ -436,7 +436,7 @@
             // body's volume over its projected area along the ray (2/3 of its height seen from above, 4/3 of its horizontal semi-axis from the side). farShare is that extinction
             // over sigma_c (the caller multiplies by the layer's extinction and the profile).
             float farW = 0.0, farShare = 0.0;
-            [branch] if (ty.puff > 0 && slice >= 0)
+            [branch] if (ty.form.x > 0.0 && slice >= 0)
             {
                 float typeHeightM = (ty.tp - ty.b) * (outer - inner);
                 // The light march reads the clouds themselves (no footprint) while the pixel resolves them; where the far mean has begun it reads the mean too
@@ -447,11 +447,14 @@
                 // weight follows that footprint (FieldCloud), so it rises over the upper part of the window only (footprints 0.2 to 0.25 of the smallest feature, the
                 // view's over 0.125 to 0.25): meant, no step at either end; below it the light reads the clouds through the footprint's mip level (PRUEFPROTOKOLL 372).
                 float fieldFoot = light != 0 ? gNoiseFoot * saturate((gNoiseFoot - FIELD_FAR_FROM * _FieldP.w) / ((FIELD_FAR_TO - FIELD_FAR_FROM) * _FieldP.w)) : gNoiseFoot;
-                int fieldCloud = FieldCloud(li, ty.puff, uvRaw, cov, coverage, edge, _LayerD[li].x, fieldFoot, _PlanetR + 0.5 * (inner + outer), h, typeHeightM);
+                int fieldCloud = FieldCloud(li, ty.form, uvRaw, cov, coverage, edge, _LayerD[li].x, fieldFoot, _PlanetR + 0.5 * (inner + outer), typeHeightM);
+                // The point's height in the body by the type's OUTLINE (master plan 47.U stage 3): its height over the body's top where the type has no outline curve (the
+                // half ellipsoid: no read); with one, the curve's equivalent height there (the profile texture's channel a of the nearer type), carried on above the top.
+                float hv = h / gFieldTop;
+                [branch] if (gFormOutline > 0.5) hv = TypeProfile4(li, ty.f < 0.5 ? ty.ta : ty.tb, min(hv, 1.0)).a + max(hv - 1.0, 0.0);
                 farW = gFieldFar;
                 [branch] if (farW > 0.0)
                 {
-                    float hv = h / gFieldTop;
                     float fh = FieldFarShare(hv);   // the footprint's share inside a cloud at this height: the near view's bodies counted over the footprint
                     float semiH = max(gFieldTop * typeHeightM, 1.0), mu = saturate(gRayVertical);
                     float chord = (4.0 / 3.0) * gFieldRC * semiH / max(sqrt(gFieldRC * gFieldRC * mu * mu + semiH * semiH * (1.0 - mu * mu)) + gFieldRC * mu, 1e-3);
@@ -463,6 +466,7 @@
                     gFarSigma = _LayerB[li].x * pf.x;
                 }
                 if (fieldCloud == 0 || farW >= 1.0) return farW * farShare;
+                if (FieldBody(li, hv, typeHeightM) == 0) return farW * farShare;
             }
             cov -= pf.a * (coverage + TypeNoiseBound(li, pf.b) + 0.5 * edge);   // E40 CB step 0: the lift in units of the type's headroom at h (LayerTypeTable.LiftHeadroom), 1 closes every column
             // THE BODY of a cloud the field placed (CellBody), where the field's read says a body draws (every share of a type with a form, the closed layer too; not the far view's mean): its own height shape
@@ -497,7 +501,7 @@
                 // taps do not read either; a body read them at EVERY tap, about half of a tap's texture reads (PRUEFPROTOKOLL 401: the light march is what keeps a sky
                 // full of cloud below 48 fps).
                 float2 fine = _CellE[li].z > 0.0 && _NoiseP.x > 0.5 && light == 0 ? CellFineBulges(li, pc) : float2(0.0, 0.0);
-                s = CellBody(li, h, s, fine, (ty.tp - ty.b) * (outer - inner));
+                s = CellBody(li, s, fine, (ty.tp - ty.b) * (outer - inner));
             }
             return lerp(s, farShare, farW);
         }

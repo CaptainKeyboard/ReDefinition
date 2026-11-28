@@ -76,6 +76,8 @@ namespace ReDefinition.Atmospheres
         // The type's form (cfg node FORM { EROSION, AMOUNT }; null: none): see CloudTypeDef.FormErosion.
         internal Curve FormErosion { get; set; }
         internal Curve FormAmount { get; set; }
+        // Master plan 47.U stage 3: the outline of the type's form (cfg node FORM { OUTLINE }): see CloudTypeDef.Outline.
+        internal Curve Outline { get; set; }
 
         internal CloudTypeSpec(string name, float baseShare, float topShare, float erosion, Curve profile)
         {
@@ -99,7 +101,7 @@ namespace ReDefinition.Atmospheres
                 BaseGain = BaseGain, RiseShare = RiseShare, DensityScale = DensityScale,
                 Lift = Lift, Climate = Climate,
                 ShapeSmoothing = ShapeSmoothing, TopClose = TopClose, Outflow = Outflow, UndulatusAmount = UndulatusAmount, TopRoughness = TopRoughness, Cumuliform = Cumuliform, EdgePower = EdgePower, Cavity = Cavity, Form = Form,
-                PannusProfile = PannusProfile, PannusLift = PannusLift, PannusErosion = PannusErosion, PannusAmount = PannusAmount, FormErosion = FormErosion, FormAmount = FormAmount
+                PannusProfile = PannusProfile, PannusLift = PannusLift, PannusErosion = PannusErosion, PannusAmount = PannusAmount, Outline = Outline, FormErosion = FormErosion, FormAmount = FormAmount
             };
         }
     }

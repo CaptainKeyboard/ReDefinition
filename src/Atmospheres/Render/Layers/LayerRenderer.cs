@@ -393,7 +393,7 @@ namespace ReDefinition.Atmospheres
                     int cumuliform = table.CumuliformOfType(t);
                     if (cumuliform > 0) Noise.RequestCumuliform();
                     if (cumuliform > 0 || table.EdgeOfType(t) > 0f) extras = true;
-                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(cumuliform, table.EdgeOfType(t), table.CavityOfType(t), table.FormOfType(t));
+                    info[(CloudLayerDef.MaxLayers + l) * CloudLayerDef.MaxTypes + t] = new Color(cumuliform, table.EdgeOfType(t), table.CavityOfType(t), table.FormInfoOfType(t));
                     int slot = l * CloudLayerDef.MaxTypes + t;
                     typeUndulatus[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].UndulatusAmount : 0f;
                     typeTopRough[slot >> 2][slot & 3] = t < layer.Types.Count ? layer.Types[t].TopRoughness : 0f;

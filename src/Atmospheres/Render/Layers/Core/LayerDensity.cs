@@ -131,13 +131,30 @@ namespace ReDefinition.Atmospheres
             return layer.Types[type].Form;
         }
 
-        // The cloud form at a type value: the nearer of the two neighbouring types' (a class cannot be blended; the shader takes the same one).
-        internal int FormAtTypeValue(double typeValue)
+        // The form's four numbers at a type value (the nearer type's, as the shaders' TypeForm takes them); null: no form there.
+        // nearType: the nearer of the two types (its form and its outline are the body's: FormHeight). The numbers are CloudField's own array: not to be written to.
+        internal float[] FormAtTypeValue(double typeValue, out int nearType)
         {
             int a, c;
             double f;
             Neighbours(typeValue, out a, out c, out f);
-            return FormOfType(f < 0.5 ? a : c);
+            nearType = f < 0.5 ? a : c;
+            int slot = FormOfType(nearType);
+            return slot > 0 ? CloudField.Form(slot) : null;
+        }
+
+        // What the shaders' type tables carry of a type's form (the second info row's w): the form's slot, plus a half where the type has an outline curve.
+        internal float FormInfoOfType(int type)
+        {
+            return layer.Types[type].Form + (layer.Types[type].Form > 0 && layer.Types[type].Outline != null ? 0.5f : 0f);
+        }
+
+        // The point's height in a body of the type (master plan 47.U stage 3; the shaders' FormHeight): hv, its height over the body's top, where the type has no outline curve
+        // (the half ellipsoid); with one, the curve's equivalent height there (the profile texture's channel a of the type), carried on above the top.
+        internal double FormHeight(int type, double hv)
+        {
+            if (layer.Types[type].Outline == null) return hv;
+            return LiftSample(type, Math.Min(hv, 1.0)) + Math.Max(hv - 1.0, 0.0);
         }
 
         // The smoothing of a type (noise scales).

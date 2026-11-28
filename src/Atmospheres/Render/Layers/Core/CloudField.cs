@@ -26,9 +26,7 @@ namespace ReDefinition.Atmospheres
         internal const double LambdaMinM = 400.0, LambdaMaxM = 20000.0, CoarseSigmaM = 3000.0;
         internal const double Slope = 8.0 / 3.0;
         internal const uint Seed = 0x51ED;
-        // The class ids of a type's cloud form (cfg key form); 0: none.
-        internal const int ClassCount = 8;
-
+        // The classes of a type's cloud form by name (cfg key form); 0: none.
         private static readonly string[] Names = { "none", "humilis", "mediocris", "congestus", "altocumulus", "stratocumulus", "calvus", "incus" };
 
         internal static int ClassOf(string name)
@@ -51,6 +49,56 @@ namespace ReDefinition.Atmospheres
             new float[] { 0.8f, 0.30f, 0.7f, 1f },   // calvus: round heads
             new float[] { 0.7f, 0.30f, 0.5f, 1f }    // incus tower (the anvil is another type and has no form here)
         };
+
+        // THE FORM NUMBERS ARE KEYS OF THE TYPE (master plan 47.U stage 2): a type names a class (cfg key form) and may set each of the four numbers itself (cfg keys formAspect,
+        // formTopGain, formScale, formStretch). Every distinct set of four is a FORM SLOT (the shaders' _FieldC; slot 0: no form, slots 1 to 7 the classes as named); the type
+        // tables carry the slot. Between two neighbouring types the form is the nearer type's, as the class was (a blend of the aspect and the top gain across
+        // the transition changes the seven accepted types' looks there: it waits for the owner's pair, PRUEFPROTOKOLL 406).
+        internal const int FormSlots = 16;
+        // The slots: the classes first; a slot is written once, before the count that publishes it rises, so the readers (a per-sample path on worker threads) take no lock.
+        private static readonly float[][] forms = InitialForms();
+        private static volatile int formCount = Classes.Length;
+        // A type's own numbers found no free slot (more than FormSlots - 1 distinct forms in the session): CloudFieldGpu says so once in the log.
+        internal static bool FormsFull { get; private set; }
+
+        private static float[][] InitialForms()
+        {
+            var all = new float[FormSlots][];
+            for (int i = 0; i < Classes.Length; i++) all[i] = (float[])Classes[i].Clone();
+            return all;
+        }
+
+        // The four numbers of a slot (x aspect, y top gain, z scale, w stretch), not to be written to; slot 0 and an unknown slot: no form's.
+        internal static float[] Form(int slot)
+        {
+            return slot > 0 && slot < formCount ? forms[slot] : forms[0];
+        }
+
+        // The slot of a type's form: the named class with the numbers the type sets itself (the aspect, the scale and the stretch above 0, the top gain from 0; else the
+        // class's own). 0: no form (no class and no number of its own).
+        internal static int SlotOf(string name, float aspect, float topGain, float scale, float stretch)
+        {
+            int cls = ClassOf(name);
+            bool ownAspect = aspect > 0f, ownTop = topGain >= 0f, ownScale = scale > 0f, ownStretch = stretch > 0f;
+            if (!ownAspect && !ownTop && !ownScale && !ownStretch) return cls;
+            float[] c = Classes[cls];
+            float[] own = { ownAspect ? aspect : c[0], ownTop ? topGain : c[1], ownScale ? scale : c[2], ownStretch ? stretch : c[3] };
+            lock (forms)
+            {
+                int count = formCount;
+                for (int i = 1; i < count; i++)
+                    if (forms[i][0] == own[0] && forms[i][1] == own[1] && forms[i][2] == own[2] && forms[i][3] == own[3]) return i;
+                if (count >= FormSlots)
+                {
+                    // The table is full: the type draws its class's own numbers (no class: no form).
+                    FormsFull = true;
+                    return cls;
+                }
+                forms[count] = own;
+                formCount = count + 1;
+                return count;
+            }
+        }
 
         // The hash of CloudCells (the same constants), for the phase of a wavenumber.
         private static uint PhaseHash(int kx, int ky, uint seed)
@@ -194,19 +242,23 @@ namespace ReDefinition.Atmospheres
         // ---- the field's cloud on the CPU (the shader's FieldCloud for a point: a footprint of 0) ----
 
         // What the field says at a point of a layer's map, as the shader's FieldCloud (CloudCells.cginc) says it for a footprint of 0, so that the CPU readers of the clouds' place (the cloud
-        // shadow's field: the sun's dimming) stand where the picture draws them. Returns 1: inside the reach of a cloud's body, read holds the body's numbers for CloudCells.CellBody;
-        // 0: outside every body (no cloud). The field carries every share (master plan 47.U stage 2): the closed layer is the field at a share of 1, the map's surplus above
+        // shadow's field: the sun's dimming) stand where the picture draws them. Returns 1: the map has a share here (Body then says whether the point is within a body's reach);
+        // 0: none (no cloud). The field carries every share (master plan 47.U stage 2): the closed layer is the field at a share of 1, the map's surplus above
         // it carried on (see FieldCloud). The far mean of the shader is not here: a CPU reader asks for a point, not for a pixel's footprint.
-        // field: the channels of Build (size x size x 4); cls: the type's class (aspect, top gain, scale, stretch: Classes); windCos, windSin: the street direction; cov: the layer map's
+        // field: the channels of Build (size x size x 4); cls: the type's form (aspect, top gain, scale, stretch: Form); windCos, windSin: the street direction; cov: the layer map's
         // value after the clear-sky rule; coverage, edge, amount: the layer's; u, v: the layer map's coordinate (u with the layer's shift, any value; v 0 north to 1 south); rm: the radius
-        // of the layer's middle in m; h: the height share of the type at the point; typeHeightM: the type's height in m; bodyBulge, band, fineGain: the layer's body numbers (the bulges'
-        // swing bounds the body's reach).
+        // of the layer's middle in m; typeHeightM: the type's height in m.
+        // THE TWO STEPS (master plan 47.U stage 3, as the shaders' FieldCloud and FieldBody): Cloud reads the field (1: the map has a share here; the read holds the point's place
+        // across the body, the body's size and its top); the caller then takes the point's height in the body from the type's outline at h / read.Top (LayerTypeTable.FormHeight;
+        // without an outline curve that quotient itself: the half ellipsoid) and asks Body, which says whether the point lies within the body's reach.
         internal static int Cloud(float[] field, int size, float[] cls, double windCos, double windSin, double cov, double coverage, double edge, double amount, double u, double v,
-                                  double rm, double h, double typeHeightM, double bodyBulge, double band, double fineGain, out CloudCells.CellRead read)
+                                  double rm, double typeHeightM, out CloudCells.CellRead read)
         {
             read.XBest = -1.0;
             read.RBest = 0.0;
             read.Core = 0.0;
+            read.Hv = 0.0;
+            read.Top = 1.0;
             double f = CloudCells.Share(cov, coverage, edge, amount);
             if (f <= 0.0) return 0;
             double fField = f + Math.Max(cov + coverage - 1.0 - 0.5 * (edge + Math.Abs(amount)), 0.0);
@@ -219,14 +271,35 @@ namespace ReDefinition.Atmospheres
             double coreF = Clamp(0.5 * (cov + coverage - 1.0) + 0.35, 0.15, 0.5) * (1.0 + cls[1] * (1.0 - 2.0 * fb));
             double topF = Clamp(coreF / 0.5, 0.15, 1.0);
             double semiH = Math.Max(topF * typeHeightM, 1.0), rC = cls[0] * semiH;
-            double xv = 1.0 - Clamp(dm / rC, -2.0, 1.0), hv = h / topF;
-            double axis = Math.Min(rC, semiH);
-            double swing = bodyBulge * axis * (0.5 + 0.5 * fineGain * (0.37 + 0.137));
-            if ((1.0 - Math.Sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * Math.Max(band, 1.0) < 0.0) return 0;
-            read.XBest = CloudCells.EdgeX * xv;
+            read.XBest = CloudCells.EdgeX * (1.0 - Clamp(dm / rC, -2.0, 1.0));
             read.RBest = rC / CloudCells.EdgeX;
             read.Core = coreF;
+            read.Top = topF;
             return 1;
+        }
+
+        // The second step: the point's height in the body (hv, from the type's outline) and the reach test. 0: outside the body's reach (the read says "no body" then).
+        // bodyBulge, band, fineGain: the layer's body numbers (the bulges' swing bounds the body's reach).
+        internal static int Body(ref CloudCells.CellRead read, double hv, double typeHeightM, double bodyBulge, double band, double fineGain)
+        {
+            double semiH = Math.Max(read.Top * typeHeightM, 1.0), rC = read.RBest * CloudCells.EdgeX;
+            double xv = read.XBest / CloudCells.EdgeX;
+            double axis = Math.Min(rC, semiH);
+            double swing = bodyBulge * axis * (0.5 + 0.5 * fineGain * (0.37 + 0.137));
+            if ((1.0 - Math.Sqrt(xv * xv + hv * hv)) * axis + swing + 0.5 * Math.Max(band, 1.0) < 0.0)
+            {
+                read.XBest = -1.0;
+                return 0;
+            }
+            read.Hv = hv;
+            return 1;
+        }
+
+        // The equivalent height of an outline's width share w (1: the whole footprint, 0: closed): the height of the half ellipsoid at which it is as wide.
+        internal static double OutlineHeight(double w)
+        {
+            w = Clamp(w, 0.0, 1.0);
+            return Math.Sqrt(1.0 - w * w);
         }
 
         private static double Clamp(double x, double a, double b)

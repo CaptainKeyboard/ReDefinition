@@ -8,11 +8,12 @@ namespace ReDefinition.Atmospheres
     {
         private static readonly int IdField = Shader.PropertyToID("_CloudField"), IdP = Shader.PropertyToID("_FieldP"), IdC = Shader.PropertyToID("_FieldC"),
             IdV = Shader.PropertyToID("_FieldV");
+        private static bool fullSaid;
         private static Texture2D texture;
         private static float[] data;
         // The field's spread inside a texel of each mip level (CloudField.MipSpread; the shader's _FieldV).
         private static float[] spread;
-        private static readonly Vector4[] classes = new Vector4[CloudField.ClassCount];
+        private static readonly Vector4[] classes = new Vector4[CloudField.FormSlots];
 
         // The channels of the field on the CPU (the twins' lookup); null until built.
         internal static float[] Data { get { return data; } }
@@ -41,10 +42,15 @@ namespace ReDefinition.Atmospheres
                 Shader.SetGlobalTexture(IdField, texture);
                 for (int i = 0; i < classes.Length; i++)
                 {
-                    float[] c = CloudField.Classes[i];
+                    float[] c = CloudField.Form(i);   // the form slots (the classes and the types' own numbers)
                     classes[i] = new Vector4(c[0], c[1], c[2], c[3]);
                 }
                 Shader.SetGlobalVectorArray(IdC, classes);
+                if (CloudField.FormsFull && !fullSaid)
+                {
+                    fullSaid = true;
+                    AtmospheresLog.Say("cloud field: more than " + (CloudField.FormSlots - 1) + " distinct cloud forms; the types beyond that draw their class's own form numbers");
+                }
                 if (spread != null) Shader.SetGlobalFloatArray(IdV, spread);
             }
         }

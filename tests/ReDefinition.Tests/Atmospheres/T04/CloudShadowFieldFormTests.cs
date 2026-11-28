@@ -82,7 +82,8 @@ namespace ReDefinition.Tests
                     double u = (Math.Atan2(y, x) * 180.0 / Math.PI - layer.MapShiftDeg + 180.0) / 360.0, v = (90.0 - Math.Asin(z / r) * 180.0 / Math.PI) / 180.0;
                     CloudCells.CellRead read;
                     int cloud = CloudField.Cloud(FieldData, FieldSize, CloudField.Classes[form], 1.0, 0.0, layer.ClearSkyMap(cov), coverage, edge, layer.EffectiveNoiseAmount, u, v, Rm,
-                                                 (layerShare - b) / (tp - b), typeHeightM, bulge, band, 0.0, out read);
+                                                 typeHeightM, out read);
+                    if (cloud > 0) cloud = CloudField.Body(ref read, (layerShare - b) / (tp - b) / read.Top, typeHeightM, bulge, band, 0.0);
                     double want = 0.0;
                     if (cloud > 0)
                     {
@@ -91,7 +92,7 @@ namespace ReDefinition.Tests
                         prm.SmoothingScales = table.SmoothingOf(0.0);
                         prm.ShapeLod = CloudShapeModel.SmoothingLod(prm.SmoothingScales, Volumes.ShapeN);
                         double rank = CloudShapeModel.Share(Volumes, ref prm, x, y, z, 1.0 - coverage, coverage, 1.0, 1.0, 0.0, false);
-                        double s = CloudCells.CellBody(read, (layerShare - b) / (tp - b), rank, 0.0, 0.0, typeHeightM, bulge, band, 0.0);
+                        double s = CloudCells.CellBody(read, rank, 0.0, 0.0, typeHeightM, bulge, band, 0.0);
                         want = s <= 0.0 ? 0.0 : CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, 0.0));
                     }
                     Assert.AreEqual(want, got, 1e-9, "noise amount " + noiseAmount + ", point " + k);
@@ -178,12 +179,13 @@ namespace ReDefinition.Tests
                 double u = (Math.Atan2(y, x) * 180.0 / Math.PI - layer.MapShiftDeg + 180.0) / 360.0, v = (90.0 - Math.Asin(z / r) * 180.0 / Math.PI) / 180.0;
                 CloudCells.CellRead read;
                 // The noise amount 0 in the field's read (the share of the region that is cloud is the map's alone), the rank 0.5 in the body.
-                int cloud = CloudField.Cloud(FieldData, FieldSize, CloudField.Classes[form], 1.0, 0.0, layer.ClearSkyMap(cov), coverage, edge, 0.0, u, v, Rm, (layerShare - b) / (tp - b),
-                                             typeHeightM, bulge, band, 0.0, out read);
+                int cloud = CloudField.Cloud(FieldData, FieldSize, CloudField.Classes[form], 1.0, 0.0, layer.ClearSkyMap(cov), coverage, edge, 0.0, u, v, Rm,
+                                             typeHeightM, out read);
+                if (cloud > 0) cloud = CloudField.Body(ref read, (layerShare - b) / (tp - b) / read.Top, typeHeightM, bulge, band, 0.0);
                 double want = 0.0;
                 if (cloud > 0)
                 {
-                    double s = CloudCells.CellBody(read, (layerShare - b) / (tp - b), 0.5, 0.0, 0.0, typeHeightM, bulge, band, 0.0);
+                    double s = CloudCells.CellBody(read, 0.5, 0.0, 0.0, typeHeightM, bulge, band, 0.0);
                     want = s <= 0.0 ? 0.0 : CloudWater.Pow(s, layer.EffectiveWaterPowerAt(table, 0.0));
                 }
                 Assert.AreEqual(want, got, 1e-9, "point " + k);

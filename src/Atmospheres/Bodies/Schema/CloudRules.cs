@@ -94,6 +94,9 @@ namespace ReDefinition.Atmospheres
         internal float Cavity { get; set; }
         // CLOUD FIELD: the cloud form of the type (cfg key form = humilis | mediocris | congestus | altocumulus | stratocumulus | calvus | incus | none; CloudField.ClassOf): the weather map's
         // share is drawn as clouds of this class placed by the cloud field (flat base, a dome of the class's aspect, the bulges of the cumuliform preset); 0: the type has no form (the map's threshold).
+        // The value is the form's SLOT (CloudField.SlotOf): the class as named, or a slot of its own where the type sets one of the four form numbers itself (cfg keys formAspect: the
+        // dome's horizontal semi-axis over its height; formTopGain: how much the clusters' cores lift the top; formScale: the lookup's scale, features 1 / scale of the field's size;
+        // formStretch: the street stretch along the wind; each: the class's own where absent).
         internal int Form { get; set; }
 
         // M2c 4a(1), the pannus (WMO International Cloud Atlas, accessory cloud pannus: "ragged shreds, sometimes constituting a continuous layer, situated below another cloud";
@@ -153,9 +156,17 @@ namespace ReDefinition.Atmospheres
             return lift == null ? 0.0 : lift.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h));
         }
 
-        // The lift the shader reads (headroom units): the drawn LIFT curve, at least the top's closure ramp (TopClose).
+        // Master plan 47.U stage 3, THE OUTLINE of a type with a form (cfg node FORM { OUTLINE { key0 = height width } }, null: the half ellipsoid): over the body's height (0 its
+        // base, 1 its top) the share of the body's half width that is cloud (1: the whole footprint the field gives, 0: closed). The half ellipsoid is the curve
+        // sqrt(1 - height^2); a deck keeps 1 up to a rounded shoulder, an anvil widens upward, a pannus keeps the field's deepest places only in its band. The body's depth
+        // below its surface is the half ellipsoid's at the height where that one is as wide (CloudField.OutlineHeight), so the bulges and the band act on every outline alike.
+        internal Curve Outline { get; set; }
+
+        // The lift the shader reads (headroom units): the drawn LIFT curve, at least the top's closure ramp (TopClose). A type with a form and an outline: the outline's
+        // equivalent height instead (the body takes the place of the lift; the shaders' FormHeight, LayerTypeTable.FormHeight).
         internal double BakedLiftAt(double h)
         {
+            if (Form > 0 && Outline != null) return CloudField.OutlineHeight(Outline.Evaluate((float)(h <= 0.0 ? 0.0 : h >= 1.0 ? 1.0 : h)));
             double lift = LiftAt(h);
             if (!(TopClose > 0f)) return lift;
             double x = (h - (1.0 - TopClose)) / TopClose;
