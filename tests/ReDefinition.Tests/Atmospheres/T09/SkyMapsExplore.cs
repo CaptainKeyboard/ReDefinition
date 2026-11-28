@@ -81,6 +81,133 @@ namespace ReDefinition.Tests.Atmospheres.T09
             Tuning.Instance.BeginFrame(9000002);
         }
 
+        // THE SKY FROM THE WEATHER MAP, offline (2026-11-28): the layer covers and types the game's map sky draws for Kerbin at given times, by the module's own chain
+        // (OwnCloudModule.FetchMapSky and FetchLayer: the package B maps, MapSkyRegions.Plan and Layer, the low stratiform rule's rain and fog part, the meso stage's cover
+        // pattern), dumped as raw bytes for tools/weather_metrics/mapsky_preview.py. Runs only when MAPSKY_OUT names a directory; MAPSKY_UTS and SKYMAPS_SEED as above.
+        // Per time: <tag>cover, precip, the parts (rising, sc, ac, low, high, tall), and per layer <name>_plan (before the pattern), _cover, _type.
+        [TestMethod, TestCategory("Explore")]
+        public void DumpTheMapSkyOfKerbin()
+        {
+            string folder = Environment.GetEnvironmentVariable("MAPSKY_OUT");
+            if (string.IsNullOrEmpty(folder)) Assert.Inconclusive("A measurement run: it runs only when MAPSKY_OUT is set.");
+            Directory.CreateDirectory(folder);
+            string utText = Environment.GetEnvironmentVariable("MAPSKY_UTS") ?? "1486800,1767600";
+            string seedText = Environment.GetEnvironmentVariable("SKYMAPS_SEED");
+            int seed = string.IsNullOrEmpty(seedText) ? 664216370 : int.Parse(seedText, CultureInfo.InvariantCulture);
+            LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
+            try
+            {
+                BodyClimate climate;
+                GeneratorField field = KerbinField(seed, out climate);
+                CloudLayerDef[] layers = TypeMixFixture.ShippedLayers();
+                int body = FieldFixture.BodyIndex;
+                WeatherMapKind[] kinds =
+                {
+                    WeatherMapKind.ConvectiveAmount, WeatherMapKind.StratiformAmount, WeatherMapKind.LowStratiformAmount, WeatherMapKind.ConvectiveBase, WeatherMapKind.ConvectiveTop,
+                    WeatherMapKind.StableShare, WeatherMapKind.HumidityLow, WeatherMapKind.HumidityMid, WeatherMapKind.HumidityHigh, WeatherMapKind.CellReach
+                };
+                foreach (string part in utText.Split(','))
+                {
+                    double ut = double.Parse(part, CultureInfo.InvariantCulture);
+                    string tag = "u" + ((long)ut).ToString(CultureInfo.InvariantCulture) + "_";
+                    TypeMixFixture.Shared s = TypeMixFixture.Maps(field, body, ut);
+                    var maps = new WeatherMap[kinds.Length];
+                    for (int k = 0; k < kinds.Length; k++)
+                    {
+                        maps[k] = new WeatherMap();
+                        Assert.IsTrue(field.GetMap(body, kinds[k], ut, maps[k]), "the field gives " + kinds[k]);
+                    }
+                    var temperature = new WeatherMap();
+                    var wind = new WeatherMap();
+                    Assert.IsTrue(field.GetMap(body, WeatherMapKind.SurfaceTemperature, ut, temperature));
+                    Assert.IsTrue(field.GetMap(body, WeatherMapKind.WindSpeed, ut, wind));
+                    int n = s.Cover.Values.Length;
+                    var spread = new float[n];
+                    for (int i = 0; i < n; i++) spread[i] = WeatherLowStratiformRule.SpreadK(temperature.Values[i], s.Humidity.Values[i]);
+                    var m0 = new MapSkyRegions.Inputs
+                    {
+                        Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, Cover = s.Cover.Values, Cumuliform = maps[0].Values, Stratiform = maps[1].Values,
+                        LowStratiform = maps[2].Values, BaseShare = maps[3].Values, TopShare = maps[4].Values, StableShare = maps[5].Values, RhLow = maps[6].Values,
+                        RhMid = maps[7].Values, RhHigh = maps[8].Values, Reach = maps[9].Values, PrecipLevel = s.Precip.Values,
+                        TropopauseM = field.StateOf(body).Parameters.TropopauseM, Ut = ut
+                    };
+                    CloudLayerDef cumuliform = null, tall = null;
+                    foreach (CloudLayerDef l in layers)
+                    {
+                        WeatherMapSky.Role role = WeatherMapSky.RoleOf(l);
+                        if (role == WeatherMapSky.Role.Cumuliform && cumuliform == null) cumuliform = l;
+                        if (role == WeatherMapSky.Role.Tall && tall == null) tall = l;
+                    }
+                    MapSkyRegions.Parts p = MapSkyRegions.Plan(m0, cumuliform, tall);
+                    Dump(folder, tag + "cover", s.Cover.Bytes);
+                    Dump(folder, tag + "precip", s.Precip.Bytes);
+                    DumpShares(folder, tag + "part_rising", p.Rising);
+                    DumpShares(folder, tag + "part_sc", p.Sc);
+                    DumpShares(folder, tag + "part_ac", p.Ac);
+                    DumpShares(folder, tag + "part_low", p.Low);
+                    DumpShares(folder, tag + "part_high", p.High);
+                    DumpShares(folder, tag + "part_tall", p.Tall);
+                    DumpShares(folder, tag + "rh_low", maps[6].Values);
+                    DumpShares(folder, tag + "rh_mid", maps[7].Values);
+                    DumpShares(folder, tag + "rh_high", maps[8].Values);
+                    DumpShares(folder, tag + "stratiform", maps[1].Values);
+                    DumpShares(folder, tag + "cumuliform", maps[0].Values);
+                    foreach (CloudLayerDef l in layers)
+                    {
+                        WeatherMapSky.Role role = WeatherMapSky.RoleOf(l);
+                        if (role == WeatherMapSky.Role.None) continue;
+                        byte[] scratch = null;
+                        byte[] todayType = CloudLookTuning.TypeBytes(s.Precip.Bytes, l.FairType, -1f, ref scratch, l.RainType);
+                        byte[] fogC = null, fogT = null;
+                        if (role == WeatherMapSky.Role.LowStratiform && l.LowStratiform != null)
+                        {
+                            WeatherMap raw = LayerMap(field, body, ut, CloudBridgeStack.MidHeightM(l));
+                            fogC = new byte[n];
+                            fogT = new byte[n];
+                            l.LowStratiform.Apply(raw.Bytes, s.Precip.Values, spread, wind.Values, fogC, fogT);
+                            if (l.RainType < 1f)
+                                for (int i = 0; i < n; i++) fogT[i] = (byte)Math.Round(fogT[i] * l.RainType);
+                        }
+                        var cover = new byte[n];
+                        var type = new byte[n];
+                        Assert.IsTrue(MapSkyRegions.Layer(l, role, p, todayType, fogC, fogT, cover, type), "the map drives " + l.Name);
+                        Dump(folder, tag + l.Name + "_plan", cover);
+                        byte[] coverOut = cover, typeOut = type;
+                        if (l.Meso != null && l.Meso.On)
+                        {
+                            var inp = new CloudMesoInputs
+                            {
+                                Width = GeneratorMaps.Width, Height = GeneratorMaps.Height, Precip = s.Precip.Bytes, Humidity = s.Humidity.Bytes, Surface = s.Surface.Bytes,
+                                Ut = ut, DriftRadS = field.CloudDriftRadS(body, CloudBridgeStack.MidHeightM(l)), Seed = field.SeedOf(body)
+                            };
+                            Assert.IsTrue(field.CloudScalesOf(body, inp), "the field's body has its scales");
+                            coverOut = null;
+                            typeOut = null;
+                            CloudMesoStage.Apply(l, inp, cover, type, ref coverOut, ref typeOut, true);
+                        }
+                        Dump(folder, tag + l.Name + "_cover", coverOut);
+                        Dump(folder, tag + l.Name + "_type", typeOut);
+                    }
+                }
+                using (var meta = new StreamWriter(Path.Combine(folder, "meta.txt")))
+                {
+                    meta.WriteLine("width " + GeneratorMaps.Width + " height " + GeneratorMaps.Height + " seed " + seed);
+                    foreach (CloudLayerDef l in layers) meta.WriteLine("layer " + l.Name + " role " + WeatherMapSky.RoleOf(l) + " sigmaPerM " + l.SigmaPerM.ToString("R", CultureInfo.InvariantCulture));
+                }
+            }
+            finally
+            {
+                LayerWindOptions.SteeringOverride = null;
+            }
+        }
+
+        private static void DumpShares(string folder, string name, float[] values)
+        {
+            var bytes = new byte[values.Length];
+            for (int i = 0; i < values.Length; i++) bytes[i] = (byte)Math.Min(255.0, Math.Max(0.0, Math.Round(values[i] * 255.0)));
+            Dump(folder, name, bytes);
+        }
+
         [TestMethod, TestCategory("Explore")]
         public void DumpTheGameMapsOfKerbin()
         {
