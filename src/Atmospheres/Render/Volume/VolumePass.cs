@@ -144,9 +144,12 @@ namespace ReDefinition.Atmospheres
             double ut = Planetarium.GetUniversalTime();
             if (slab)
             {
-                Rebuild(cam, planet, ut, look);
+                bool draws = OwnCloudPlan.SlabDraws(slab, OwnCloudModule.Drawing);
+                long cpuPart = ModuleCpuTiming.Begin();
+                Rebuild(cam, planet, ut, look, draws);
+                ModuleCpuTiming.End("volumePass.rebuild", cpuPart);
                 SetFrame(cam, planet, ut, look, view);
-                if (OwnCloudPlan.SlabDraws(slab, OwnCloudModule.Drawing))
+                if (draws)
                 {
                     renderer.Upload(resampler);
                     renderer.Attach(cam, CameraEvent.BeforeForwardAlpha);
@@ -165,7 +168,9 @@ namespace ReDefinition.Atmospheres
                 renderer.Detach();
                 renderer.Commands.Clear();
             }
+            long cpuFall = ModuleCpuTiming.Begin();
             RunPraecipitatio(cam, planet, view);
+            ModuleCpuTiming.End("volumePass.praecipitatio", cpuFall);
         }
 
         private void Hide()
@@ -236,7 +241,11 @@ namespace ReDefinition.Atmospheres
         }
 
         // Starts a rebuild when it is time, and gives the running one its share of the frame.
-        private void Rebuild(Camera cam, CelestialBody planet, double ut, VolumeLook look)
+        // drawn: the slab is on the camera. While the layer pass draws the clouds the window serves only the readers of DensityAt (the lamps' medium, the light probe), and is
+        // made again every UndrawnRebuilds times as seldom (it cost 8.4 ms a second on the main thread in a dense sky, PRUEFPROTOKOLL 407; the weather it holds changes over minutes).
+        private const int UndrawnRebuilds = 4;
+
+        private void Rebuild(Camera cam, CelestialBody planet, double ut, VolumeLook look, bool drawn)
         {
             framesSinceBegin++;
             if (!resampler.Building)
@@ -247,7 +256,7 @@ namespace ReDefinition.Atmospheres
                     Vector3 relative = cam.transform.position - anchorCentre;
                     float east = Vector3.Dot(relative, anchorEastAxis), north = Vector3.Dot(relative, anchorNorthAxis);
                     bool moved = east * east + north * north > ReanchorM * ReanchorM;
-                    if (framesSinceBegin >= tier.RebuildFrames || moved || !resampler.HasData) Begin(cam, planet, ut, look);
+                    if (framesSinceBegin >= tier.RebuildFrames * (drawn ? 1 : UndrawnRebuilds) || moved || !resampler.HasData) Begin(cam, planet, ut, look);
                 }
             }
             if (resampler.Building) resampler.Step((tier.WindowXz + tier.SpreadFrames - 1) / tier.SpreadFrames);

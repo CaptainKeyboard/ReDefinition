@@ -65,6 +65,7 @@ namespace ReDefinition.Atmospheres
                 return;
             }
             Request(BodyWatcher.ActiveBody);
+            long cpuPart = ModuleCpuTiming.Begin();
             List<CelestialBody> bodies = GameGlobals.Bodies;
             if (bodies != null)
             {
@@ -79,8 +80,13 @@ namespace ReDefinition.Atmospheres
                     Step(bodies[pair.Key], now, ut);
                 }
             }
+            ModuleCpuTiming.End("ice.step", cpuPart);
+            cpuPart = ModuleCpuTiming.Begin();
             Orbit.Housekeeping();
+            ModuleCpuTiming.End("ice.orbit", cpuPart);
+            cpuPart = ModuleCpuTiming.Begin();
             Ground.Tick();
+            ModuleCpuTiming.End("ice.ground", cpuPart);
         }
 
         private static void Step(CelestialBody body, float now, double ut)

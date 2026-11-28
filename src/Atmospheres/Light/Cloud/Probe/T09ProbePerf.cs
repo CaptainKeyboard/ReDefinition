@@ -120,6 +120,14 @@ namespace ReDefinition.Atmospheres
                 case "air60":
                 case "air30":
                 case "airoff":
+                case "airc30":
+                case "airc45":
+                case "sl1":
+                case "sl2":
+                case "sl3":
+                case "sl4":
+                case "ls1":
+                case "lc0":
                 case "ls3":
                 case "ls4":
                 case "lc10":
@@ -421,8 +429,20 @@ namespace ReDefinition.Atmospheres
                 case "air60": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.6); break;
                 case "air30": OwnShell.ProbeHidden = true; Game.SetLayerMask(NoLayersMask); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
                 case "airoff": SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 1.0); break;
+                // The clouds drawn with the air's level from space at 0.3 and 0.45 (the sea's level against the clouds', PRUEFPROTOKOLL 408).
+                case "airc30": SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
+                case "airc45": SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.45); break;
+                // PRUEFPROTOKOLL 410 (which layer makes the veil and the patches seen from space): one layer of the stack drawn alone (cloud.soloLayer, 1-based).
+                case "sl1": ForceTuning(CloudLookTuning.TuneSoloLayer, 1f); break;
+                case "sl2": ForceTuning(CloudLookTuning.TuneSoloLayer, 2f); break;
+                case "sl3": ForceTuning(CloudLookTuning.TuneSoloLayer, 3f); break;
+                case "sl4": ForceTuning(CloudLookTuning.TuneSoloLayer, 4f); break;
                 // PRUEFPROTOKOLL 401 (the deck start below 48 fps, the light march is the cost): the march to the sun every 3rd and 4th lit step of a span instead of
                 // every 2nd (layers.lightStride), and the reuse for every step that weighs less than a tenth of the pixel instead of a twentieth (layers.lightCutoff).
+                // PRUEFPROTOKOLL 404 (the storm sky from the ground is flat sheets with stair-stepped contours): what the light's two savings do to that picture: ls1 the march
+                // to the sun at every lit step, lc0 no reuse of the sun's light by a step's weight.
+                case "ls1": ForceTuning(OwnCloudOptions.TuneLightStride, 1f); break;
+                case "lc0": ForceTuning(OwnCloudOptions.TuneLightCutoff, 0f); break;
                 case "ls3": ForceTuning(OwnCloudOptions.TuneLightStride, 3f); break;
                 case "ls4": ForceTuning(OwnCloudOptions.TuneLightStride, 4f); break;
                 case "lc10": ForceTuning(OwnCloudOptions.TuneLightCutoff, 0.10f); break;                // PRUEFPROTOKOLL 345, 346 (the planet tile without cloud at 300 km after the far views): noshell with the scene's depth not limiting the march. Cloud in the

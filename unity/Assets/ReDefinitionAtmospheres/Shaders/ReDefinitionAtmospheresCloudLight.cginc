@@ -135,7 +135,7 @@ float DayShare(float3 sunAir)
 #define LIGHT_OTHER_TAPS 16
 
 // The optical depth from a point along a direction through all layers: the own layer with `steps` taps of growing size (each `ratio` times the one before) over at most `range` m (below 0: up to -range m from pc),
-// the other layers with even taps of about one of that layer's noise scales (at least half of `steps`, at most LIGHT_OTHER_TAPS) (own < 0: all layers with `steps` growing taps).
+// the other layers with even taps of about one of that layer's noise scales (at least a quarter of `steps` and two, at most LIGHT_OTHER_TAPS) (own < 0: all layers with `steps` growing taps).
 // The other layers' taps: four taps each twice the one before over a span of 10 km are 0.7 to 5.3 km long, and each reads the density at one point: a cloud above
 // between those points cast no shadow, one on a point a hard-edged shadow of the tap's whole length, and the shadows changed completely with the tap count (K-T2
 // perfNpic2560dlssqshadowtaps, PRUEFPROTOKOLL 202). Even taps of the layer's noise scale (a cumulus layer's 250 m, up to the cap) resolve the clouds the way the layer
@@ -167,7 +167,10 @@ float LightTau(float3 pc, float3 dir, int own, int steps, float t, int eroded, f
             [branch] if (other && !formerOther)
             {
                 float scale = _LayerD[lj].y > 0.0 ? 1.0 / _LayerD[lj].y : b - a;
-                n = clamp((int)ceil((b - a) / max(scale, 1.0)), max(1, steps / 2), LIGHT_OTHER_TAPS);
+                // At least a quarter of `steps` (two of the sun's eight), it was a half: the taps are one noise scale long by their own rule, and a span shorter than
+                // four scales (a thin sheet above, crossed steeply) took four where its length asks for one or two (PRUEFPROTOKOLL 409: the light march is 3.4 ms of
+                // the dense sky's view from above, where a pixel marches to the sun once or twice and each march crosses every other layer).
+                n = clamp((int)ceil((b - a) / max(scale, 1.0)), max(2, steps / 4), LIGHT_OTHER_TAPS);
                 r = 1.0;
             }
             float norm = r == 1.0 ? (float)n : (pow(r, (float)n) - 1.0) / (r - 1.0);

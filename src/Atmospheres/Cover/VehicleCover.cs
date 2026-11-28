@@ -142,7 +142,10 @@ namespace ReDefinition.Atmospheres
             if (loaded == null || !CoverClock.TryUt(out ut)) return;
             EnsureSaveLoaded();
             float now = Time.realtimeSinceStartup;
+            long cpuPart = ModuleCpuTiming.Begin();
             Prune(loaded, ut);
+            ModuleCpuTiming.End("vehicleCover.prune", cpuPart);
+            cpuPart = ModuleCpuTiming.Begin();
             for (int i = 0; i < loaded.Count; i++)
             {
                 Vessel v = loaded[i];
@@ -160,12 +163,15 @@ namespace ReDefinition.Atmospheres
                     StepVessel(r, ut, mode);
                 }
             }
+            ModuleCpuTiming.End("vehicleCover.step", cpuPart);
+            cpuPart = ModuleCpuTiming.Begin();
             if (AtmospheresSettings.VehicleCoverMethod == VehicleCoverMethod.ScreenSpace) DrawScreen();
             else
             {
                 DetachScreen();
                 Build(now);
             }
+            ModuleCpuTiming.End("vehicleCover.draw", cpuPart);
             if (dirty && now - lastSave >= SaveSeconds) Save(now);
         }
 
