@@ -126,6 +126,9 @@ namespace ReDefinition.Atmospheres
                 case "sl2":
                 case "sl3":
                 case "sl4":
+                case "st0":
+                case "st0a30":
+                case "st35a30":
                 case "ls1":
                 case "lc0":
                 case "ls3":
@@ -437,6 +440,11 @@ namespace ReDefinition.Atmospheres
                 case "sl2": ForceTuning(CloudLookTuning.TuneSoloLayer, 2f); break;
                 case "sl3": ForceTuning(CloudLookTuning.TuneSoloLayer, 3f); break;
                 case "sl4": ForceTuning(CloudLookTuning.TuneSoloLayer, 4f); break;
+                // PRUEFPROTOKOLL 411 (the cloud tops are bluish from space at every air level, N 0.17 to 0.20 against under 0.1): the sky light's tint on the clouds
+                // (light.skyTint, 0.7) at 0 with the default air, and at 0 and 0.35 with the air's level at 0.3.
+                case "st0": ForceTuning(OwnCloudOptions.TuneSkyTint, 0f); break;
+                case "st0a30": ForceTuning(OwnCloudOptions.TuneSkyTint, 0f); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
+                case "st35a30": ForceTuning(OwnCloudOptions.TuneSkyTint, 0.35f); SetSetting(AtmospheresSettings.Keys.SpaceAirLevel, 0.3); break;
                 // PRUEFPROTOKOLL 401 (the deck start below 48 fps, the light march is the cost): the march to the sun every 3rd and 4th lit step of a span instead of
                 // every 2nd (layers.lightStride), and the reuse for every step that weighs less than a tenth of the pixel instead of a twentieth (layers.lightCutoff).
                 // PRUEFPROTOKOLL 404 (the storm sky from the ground is flat sheets with stair-stepped contours): what the light's two savings do to that picture: ls1 the march
