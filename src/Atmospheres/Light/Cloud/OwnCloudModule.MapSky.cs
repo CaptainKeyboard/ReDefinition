@@ -4,7 +4,7 @@ using ReDefinition.Core;
 namespace ReDefinition.Atmospheres
 {
     // The sky drawn from the weather map. Where a round has no weather data the layers take the layer maps of today's chain until the next round. Once per map round the package B
-    // maps are fetched and cut into the layers' parts (MapSkyRegions.Plan); each layer the map drives then takes its cover and type from them instead of today's chain (no meso stage,
+    // maps are fetched and cut into the layers' parts (MapSkyRegions.Plan); each layer the map drives then takes its cover and type from them instead of today's chain (the meso stage's cover pattern follows, its types do not;
     // no combination with the field's cover), and the next height build puts the convective base into the cumuliform and tall layers' root offsets.
     internal sealed partial class OwnCloudModule
     {

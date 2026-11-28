@@ -56,6 +56,19 @@ namespace ReDefinition.Tests.Atmospheres.T09
             }
         }
 
+        // The sky from the weather map (2026-11-28): the stage breaks the map's share into fields and gaps and leaves the types the map sky chose.
+        [TestMethod]
+        public void TheCoverOnlyStageMakesTheSamePatternAndKeepsTheTypesItWasHanded()
+        {
+            CloudLayerDef cumulus = Cumulus();
+            byte[] cover = Flat(128), type = Flat(64), both = null, bothType = null, only = null, onlyType = null;
+            CloudMesoStage.Apply(cumulus, Inputs(Flat(0), Flat(128), Flat(128)), cover, type, ref both, ref bothType);
+            CloudMesoStage.Apply(cumulus, Inputs(Flat(0), Flat(128), Flat(128)), cover, type, ref only, ref onlyType, true);
+            CollectionAssert.AreEqual(both, only, "the cover pattern is the same with and without the types");
+            Assert.AreSame(type, onlyType, "the types handed in come back untouched");
+            Assert.AreNotSame(type, bothType, "the full stage chooses the types of a layer with a climate");
+        }
+
         // The edge of a field is a density of small cells (E40 L5 maps): the step's shift makes the mean over the scatter noise the ramp's value, and a region keeps its cover.
         [TestMethod]
         public void TheScatterStepHasTheRampsValueAsItsMean()

@@ -28,7 +28,9 @@ namespace ReDefinition.Atmospheres
     //                         map holds a cell's tower only in the single texel at its centre. Without the list the tall share above is drawn.
     //   low stratiform     -> the larger of the low level's sheet and today's low stratiform rule (rain from the precipitation map, fog from the dew-point spread): the field's low level
     //                         lies below the convective base in raining fronts, so the low stratiform rain layer would be missing under them.
-    //   not drawn          -> the meso pattern and the combination with the field's cover (the amounts are the sky's shares).
+    //   meso pattern       -> since 2026-11-28 a layer's share is broken into fields and gaps by its MESO pattern after this (CloudMesoStage, cover only: the types stay these);
+    //                         until then every share was drawn evenly, from orbit a veil where a real sky of that share is bright fields with dark gaps.
+    //   not drawn          -> the combination with the field's cover (the amounts are the sky's shares).
     internal static class MapSkyRegions
     {
         internal const float SaturatedRh = WeatherMapSky.SaturatedRh;

@@ -1218,13 +1218,17 @@ namespace ReDefinition.Atmospheres
                     if (!layerDef.HasClimate) typeBytes = CloudLookTuning.ApplyAlto(typeBytes, typeMap.Bytes, altoMidMap.Bytes, altoLowMap.Bytes, layerDef.AltoType, layerDef.AltoFrom, layerDef.AltoFull, ref altoScratch);
                 }
             }
-            // The map sky: a layer the weather map drives takes its cover and type from the round's parts; no meso stage, no combination (OwnCloudModule.MapSky.cs).
+            // The map sky: a layer the weather map drives takes its cover and type from the round's parts; no combination (OwnCloudModule.MapSky.cs).
             bool mapSkyLayer = forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f
                                && MapSkyLayer(l, stack.LayerAt(l), lowStratiformRule ?? stack.LayerAt(l).LowStratiform, rawCover, typeBytes, ref cover, ref typeBytes, ref coverSource);
             if (mapSkyLayer) cellLayerNow[l] = false;
             // E40 L3: the meso-scale cover pattern and the types from their climate, from the layer's own cfg data (not under the probe's overrides of the maps and types).
             CloudLayerDef mesoDef = stack.LayerAt(l);
-            if (!mapSkyLayer && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && ((mesoDef.Meso != null && mesoDef.Meso.On) || (mesoDef.HasClimate && lowStratiformRule == null)) && gf != null)
+            // THE MAP SKY TAKES THE COVER PATTERN TOO (owner 2026-11-28: the clouds as the real pictures from orbit and from the ground show them; PRUEFPROTOKOLL 413, 414): the
+            // map's share of a texel is how much of the region is cloud, and without the pattern every share was drawn evenly, from orbit a veil over the whole region where a
+            // real sky of that share is bright fields with dark gaps of 5 to 50 km. The types stay the map sky's (coverOnly).
+            bool mesoCoverOn = mesoDef.Meso != null && mesoDef.Meso.On;
+            if ((mapSkyLayer ? mesoCoverOn : (mesoCoverOn || (mesoDef.HasClimate && lowStratiformRule == null))) && !cellLayer && forcedCover < 0f && CloudLookTuning.TypeOverrideOf(layerName) < 0f && gf != null)
             {
                 CloudMesoInputs mi = mesoInputs;
                 mi.Width = MapWidth;
@@ -1249,7 +1253,7 @@ namespace ReDefinition.Atmospheres
                 BodyClimate scaleClimate = Bodies.Get(b);
                 if (scaleClimate != null && scaleClimate.Clouds.ScaledTroposphereM > 0) mi.DepthKm = scaleClimate.Clouds.ScaledTroposphereM * 0.001;
                 byte[] mc = mesoCover[l], mt = mesoType[l];
-                CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt);
+                CloudMesoStage.Apply(mesoDef, mi, cover, typeBytes, ref mc, ref mt, mapSkyLayer);
                 mesoCover[l] = mc;
                 mesoType[l] = mt;
                 if (!ReferenceEquals(mc, cover))

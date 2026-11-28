@@ -45,7 +45,9 @@ namespace ReDefinition.Atmospheres
         private static readonly Dictionary<string, float[]> cache = new Dictionary<string, float[]>();
 
         // Fills coverOut and typeOut (allocated or reused by the caller; the same arrays as the inputs are returned where the stage changes nothing).
-        internal static void Apply(CloudLayerDef layer, CloudMesoInputs inp, byte[] coverIn, byte[] typeIn, ref byte[] coverOut, ref byte[] typeOut)
+        // coverOnly: the types stay as they come in (the sky from the weather map chooses them from the field's depth and levels, MapSkyRegions; the stage then
+        // only breaks the map's share into fields and gaps of the mesoscale size).
+        internal static void Apply(CloudLayerDef layer, CloudMesoInputs inp, byte[] coverIn, byte[] typeIn, ref byte[] coverOut, ref byte[] typeOut, bool coverOnly = false)
         {
             CloudMesoSpec meso = layer.Meso;
             if (!(inp.RadiusKm > 0.0) || !(inp.DepthKm > 0.0))
@@ -56,7 +58,7 @@ namespace ReDefinition.Atmospheres
             }
             if (meso != null && meso.On) ApplyCover(layer, meso, inp, coverIn, ref coverOut);
             else coverOut = coverIn;
-            if (layer.HasClimate && layer.LowStratiform == null) ApplyType(layer, inp, typeIn, ref typeOut);
+            if (!coverOnly && layer.HasClimate && layer.LowStratiform == null) ApplyType(layer, inp, typeIn, ref typeOut);
             else typeOut = typeIn;
         }
 
